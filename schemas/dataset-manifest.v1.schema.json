@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://manafold-census.invalid/schemas/dataset-manifest.v1.schema.json",
+  "title": "Census DatasetManifest v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "dataset_id",
+    "dataset_version",
+    "source_lock_digest",
+    "normalization_profile",
+    "record_count"
+  ],
+  "properties": {
+    "schema": {"const": "census.dataset-manifest.v1"},
+    "dataset_id": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/_-]*$"
+    },
+    "dataset_version": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/_-]*$"
+    },
+    "source_lock_digest": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "normalization_profile": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/_-]*$"
+    },
+    "record_count": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 9223372036854775807
+    }
+  }
+}

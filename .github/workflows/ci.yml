@@ -1,0 +1,31 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  task-00:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install project and development tools
+        run: python -m pip install --upgrade pip && python -m pip install -e ".[dev]"
+      - name: Check formatting
+        run: ruff format --check .
+      - name: Run Ruff
+        run: ruff check .
+      - name: Run mypy
+        run: mypy src/manafold_census
+      - name: Run tests
+        run: pytest
+      - name: Check deterministic reproduction
+        run: python -m manafold_census.cli reproduce

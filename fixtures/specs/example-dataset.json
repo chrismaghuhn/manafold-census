@@ -1,0 +1,8 @@
+{
+  "schema": "census.dataset-manifest.v1",
+  "dataset_id": "example-dataset",
+  "dataset_version": "1.0.0",
+  "source_lock_digest": "46771dd752588f979e19c189de5122ca5aa0281d8ad2eaee2ab3f8ecb8888380",
+  "normalization_profile": "identity.v1",
+  "record_count": 1
+}

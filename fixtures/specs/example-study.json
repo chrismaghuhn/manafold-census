@@ -1,0 +1,10 @@
+{
+  "schema": "census.study-spec.v1",
+  "study_id": "example-study",
+  "dataset_refs": ["example-dataset"],
+  "operation": "fixture-identity.v1",
+  "parameters": {
+    "include_source": true,
+    "mode": "identity"
+  }
+}

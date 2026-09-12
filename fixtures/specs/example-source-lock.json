@@ -1,0 +1,13 @@
+{
+  "schema": "census.source-lock.v1",
+  "artifacts": [
+    {
+      "schema": "census.source-artifact.v1",
+      "source_id": "example-source",
+      "locator": "fixture://example.txt",
+      "sha256": "daeea278e2dc26a03322730d698d266aae9557097003e9ae7f57fb42b60a1ddd",
+      "byte_length": 25,
+      "media_type": "text/plain"
+    }
+  ]
+}
