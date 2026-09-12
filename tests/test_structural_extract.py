@@ -142,6 +142,48 @@ def test_faces_preserve_order_and_do_not_inherit_parent_fields() -> None:
     assert structural.colors == ("U",)
 
 
+@pytest.mark.parametrize("face_count", [1, 2, 3, 5])
+def test_positive_face_count_matrix_preserves_positions(face_count: int) -> None:
+    source = _source_record()
+    source["card_faces"] = [_face(f"Face {index}") for index in range(face_count)]
+
+    structural = parse_structural_source_record(_raw_line(source), 1)
+
+    assert structural.faces is not None
+    assert len(structural.faces) == face_count
+    assert [face.face_index for face in structural.faces] == list(range(face_count))
+    assert [face.name for face in structural.faces] == [
+        f"Face {index}" for index in range(face_count)
+    ]
+
+
+def test_present_empty_optional_strings_are_preserved() -> None:
+    source = _source_record()
+    source["oracle_text"] = ""
+    source["card_faces"] = [_face("Front", oracle_text="")]
+
+    structural = parse_structural_source_record(_raw_line(source), 1)
+
+    assert structural.oracle_text == ""
+    assert structural.faces is not None
+    assert structural.faces[0].oracle_text == ""
+
+
+def test_unicode_source_strings_are_preserved_exactly() -> None:
+    parent_text = "Zażółć gęślą jaźń — 🜁"
+    face_text = "中文 Ελληνικά кириллица"
+    source = _source_record()
+    source["oracle_text"] = parent_text
+    source["card_faces"] = [_face("Żółw", oracle_text=face_text)]
+
+    structural = parse_structural_source_record(_raw_line(source), 1)
+
+    assert structural.oracle_text == parent_text
+    assert structural.faces is not None
+    assert structural.faces[0].name == "Żółw"
+    assert structural.faces[0].oracle_text == face_text
+
+
 def test_related_parts_preserve_order_and_opaque_uris() -> None:
     source = _source_record()
     source["all_parts"] = [
@@ -228,6 +270,22 @@ def test_invalid_parent_shapes_fail_closed(field: str, value: object) -> None:
     source[field] = value
 
     with pytest.raises(StructuralExtractionError):
+        parse_structural_source_record(_raw_line(source), 1)
+
+
+def test_wrong_optional_parent_scalar_type_fails_closed() -> None:
+    source = _source_record()
+    source["oracle_text"] = 7
+
+    with pytest.raises(StructuralExtractionError, match="oracle_text"):
+        parse_structural_source_record(_raw_line(source), 1)
+
+
+def test_wrong_optional_face_scalar_type_fails_closed() -> None:
+    source = _source_record()
+    source["card_faces"] = [_face("Front", oracle_text=7)]
+
+    with pytest.raises(StructuralExtractionError, match="oracle_text"):
         parse_structural_source_record(_raw_line(source), 1)
 
 
