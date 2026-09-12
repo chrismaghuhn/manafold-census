@@ -15,9 +15,10 @@ from typing import cast
 from .canonical import JSONValue, canonical_json_bytes
 from .corpus.build import (
     build_pinned_corpus,
+    load_source_lock,
     run_synthetic_reproduction,
-    validate_corpus_output,
 )
+from .corpus.check import validate_corpus_output
 from .digest import (
     REPRODUCTION_DOMAIN,
     domain_digest,
@@ -31,7 +32,11 @@ from .models import (
     StudySpec,
 )
 from .resources import project_data_root
-from .source.scryfall import acquire_current_source, discover_oracle_cards
+from .source.scryfall import (
+    discover_oracle_cards,
+    refresh_current_source,
+)
+from .source.transfer import fetch_pinned_source
 from .validation import validate_document, validate_source_file
 
 
@@ -185,13 +190,16 @@ def source_discover() -> int:
     return 0
 
 
-def source_acquire(repository_root: str | Path) -> int:
-    """Perform one explicit source refresh and write the small committed lock."""
+def source_refresh(repository_root: str | Path, proposal_path: str | Path) -> int:
+    """Refresh live bytes into the cache and write a reviewable lock proposal."""
 
     root = Path(repository_root)
-    observation, artifact, lock = acquire_current_source(
+    proposal = Path(proposal_path)
+    if not proposal.is_absolute():
+        proposal = root / proposal
+    observation, artifact, lock = refresh_current_source(
         cache_root=root / ".cache" / "sources" / "scryfall",
-        lock_path=root / "source-locks" / "scryfall-oracle-v1.json",
+        proposal_path=proposal,
     )
     print(f"bulk_type={observation.bulk_type}")
     print(f"observed_format={observation.advertised_format}")
@@ -201,7 +209,23 @@ def source_acquire(repository_root: str | Path) -> int:
     print(f"source_byte_length={artifact.byte_length}")
     print(f"source_media_type={artifact.media_type}")
     print(f"source_lock_digest={lock.digest()}")
-    print("source_acquisition=PASS")
+    print("source_refresh=PASS")
+    return 0
+
+
+def source_fetch_pinned(repository_root: str | Path) -> int:
+    """Fetch and verify the exact source artifact in the committed lock."""
+
+    root = Path(repository_root)
+    lock = load_source_lock(root / "source-locks" / "scryfall-oracle-v1.json")
+    artifact = fetch_pinned_source(
+        lock.artifacts[0], root / ".cache" / "sources" / "scryfall"
+    )
+    print(f"source_id={artifact.source_id}")
+    print(f"source_sha256={artifact.sha256}")
+    print(f"source_byte_length={artifact.byte_length}")
+    print(f"source_locator={artifact.locator}")
+    print("source_fetch_pinned=PASS")
     return 0
 
 
@@ -245,10 +269,17 @@ def _parser() -> argparse.ArgumentParser:
     subparsers.add_parser(
         "source-discover", help="inspect current Scryfall bulk metadata"
     )
-    acquire_parser = subparsers.add_parser(
-        "source-acquire", help="download and lock the current Scryfall source"
+    refresh_parser = subparsers.add_parser(
+        "source-refresh", help="refresh current Scryfall bytes into a proposal"
     )
-    acquire_parser.add_argument("--repository-root", default=".")
+    refresh_parser.add_argument("--repository-root", default=".")
+    refresh_parser.add_argument(
+        "--proposal", default="source-locks/scryfall-oracle-v1.proposed.json"
+    )
+    fetch_parser = subparsers.add_parser(
+        "source-fetch-pinned", help="fetch the exact committed source lock"
+    )
+    fetch_parser.add_argument("--repository-root", default=".")
     build_parser = subparsers.add_parser(
         "corpus-build", help="build the committed pinned source-record index"
     )
@@ -277,8 +308,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     try:
         if args.command == "source-discover":
             return source_discover()
-        if args.command == "source-acquire":
-            return source_acquire(args.repository_root)
+        if args.command == "source-refresh":
+            return source_refresh(args.repository_root, args.proposal)
+        if args.command == "source-fetch-pinned":
+            return source_fetch_pinned(args.repository_root)
         if args.command == "corpus-build":
             root = Path(args.repository_root)
             output = Path(args.output)

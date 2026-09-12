@@ -17,13 +17,19 @@ for `source_record_sha256`.
 
 ## Boundaries and data flow
 
-`source` owns discovery, HTTPS streaming, temporary-file promotion, cache
-identity, and the existing generic `SourceArtifact`/`SourceLock` contracts.
+`source` owns discovery, HTTPS streaming, temporary-file promotion, the
+content-addressed cache, and the existing generic `SourceArtifact`/`SourceLock`
+contracts.
 `corpus` owns gzip/JSONL record validation, the four-field source inventory,
 sorting, 16-shard writing, aggregate index identity, and generated manifests.
 The source cache is ignored; only the acquisition specification, current
 source lock, code, tests, small schemas/configuration, and documentation are
-committed.
+committed. Live refresh writes a proposed lock; pinned fetch never rewrites
+the committed lock.
+
+The committed lock's `source_id` is provenance only and is not a cache key.
+Refresh and pinned fetch both address the cache by the exact source SHA-256,
+so a reused upstream bulk ID cannot conflate two snapshots.
 
 The deterministic flow is:
 
@@ -32,7 +38,7 @@ Scryfall /bulk-data
   -> oracle_cards metadata
   -> HTTPS stream to temporary .jsonl.gz
   -> one-pass compressed-byte measurement
-  -> atomic cache promotion
+  -> atomic SHA-256-addressed cache promotion
   -> SourceLock
   -> gzip -> JSONL -> validated four-field records
   -> oracle_id sort

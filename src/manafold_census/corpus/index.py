@@ -105,6 +105,19 @@ class ShardSummary:
     byte_length: int
     record_count: int
 
+    def __post_init__(self) -> None:
+        if self.shard not in SHARD_NAMES:
+            raise CorpusIndexError(f"invalid shard name: {self.shard}")
+        if self.relative_path != f"records/{self.shard}.jsonl":
+            raise CorpusIndexError(f"invalid relative path for shard {self.shard}")
+        _require_digest("shard sha256", self.sha256)
+        for field, value in (
+            ("byte_length", self.byte_length),
+            ("record_count", self.record_count),
+        ):
+            if type(value) is not int or value < 0:
+                raise CorpusIndexError(f"{field} must be a non-negative integer")
+
 
 @dataclass(frozen=True, slots=True)
 class IndexSummary:
@@ -163,7 +176,7 @@ def iter_source_records(source_path: str | Path) -> Iterator[RecordIndexEntry]:
         ) from error
 
 
-def _aggregate_index_digest(shards: tuple[ShardSummary, ...]) -> str:
+def aggregate_index_digest(shards: tuple[ShardSummary, ...]) -> str:
     if tuple(shard.shard for shard in shards) != SHARD_NAMES:
         raise CorpusIndexError("aggregate index requires exactly 16 ordered shards")
     descriptor = [
@@ -187,7 +200,7 @@ def _index_summary(
         record_count=record_count,
         unique_oracle_id_count=unique_oracle_ids,
         duplicate_oracle_id_count=0,
-        aggregate_digest=_aggregate_index_digest(shards),
+        aggregate_digest=aggregate_index_digest(shards),
     )
 
 
