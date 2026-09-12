@@ -1,10 +1,12 @@
 import gzip
 import json
 from pathlib import Path
+from typing import cast
 
 import pytest
 
-from manafold_census.canonical import canonical_json_bytes
+from manafold_census.canonical import JSONValue, canonical_json_bytes
+from manafold_census.digest import domain_digest
 from manafold_census.structural.extract import iter_structural_records
 from manafold_census.structural.index import (
     SHARD_NAMES,
@@ -127,6 +129,34 @@ def test_same_source_bytes_produce_byte_identical_shards_and_digest(
         assert (output_a / f"{shard}.jsonl").read_bytes() == (
             output_b / f"{shard}.jsonl"
         ).read_bytes()
+
+
+def test_aggregate_digest_uses_relative_path_descriptor_wire_key(
+    tmp_path: Path,
+) -> None:
+    source_path = tmp_path / "source.jsonl.gz"
+    _write_gzip_jsonl(source_path, [_source_record(OID_0, CID_0, "Zero")])
+    summary = build_structural_index(source_path, tmp_path / "records")
+    descriptors = [
+        {
+            "relative_path": shard.relative_path,
+            "sha256": shard.sha256,
+            "byte_length": shard.byte_length,
+            "record_count": shard.record_count,
+        }
+        for shard in summary.shards
+    ]
+
+    assert all(
+        set(descriptor) == {"relative_path", "sha256", "byte_length", "record_count"}
+        for descriptor in descriptors
+    )
+    expected_digest = domain_digest(
+        "census.structural-card-index.v1",
+        cast(JSONValue, descriptors),
+    )
+
+    assert summary.aggregate_digest == expected_digest
 
 
 def test_build_rejects_duplicate_oracle_ids_and_nonempty_output(tmp_path: Path) -> None:

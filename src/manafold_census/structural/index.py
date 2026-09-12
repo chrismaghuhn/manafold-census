@@ -68,7 +68,7 @@ def aggregate_structural_index_digest(
         raise StructuralIndexError("structural index requires all 16 ordered shards")
     descriptors = [
         {
-            "path": shard.relative_path,
+            "relative_path": shard.relative_path,
             "sha256": shard.sha256,
             "byte_length": shard.byte_length,
             "record_count": shard.record_count,
