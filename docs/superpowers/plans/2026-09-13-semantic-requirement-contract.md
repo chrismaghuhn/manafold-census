@@ -743,7 +743,7 @@ cross-schema registry are owned by Task 5.
 - [ ] Add negative schema tests for unknown properties, wrong schema, bad
   source IDs/digests, wrong kind/family branch, missing review binding,
   terminal review without digest, label-only COMPLETE descriptor, unknown
-  enum values, floats, negative indexes, and extra bundle fields.
+  enum values, floats, and negative indexes.
 - [ ] Run the focused schema tests before implementation and observe the
   expected missing-resource failure.
 - [ ] Implement the Draft 2020-12 individual Requirement schema.
@@ -851,7 +851,8 @@ second occurrence ID.
   bundle, condition/cost edges, ordered sequence, conflicts, and supersedes.
 - [ ] Add negative tests for cross-source requirements, unsorted requirements,
   duplicate IDs, missing endpoints, self-edges, bad symmetric ordering,
-  duplicate edges, cycles, bad ordinals, and arbitrary edge labels.
+  duplicate edges, cycles, bad ordinals, arbitrary edge labels, and unknown
+  bundle root/nested properties.
 - [ ] Add the explicit coalescing watchpoint test:
   - build two Requirements with the same source/family/kind/parameters;
   - give them different structural evidence locators;
@@ -863,7 +864,8 @@ second occurrence ID.
 - [ ] Implement bundle/relation value classes, the bundle schema, and the
   narrowly scoped offline registry entry for the local Requirement schema.
 - [ ] Add the second M2 schema resource assertions and local $ref resolution
-  test; preserve the existing source-lock registry behavior.
+  test in tests/test_semantic_schema.py and tests/test_resources.py; preserve
+  the existing source-lock registry behavior.
 - [ ] Rerun focused tests, then:
 
 ~~~powershell
@@ -965,6 +967,13 @@ card_name_for_reviewer
 oracle_id
 face_index where applicable
 relevant exact pinned source fields or bounded fragments
+requirement_id
+candidate_reviewed_claim_digest
+reviewed_claim_payload (canonical JSON projection containing source identity,
+                         family, kind, parameters, evidence, provenance,
+                         and resolution)
+canonical evidence representation
+canonical derivation provenance representation
 proposed family
 proposed kind
 proposed parameters
@@ -974,8 +983,12 @@ review_status = PROPOSED
 ~~~
 
 The report gives an independent semantic reviewer enough pinned context to
-accept, reject, or request changes. It is not a semantic authority and does not
-alter the persisted fixture contract.
+accept, reject, or request changes. The candidate digest is computed by the
+same reviewed_claim_digest_for function used by RequirementV1. The canonical
+claim projection is the exact object hashed for that digest; the evidence and
+provenance fields are included both for audit readability and to prevent a
+reviewer from reconstructing a different claim. The report is not a semantic
+authority and does not alter the persisted fixture contract.
 
 ### Test-first steps
 
@@ -1044,10 +1057,11 @@ Files:
 The independent reviewer supplies, per case and Requirement ID:
 
 ~~~text
+requirement_id
+reviewed_claim_digest
 review.status
 reviewed_by
-reviewed_claim_digest
-approved or rejected decision
+decision = ACCEPTED | REJECTED
 any required correction request
 ~~~
 
@@ -1057,6 +1071,13 @@ Task 6B is BLOCKED and no terminal status may be written.
 If a correction to family, kind, parameters, evidence, or resolution is
 requested, stop and report it for a new proposal revision; do not invent the
 correction in Task 6B.
+
+For every terminal decision, Task 6B must load the referenced proposal,
+recompute reviewed_claim_digest_for from its current source identity, evidence,
+provenance, and resolution, and require exact equality with both the report's
+candidate_reviewed_claim_digest and the decision file's reviewed_claim_digest. A
+digest mismatch is FAIL/BLOCKED and prevents ACCEPTED/REJECTED from being
+written. The implementation agent never invents a digest or review decision.
 
 Task 6B must preserve:
 
@@ -1070,10 +1091,13 @@ Task 6B must preserve:
 ### Test-first steps
 
 - [ ] Add a fixture test that loads the externally supplied decision set and
-  confirms every ACCEPTED/REJECTED entry has the supplied reviewer and current
-  reviewed_claim_digest.
+  confirms every ACCEPTED/REJECTED entry echoes the exact requirement_id and
+  candidate digest from Task 6A, has the supplied reviewer, and matches a
+  freshly recomputed reviewed_claim_digest.
 - [ ] Add a negative test for an agent-authored terminal status whose reviewer
   decision is absent.
+- [ ] Add a negative test that changes evidence, provenance, or resolution
+  between 6A and 6B and proves the digest mismatch blocks terminal review.
 - [ ] Apply only the supplied terminal review fields and rerun the fixture
   tests.
 - [ ] Run the full per-task regression gate from the authorization protocol.
@@ -1115,7 +1139,7 @@ test_semantic_scope.py must assert through static file inspection that:
   vocabulary and M2 review/resolution vocabulary.
 
 Extend test_maintainability.py to keep every production module under 500 lines.
-Task 4 owns the resource assertions for both M2 schemas; Task 7 reuses that
+Task 5 owns the resource assertions for both M2 schemas; Task 7 reuses that
 test without modifying its file.
 
 ### Full verification commands
@@ -1197,7 +1221,7 @@ synthetic tests pass while a required invariant is untested.
 - [ ] Commit:
 
 ~~~powershell
-git add tests/test_semantic_scope.py tests/test_maintainability.py tests/test_resources.py
+git add tests/test_semantic_scope.py tests/test_maintainability.py
 git diff --cached --check
 git commit -m "test: enforce M2 semantic contract boundaries"
 ~~~
@@ -1212,7 +1236,7 @@ git commit -m "test: enforce M2 semantic contract boundaries"
 
 | Frozen design section | Plan task |
 | --- | --- |
-| M1 authority and ownership | Authorization protocol; Tasks 2 and 6 |
+| M1 authority and ownership | Authorization protocol; Tasks 2 and 6A |
 | Requirement granularity and coalescing | Tasks 3 and 5 |
 | Producer-neutral identity and snapshot stability | Task 3 identity tests; Task 5 coalescing watchpoint |
 | Individual wire data model | Tasks 2, 3, and 4 |
@@ -1221,7 +1245,7 @@ git commit -m "test: enforce M2 semantic contract boundaries"
 | Derivation/review/resolution orthogonality | Task 3 |
 | Review binding and stale-review prevention | Task 3 |
 | Minimal relationships/hierarchy | Task 5 |
-| Canonical wire and digest domains | Tasks 3 and 4 |
+| Canonical wire and digest domains | Tasks 3, 4, and 5 |
 | Immutability and fail-closed parsing | Tasks 1 through 4 |
 | Representative fixture proposals and independent review outcomes | Tasks 6A and 6B |
 | M2/M3 and M2/M4 boundaries | Task 7 scope tests and all task protocols |
