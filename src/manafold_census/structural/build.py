@@ -225,3 +225,11 @@ def build_pinned_structural(
         source_artifact.sha256,
     )
     return build_structural_corpus(source_path, lock_path, output_dir)
+
+
+def run_synthetic_reproduction() -> tuple[str, str]:
+    """Run the fully offline two-tree structural reproduction."""
+
+    from .synthetic import run_synthetic_reproduction as _run_synthetic_reproduction
+
+    return _run_synthetic_reproduction()

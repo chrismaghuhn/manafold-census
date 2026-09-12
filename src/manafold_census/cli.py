@@ -16,7 +16,9 @@ from .canonical import JSONValue, canonical_json_bytes
 from .corpus.build import (
     build_pinned_corpus,
     load_source_lock,
-    run_synthetic_reproduction,
+)
+from .corpus.build import (
+    run_synthetic_reproduction as run_corpus_synthetic_reproduction,
 )
 from .corpus.check import validate_corpus_output
 from .digest import (
@@ -37,6 +39,13 @@ from .source.scryfall import (
     refresh_current_source,
 )
 from .source.transfer import fetch_pinned_source
+from .structural.build import (
+    build_pinned_structural,
+)
+from .structural.build import (
+    run_synthetic_reproduction as run_structural_synthetic_reproduction,
+)
+from .structural.check import validate_pinned_structural_output
 from .validation import validate_document, validate_source_file
 
 
@@ -248,7 +257,7 @@ def corpus_check(
     """Validate a generated index, or run its fully offline synthetic check."""
 
     if synthetic:
-        digest_a, digest_b = run_synthetic_reproduction()
+        digest_a, digest_b = run_corpus_synthetic_reproduction()
         print(f"run_a_digest={digest_a}")
         print(f"run_b_digest={digest_b}")
         print("synthetic_reproduction=PASS")
@@ -258,6 +267,38 @@ def corpus_check(
     digest = validate_corpus_output(output_dir)
     print(f"aggregate_index_digest={digest}")
     print("corpus_check=PASS")
+    return 0
+
+
+def structural_build(repository_root: str | Path, output_dir: str | Path) -> int:
+    """Build the pinned structural census without network acquisition."""
+
+    result = build_pinned_structural(repository_root, output_dir)
+    print(f"structural_record_count={result.index.record_count}")
+    print(f"unique_oracle_id_count={result.index.unique_oracle_id_count}")
+    print(f"aggregate_structural_index_digest={result.index.aggregate_digest}")
+    print("structural_build=PASS")
+    return 0
+
+
+def structural_check(
+    repository_root: str | Path,
+    output_dir: str | Path | None,
+    synthetic: bool,
+) -> int:
+    """Validate pinned structural output or run its offline reproduction."""
+
+    if synthetic:
+        digest_a, digest_b = run_structural_synthetic_reproduction()
+        print(f"run_a_digest={digest_a}")
+        print(f"run_b_digest={digest_b}")
+        print("synthetic_reproduction=PASS")
+        return 0
+    if output_dir is None:
+        raise ValueError("structural-check requires --output or --synthetic")
+    digest = validate_pinned_structural_output(repository_root, output_dir)
+    print(f"aggregate_structural_index_digest={digest}")
+    print("structural_check=PASS")
     return 0
 
 
@@ -291,6 +332,19 @@ def _parser() -> argparse.ArgumentParser:
     check_parser.add_argument("--repository-root", default=".")
     check_parser.add_argument("--output")
     check_parser.add_argument("--synthetic", action="store_true")
+    structural_build_parser = subparsers.add_parser(
+        "structural-build", help="build the pinned structural census"
+    )
+    structural_build_parser.add_argument("--repository-root", default=".")
+    structural_build_parser.add_argument(
+        "--output", default="dist/structural/scryfall-oracle-v1"
+    )
+    structural_check_parser = subparsers.add_parser(
+        "structural-check", help="check pinned structural output or synthetic output"
+    )
+    structural_check_parser.add_argument("--repository-root", default=".")
+    structural_check_parser.add_argument("--output")
+    structural_check_parser.add_argument("--synthetic", action="store_true")
     return parser
 
 
@@ -326,6 +380,23 @@ def main(argv: Sequence[str] | None = None) -> int:
             if check_output is not None and not check_output.is_absolute():
                 check_output = root / check_output
             return corpus_check(root, check_output, args.synthetic)
+        if args.command == "structural-build":
+            root = Path(args.repository_root)
+            output = Path(args.output)
+            if not output.is_absolute():
+                output = root / output
+            return structural_build(root, output)
+        if args.command == "structural-check":
+            root = Path(args.repository_root)
+            structural_check_output: Path | None = (
+                Path(args.output) if args.output is not None else None
+            )
+            if (
+                structural_check_output is not None
+                and not structural_check_output.is_absolute()
+            ):
+                structural_check_output = root / structural_check_output
+            return structural_check(root, structural_check_output, args.synthetic)
     except (OSError, RuntimeError, TypeError, ValueError) as error:
         print(f"{args.command}=FAIL: {error}", file=sys.stderr)
         return 1

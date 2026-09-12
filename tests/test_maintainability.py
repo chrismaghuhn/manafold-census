@@ -44,12 +44,17 @@ def test_task_01_golden_path_separates_live_acquisition_from_offline_checks() ->
         "source-fetch-pinned",
         "corpus-build",
         "corpus-check",
+        "structural-build",
+        "structural-check",
     ):
         assert f"{command}:" in justfile
     check_line = next(
         line for line in justfile.splitlines() if line.startswith("check:")
     )
-    assert check_line == "check: doctor lint typecheck test reproduce corpus-check"
+    assert (
+        check_line
+        == "check: doctor lint typecheck test reproduce corpus-check structural-check"
+    )
     assert "source-acquire" not in check_line
 
 

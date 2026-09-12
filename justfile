@@ -29,4 +29,10 @@ corpus-build:
 corpus-check:
     python -m manafold_census.cli corpus-check --synthetic
 
-check: doctor lint typecheck test reproduce corpus-check
+structural-build:
+    python -m manafold_census.cli structural-build
+
+structural-check:
+    python -m manafold_census.cli structural-check --synthetic
+
+check: doctor lint typecheck test reproduce corpus-check structural-check
