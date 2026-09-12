@@ -1,0 +1,259 @@
+# M1 Global Structural Card Census — Closure Evidence
+
+This report records the observed Task 10 evidence for the exact implementation
+HEAD below. It contains no generated card records, raw source bytes, cache
+bytes, or semantic interpretation.
+
+## Execution identity
+
+~~~text
+TASK=CENSUS_02_GLOBAL_STRUCTURAL_CARD_CENSUS
+ROADMAP_ISSUE=2
+MILESTONE_ISSUE=4
+
+BASE=ed57a31af5ddfbf52fe5d791f35b31a7ac9934fd
+EXECUTION_HEAD=7edfa24fc8821e0b2e094d670d486472d9dfdd42
+BRANCH=feat/m1-global-structural-card-census
+PARENT=1061db0d197f77082f766bd08208f83e71f0fea3
+REMOTE_BRANCH=origin/feat/m1-global-structural-card-census
+PR=NOT_CREATED
+PR_STATE=NOT_AUTHORIZED
+~~
+
+The source lock and Task 01 implementation were unchanged before the real
+run. The closure report itself is the only tracked file added by Task 10.
+
+## Exact pinned source
+
+~~~text
+SOURCE_LOCK_DIGEST=4767dccbb518b4009c235bb1ce531f509c0923ba0ebe190936c2dc2d14e2d4bd
+SOURCE_ID=27bf3214-1271-490b-bdfe-c0be6c23d02e
+SOURCE_SHA256=4d4b77fd2668f789ea97a855dd49e1e505322c56e09771d8d2ffd9f48681d3a0
+SOURCE_BYTE_LENGTH=24601964
+SOURCE_RECORD_COUNT=38740
+SOURCE_MEDIA_TYPE=application/gzip
+SOURCE_LOCATOR=https://data.scryfall.io/oracle-cards/oracle-cards-20260912090152.jsonl.gz
+PINNED_SOURCE_FETCH=PASS
+PINNED_SOURCE_ONLY=PASS
+~~
+
+The exact content-addressed cache bytes were verified with
+source-fetch-pinned. No refresh, fallback, replacement source, or network
+operation was used by structural-build or structural-check.
+
+## Real structural accounting
+
+~~~text
+STRUCTURAL_SCHEMA=census.structural-card.v1
+STRUCTURAL_RECORD_COUNT=38740
+UNIQUE_STRUCTURAL_ORACLE_IDS=38740
+DUPLICATE_STRUCTURAL_IDENTITIES=0
+MISSING_ORACLE_IDENTITIES=0
+EXTRA_ORACLE_IDENTITIES=0
+TASK01_RECORD_IDENTITY_PARITY=PASS
+~~
+
+### Face accounting
+
+~~~text
+CARDS_WITH_FACES=3221
+CARDS_WITHOUT_FACES=35519
+TOTAL_FACE_RECORDS=6447
+MAX_FACE_COUNT=5
+FACE_COUNT_DISTRIBUTION={"2":3218,"3":2,"5":1}
+FACE_ORDER_PRESERVATION=PASS
+~~
+
+### Layout counts
+
+~~~text
+adventure=170
+art_series=2243
+augment=14
+case=15
+class=38
+double_faced_token=80
+emblem=87
+flip=26
+front_card=291
+host=20
+leveler=26
+meld=21
+modal_dfc=100
+mutate=34
+normal=33429
+planar=207
+prepare=64
+prototype=21
+saga=194
+scheme=102
+split=137
+token=913
+transform=401
+vanguard=107
+~~
+
+### Selected source-field presence counts
+
+Presence means source property membership. Empty strings and empty arrays are
+present; absent properties are not present.
+
+~~~text
+TOP_LEVEL_MANA_COST_PRESENT=35916
+TOP_LEVEL_TYPE_LINE_PRESENT=38740
+TOP_LEVEL_ORACLE_TEXT_PRESENT=35519
+TOP_LEVEL_COLORS_PRESENT=35916
+TOP_LEVEL_COLOR_IDENTITY_PRESENT=38740
+TOP_LEVEL_COLOR_INDICATOR_PRESENT=42
+TOP_LEVEL_KEYWORDS_PRESENT=38740
+TOP_LEVEL_PRODUCED_MANA_PRESENT=2762
+TOP_LEVEL_POWER_PRESENT=19987
+TOP_LEVEL_TOUGHNESS_PRESENT=19987
+TOP_LEVEL_LOYALTY_PRESENT=333
+TOP_LEVEL_DEFENSE_PRESENT=2
+TOP_LEVEL_HAND_MODIFIER_PRESENT=107
+TOP_LEVEL_LIFE_MODIFIER_PRESENT=107
+TOP_LEVEL_ATTRACTION_LIGHTS_PRESENT=50
+TOP_LEVEL_CARD_FACES_PRESENT=3221
+TOP_LEVEL_ALL_PARTS_PRESENT=6901
+
+FACE_NAME_PRESENT=6447
+FACE_MANA_COST_PRESENT=6447
+FACE_TYPE_LINE_PRESENT=6437
+FACE_ORACLE_TEXT_PRESENT=6447
+FACE_COLORS_PRESENT=5648
+FACE_COLOR_INDICATOR_PRESENT=332
+FACE_POWER_PRESENT=913
+FACE_TOUGHNESS_PRESENT=913
+FACE_LOYALTY_PRESENT=25
+FACE_DEFENSE_PRESENT=37
+~~
+
+## Structural index and lifecycle identities
+
+~~~text
+STRUCTURAL_SHARD_COUNT=16
+SHARD_0_COUNT=2433
+SHARD_1_COUNT=2425
+SHARD_2_COUNT=2320
+SHARD_3_COUNT=2462
+SHARD_4_COUNT=2400
+SHARD_5_COUNT=2395
+SHARD_6_COUNT=2425
+SHARD_7_COUNT=2454
+SHARD_8_COUNT=2390
+SHARD_9_COUNT=2430
+SHARD_A_COUNT=2392
+SHARD_B_COUNT=2407
+SHARD_C_COUNT=2451
+SHARD_D_COUNT=2416
+SHARD_E_COUNT=2529
+SHARD_F_COUNT=2411
+
+STRUCTURAL_INDEX_DIGEST=eb215ca6c904c26baa2d8f0a63928e8c9acab5bb9ea9493eacebcdab2fbb86bb
+STRUCTURAL_INDEX_MANIFEST_SHA256=bdc74ec944798a8c1dd7627dae55a795c6fb72d3bbe067d2f2e50412c7155f2b
+STRUCTURAL_INDEX_MANIFEST_BYTE_LENGTH=2614
+STRUCTURAL_DATASET_MANIFEST_DIGEST=c33709753b712006d75d54dfd6398a3fc6e9a4176526cee3d7093c60dc3644e8
+STRUCTURAL_STUDY_DIGEST=736465c122a66457109649888fb55aad711898f63cbc3efb32387b4c1c4e6e37
+STRUCTURAL_ARTIFACT_MANIFEST_DIGEST=5eb0528efc2dab4e59a9fdd6d46bd8b71a51bcc29d329dba96058cfbd85c9de1
+ARTIFACT_BYTE_IDENTITY=PASS
+STRUCTURAL_MANIFEST_CLOSURE=PASS
+~~
+
+The ArtifactManifest content hash is the SHA-256 of the exact canonical
+structural-index-manifest.json bytes. It is not the Structural Aggregate
+Digest.
+
+## Independent A/B reproduction
+
+The two builds used separate empty output roots:
+
+~~~text
+RUN_A=dist/structural/scryfall-oracle-v1-run-a
+RUN_B=dist/structural/scryfall-oracle-v1-run-b
+RUN_A_FILE_COUNT=21
+RUN_B_FILE_COUNT=21
+RUN_A_DIRECTORY_DIGEST=48be3e423a26ac6b9a61d67ef43d2d08b91aea079b2b0b2897886a0e52a8aa4c
+RUN_B_DIRECTORY_DIGEST=48be3e423a26ac6b9a61d67ef43d2d08b91aea079b2b0b2897886a0e52a8aa4c
+FILE_SET_EQUAL=PASS
+DIFFERENT_FILE_COUNT=0
+STRUCTURAL_REPRODUCTION_BYTE_PARITY=PASS
+~~
+
+Run A build wall time was observed as approximately 14.325 seconds. Run B
+build wall time was not separately measured. Peak memory was not measured.
+Performance values are not semantic identity fields.
+
+## Verification gates
+
+~~~text
+STRUCTURAL_SCHEMA_VALIDATION=PASS
+CANONICAL_OUTPUT=PASS
+SOURCE_PROVENANCE=PASS
+NO_SEMANTIC_INFERENCE=PASS
+MODULE_LOC_BUDGET=PASS
+TASK00_REPRODUCTION=PASS
+TASK01_SYNTHETIC_REPRODUCTION=PASS
+M1_SYNTHETIC_REPRODUCTION=PASS
+WHEEL_BUILD=PASS
+FRESH_NON_EDITABLE_WHEEL=PASS
+MAINTAINABILITY_GUARD=PASS
+HOSTED_CI=PASS
+HOSTED_CI_RUN=34719196819
+HOSTED_CI_HEAD=7edfa24fc8821e0b2e094d670d486472d9dfdd42
+PYTHON_VERSION_LOCAL=3.14.5
+PYTHON_VERSION_HOSTED=3.12
+RUFF_FORMAT=PASS
+RUFF=PASS
+MYPY=PASS
+PYTEST=PASS
+PYTEST_COUNT=216
+~~
+
+The final local full test run passed 216 tests. The Task 9 fresh-wheel smoke
+installed the non-editable wheel outside the repository CWD, found all three
+M1 schemas through project_data_root(), and passed structural-check --synthetic.
+
+## Preservation and boundaries
+
+~~~text
+TASK01_SOURCE_LOCK_UNCHANGED=YES
+TASK01_PINNED_SOURCE_IDENTITY_UNCHANGED=YES
+TASK01_RECORD_COUNT_UNCHANGED=YES
+RAW_BULK_DATA_COMMITTED=NO
+GENERATED_STRUCTURAL_SHARDS_COMMITTED=NO
+SEMANTIC_INFERENCE_ADDED=NO
+REQUIREMENT_MODEL_ADDED=NO
+CAPABILITY_MODEL_ADDED=NO
+LLM_ADDED=NO
+DATABASE_ADDED=NO
+RUST_ADDED=NO
+MANAFOLD_DEPENDENCY_ADDED=NO
+REAL_MTG_SOURCE_DATA_USED=YES
+M2_STARTED=NO
+~~
+
+The generated real output remains under ignored dist/structural paths. This
+report records source-factual structural evidence only. It does not certify
+rules support, semantic correctness, Manafold capability support, or any
+authority claim.
+
+## Closure state
+
+~~~text
+FACE_ORDER_PRESERVATION=PASS
+SOURCE_PROVENANCE=PASS
+STRUCTURAL_SCHEMA_VALIDATION=PASS
+CANONICAL_OUTPUT=PASS
+STRUCTURAL_MANIFEST_CLOSURE=PASS
+ARTIFACT_BYTE_IDENTITY=PASS
+PINNED_SOURCE_ONLY=PASS
+M1_EXIT_GATE=PASS
+M1_COMPLETE=YES
+PUSHED=YES
+WORKTREE_CLEAN_BEFORE_REPORT_COMMIT=YES
+PR_AUTHORIZED=NO
+MERGE_AUTHORIZED=NO
+M2_AUTHORIZED=NO
+NEXT_TASK_AUTHORIZED=NO
+~~

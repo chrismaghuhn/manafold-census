@@ -44,12 +44,17 @@ def test_task_01_golden_path_separates_live_acquisition_from_offline_checks() ->
         "source-fetch-pinned",
         "corpus-build",
         "corpus-check",
+        "structural-build",
+        "structural-check",
     ):
         assert f"{command}:" in justfile
     check_line = next(
         line for line in justfile.splitlines() if line.startswith("check:")
     )
-    assert check_line == "check: doctor lint typecheck test reproduce corpus-check"
+    assert (
+        check_line
+        == "check: doctor lint typecheck test reproduce corpus-check structural-check"
+    )
     assert "source-acquire" not in check_line
 
 
@@ -63,6 +68,21 @@ def test_ci_contains_fresh_non_editable_wheel_smoke_path() -> None:
     assert "python -m venv" in workflow
     assert "non-editable" in workflow
     assert "corpus-check --synthetic" in workflow
+
+
+def test_ci_contains_offline_structural_gate_and_all_m1_schema_smoke() -> None:
+    workflow = (REPOSITORY_ROOT / ".github" / "workflows" / "ci.yml").read_text(
+        encoding="utf-8"
+    )
+
+    assert "structural-check --synthetic" in workflow
+    for schema in (
+        "structural-card.v1.schema.json",
+        "structural-card-index-manifest.v1.schema.json",
+        "structural-card-report.v1.schema.json",
+    ):
+        assert schema in workflow
+    assert 'cd "$RUNNER_TEMP"' in workflow
 
 
 def test_directly_imported_referencing_dependency_is_declared() -> None:

@@ -83,3 +83,35 @@ coverage value means every valid record in the exact pinned Scryfall
 Task 00's foundation and Task 01's synthetic tests remain offline. Live
 discovery/acquisition is an explicit maintainer operation, not part of normal
 CI or `just check`.
+
+M1 structural source-fact flow
+------------------------------
+
+The structural census is a separate projection layered on the exact Task 01
+source identity:
+
+```text
+exact pinned source bytes
+  -> Task 01 raw-line identity
+  -> StructuralCardRecordV1
+  -> records/0.jsonl ... records/f.jsonl
+  -> StructuralCardIndexManifestV1
+  -> DatasetManifest / StudySpec / ArtifactManifest / structural report
+```
+
+Structural records preserve source position and representation. A missing
+source property becomes null; a present empty string or array remains empty.
+Parent fields are not inherited by faces, face order is source order, and
+face_index is the source-array position. All parts are copied as opaque source
+facts; their URIs are never dereferenced.
+
+The structural aggregate digest uses the ordered descriptor keys
+relative_path, sha256, byte_length, and record_count with the domain
+census.structural-card-index.v1. ArtifactManifest content_sha256 instead
+hashes the exact canonical StructuralCardIndexManifestV1 bytes.
+
+The structural checker independently reconstructs source and output facts. It
+validates the card, index-manifest, and report schemas, recomputes statistics,
+and never treats the report as a source of truth. The synthetic structural
+check is offline and suitable for local and hosted CI; real pinned-corpus
+evidence is a separate maintainer gate.

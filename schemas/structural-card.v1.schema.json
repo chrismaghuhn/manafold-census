@@ -1,0 +1,139 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://manafold-census.invalid/schemas/structural-card.v1.schema.json",
+  "title": "Census Structural Card v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "oracle_id",
+    "source_card_id",
+    "source_record_sha256",
+    "name",
+    "layout",
+    "mana_cost",
+    "type_line",
+    "oracle_text",
+    "colors",
+    "color_identity",
+    "color_indicator",
+    "keywords",
+    "produced_mana",
+    "power",
+    "toughness",
+    "loyalty",
+    "defense",
+    "hand_modifier",
+    "life_modifier",
+    "attraction_lights",
+    "faces",
+    "all_parts"
+  ],
+  "properties": {
+    "schema": {"const": "census.structural-card.v1"},
+    "oracle_id": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    },
+    "source_card_id": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    },
+    "source_record_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "name": {"type": "string", "minLength": 1, "pattern": "[^\\s]"},
+    "layout": {"type": "string", "minLength": 1},
+    "mana_cost": {"$ref": "#/$defs/optional_string"},
+    "type_line": {"$ref": "#/$defs/optional_string"},
+    "oracle_text": {"$ref": "#/$defs/optional_string"},
+    "colors": {"$ref": "#/$defs/optional_string_array"},
+    "color_identity": {"$ref": "#/$defs/optional_string_array"},
+    "color_indicator": {"$ref": "#/$defs/optional_string_array"},
+    "keywords": {"$ref": "#/$defs/optional_string_array"},
+    "produced_mana": {"$ref": "#/$defs/optional_string_array"},
+    "power": {"$ref": "#/$defs/optional_string"},
+    "toughness": {"$ref": "#/$defs/optional_string"},
+    "loyalty": {"$ref": "#/$defs/optional_string"},
+    "defense": {"$ref": "#/$defs/optional_string"},
+    "hand_modifier": {"$ref": "#/$defs/optional_string"},
+    "life_modifier": {"$ref": "#/$defs/optional_string"},
+    "attraction_lights": {"$ref": "#/$defs/optional_int64_array"},
+    "faces": {
+      "type": ["array", "null"],
+      "minItems": 1,
+      "items": {"$ref": "#/$defs/face"}
+    },
+    "all_parts": {
+      "type": ["array", "null"],
+      "items": {"$ref": "#/$defs/related_part"}
+    }
+  },
+  "$defs": {
+    "optional_string": {
+      "type": ["string", "null"]
+    },
+    "optional_string_array": {
+      "type": ["array", "null"],
+      "items": {"type": "string"}
+    },
+    "int64": {
+      "type": "integer",
+      "minimum": -9223372036854775808,
+      "maximum": 9223372036854775807
+    },
+    "optional_int64_array": {
+      "type": ["array", "null"],
+      "items": {"$ref": "#/$defs/int64"}
+    },
+    "face": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "face_index",
+        "name",
+        "mana_cost",
+        "type_line",
+        "oracle_text",
+        "colors",
+        "color_indicator",
+        "power",
+        "toughness",
+        "loyalty",
+        "defense"
+      ],
+      "properties": {
+        "face_index": {"$ref": "#/$defs/nonnegative_int64"},
+        "name": {"type": "string", "minLength": 1},
+        "mana_cost": {"$ref": "#/$defs/optional_string"},
+        "type_line": {"$ref": "#/$defs/optional_string"},
+        "oracle_text": {"$ref": "#/$defs/optional_string"},
+        "colors": {"$ref": "#/$defs/optional_string_array"},
+        "color_indicator": {"$ref": "#/$defs/optional_string_array"},
+        "power": {"$ref": "#/$defs/optional_string"},
+        "toughness": {"$ref": "#/$defs/optional_string"},
+        "loyalty": {"$ref": "#/$defs/optional_string"},
+        "defense": {"$ref": "#/$defs/optional_string"}
+      }
+    },
+    "related_part": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["component", "id", "name", "object", "type_line", "uri"],
+      "properties": {
+        "component": {"type": "string"},
+        "id": {"type": "string"},
+        "name": {"type": "string"},
+        "object": {"type": "string"},
+        "type_line": {"type": "string"},
+        "uri": {"type": "string"}
+      }
+    },
+    "nonnegative_int64": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 9223372036854775807
+    }
+  }
+}
