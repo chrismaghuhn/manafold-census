@@ -31,15 +31,17 @@ For every numbered task:
 2. execute only that task and its declared files;
 3. use test-first steps: write focused failing tests, observe the failure,
    implement the smallest contract slice, and rerun the focused tests;
-4. run the task's focused Ruff and mypy checks;
-5. run the shared preservation checks below;
-6. stage only the declared files;
-7. run git diff --cached --check;
-8. create one standalone commit with the task's exact commit message;
-9. push only feat/m2-semantic-requirement-contract;
-10. verify the remote branch head equals the local task commit;
-11. report the exact SHA, parent SHA, changed files, gates, and findings; and
-12. stop with NEXT_TASK_AUTHORIZED=NO.
+4. run the task's focused tests and focused static checks;
+5. run the complete regression gate below; every command must exit 0 for a
+   task to be reported PASS;
+6. run the shared preservation checks below;
+7. stage only the declared files;
+8. run git diff --cached --check;
+9. create one standalone commit with the task's exact commit message;
+10. push only feat/m2-semantic-requirement-contract;
+11. verify the remote branch head equals the local task commit;
+12. report the exact SHA, parent SHA, changed files, gates, and findings; and
+13. stop with NEXT_TASK_AUTHORIZED=NO.
 
 Push authorization is not PR authorization. PR authorization is not merge
 authorization. No task may start M3 global extraction or M4 capability work.
@@ -76,6 +78,23 @@ if ($bad) { $bad; throw "M1 or out-of-scope file changed" }
 
 If a task needs to change an M1 contract, a source lock, a second canonical
 system, or an engine-specific type, stop as BLOCKED.
+
+### Mandatory per-task regression gate
+
+Run this complete repository gate after the task-focused checks and before
+staging the task commit:
+
+~~~powershell
+python -m pytest -q
+ruff format --check .
+ruff check .
+mypy src/manafold_census
+~~~
+
+The expected result is zero test failures, zero formatting differences, zero
+Ruff findings, and zero mypy findings. If a command cannot be run for a
+documented environmental reason, report that gate as NOT_RUN and do not report
+the task as PASS.
 
 ---
 
@@ -244,7 +263,12 @@ class ZoneRefV1:
 @dataclass(frozen=True, slots=True)
 class QuantityV1:
     mode: QuantityModeV1
-    value: int | str | None
+    value: int | str | UnknownValueV1 | None
+
+@dataclass(frozen=True, slots=True)
+class DurationV1:
+    kind: DurationKindV1
+    value: SemanticDescriptorV1 | UnknownValueV1 | None
 
 @dataclass(frozen=True, slots=True)
 class CharacteristicRefV1:
@@ -280,12 +304,15 @@ Enforce:
 - strict booleans, with bool rejected where an integer is required;
 - valid UTF-8 and a 4096 UTF-8-byte limit for descriptor labels and hints;
 - no floats, sets, tuples, bytes, callbacks, paths, or arbitrary keys;
-- a label-only or shape=unknown descriptor cannot support COMPLETE;
 - descriptor children are ordered and recursively immutable;
 - QuantityV1 cross-field rules:
   - exact uses an integer;
   - symbolic uses a non-empty string;
-  - all, each, and unknown use null or the dedicated unknown form;
+  - all and each use null;
+  - unknown uses an UnknownValueV1 with an explicit reason;
+- DurationV1 uses exactly until_end_of_turn, this_turn, permanent, delayed,
+  and unknown; delayed carries a typed descriptor and unknown carries an
+  UnknownValueV1 with an explicit reason;
 - ZoneRefV1 and CharacteristicRefV1 permit free labels only as bounded context
   for the explicit unknown/other variants.
 
@@ -297,8 +324,8 @@ it as an arbitrary string.
 
 - [ ] Add tests for every enum value, family-to-kind mapping, exact fixed keys,
   signed-64-bit boundaries, immutable nested values, and fresh to_wire().
-- [ ] Add tests that prove a descriptor with only label or unknown shape
-  cannot support COMPLETE.
+- [ ] Add tests for DurationV1's five exact kinds, delayed descriptor payload,
+  explicit unknown reason, and immutability.
 - [ ] Add tests that prove the generic text ParameterValue cannot carry a
   descriptor's required semantic dimensions.
 - [ ] Add tests for every kind's required and optional parameter key set.
@@ -311,7 +338,7 @@ python -m pytest tests/test_semantic_primitives.py tests/test_semantic_kinds.py 
 Expected initial result: collection/import failure because the semantic package
 does not exist.
 
-- [ ] Implement the frozen primitive and kind payload classes.
+- [ ] Implement the frozen primitive, DurationV1, and kind payload classes.
 - [ ] Rerun the focused tests and expect all primitive/kind tests to pass.
 - [ ] Run:
 
@@ -614,6 +641,9 @@ Enforce:
   replaced, otherwise keeps the ID but reopens review;
 - accepted-plus-partial and accepted-plus-unresolved are valid;
 - complete requires no unknown value/path and kind not equal to unresolved;
+- complete also rejects any required SemanticDescriptor whose necessary
+  meaning exists only in label/text or shape=unknown; this cross-field rule
+  belongs to RequirementV1 rather than the primitive layer;
 - unknown kind, malformed wire, or unsupported payload is a validation error;
 - unresolved semantic meaning is valid and fail-closed.
 
@@ -631,7 +661,8 @@ Enforce:
   derivation, or resolution digest is rejected, while reopening to IN_REVIEW
   with a cleared digest is accepted.
 - [ ] Add tests for all review/resolution combinations, unknown paths, accepted
-  unresolved claims, invalid terminal metadata, and proposal separation.
+  unresolved claims, invalid terminal metadata, proposal separation, and
+  label-only/unknown-shape descriptors rejected under COMPLETE.
 - [ ] Add immutability tests for constructor input, nested values, previous
   to_wire() output, and repeated digest calls.
 - [ ] Run the two focused test files before implementation and record the
@@ -657,19 +688,16 @@ git commit -m "feat: add deterministic M2 Requirement identity"
 
 ---
 
-## Task 4: Normative v1 schemas and offline schema registry
+## Task 4: Individual Requirement schema and model parity
 
-Scope: Add the two normative JSON Schemas and local validation registration. Do
-not add bundles, fixtures, CLI commands, CI changes, or global data.
+Scope: Add only the individual Requirement v1 JSON Schema and its model/schema
+parity tests. Do not add the bundle schema, bundle model, relationships,
+fixtures, CLI commands, CI changes, or global data.
 
 Files:
 
 - Create schemas/semantic-requirement.v1.schema.json
-- Create schemas/semantic-requirement-bundle.v1.schema.json
-- Modify src/manafold_census/validation.py
 - Create tests/test_semantic_schema.py
-- Modify tests/test_validation.py
-- Modify tests/test_resources.py
 
 ### Schema requirements
 
@@ -702,43 +730,39 @@ resolution
 Use closed oneOf branches for every kind payload and every evidence variant.
 Use fixed keys and additionalProperties=false at every nested object. Encode
 signed-64-bit bounds, lowercase UUID/SHA-256 patterns, enum values, null rules,
-and bounded fragment/label lengths.
-
-The bundle schema must use an offline local $ref to the individual schema. Add a
-narrowly scoped registry entry in validation.py for the bundle schema and
-individual schema. Preserve the existing source-lock special case and all
-existing validation error behavior.
+bounded fragment/label lengths, terminal review binding requirements, and the
+complete-resolution descriptor restriction. The bundle schema and local
+cross-schema registry are owned by Task 5.
 
 ### Test-first steps
 
-- [ ] Add tests that load both schema files through project_data_root().
+- [ ] Add tests that load semantic-requirement.v1.schema.json through
+  project_data_root().
 - [ ] Add model/schema parity cases for every kind family, unresolved/partial
-  values, all evidence variants, and one relationship-free bundle shape.
+  values, all evidence variants, and COMPLETE/label-only descriptor rejection.
 - [ ] Add negative schema tests for unknown properties, wrong schema, bad
   source IDs/digests, wrong kind/family branch, missing review binding,
   terminal review without digest, label-only COMPLETE descriptor, unknown
   enum values, floats, negative indexes, and extra bundle fields.
-- [ ] Add a test proving bundle $ref resolution is local and does not require
-  network access.
-- [ ] Run the focused schema/validation tests before implementation and observe
-  the expected missing-resource/registry failures.
-- [ ] Implement the two Draft 2020-12 schemas and local registry entry.
+- [ ] Run the focused schema tests before implementation and observe the
+  expected missing-resource failure.
+- [ ] Implement the Draft 2020-12 individual Requirement schema.
 - [ ] Rerun:
 
 ~~~powershell
-python -m pytest tests/test_semantic_schema.py tests/test_validation.py tests/test_resources.py -q
-python -m ruff check src/manafold_census/validation.py tests/test_semantic_schema.py tests/test_validation.py tests/test_resources.py
+python -m pytest tests/test_semantic_schema.py -q
+python -m ruff check tests/test_semantic_schema.py
 python -m mypy src/manafold_census
 ~~~
 
-- [ ] Verify the two schemas are included by the existing setuptools schemas/*.json
-  data-files glob without changing pyproject.toml.
+- [ ] Verify the individual schema is included by the existing setuptools
+  schemas/*.json data-files glob without changing pyproject.toml.
 - [ ] Commit only Task 4 files:
 
 ~~~powershell
-git add schemas/semantic-requirement.v1.schema.json schemas/semantic-requirement-bundle.v1.schema.json src/manafold_census/validation.py tests/test_semantic_schema.py tests/test_validation.py tests/test_resources.py
+git add schemas/semantic-requirement.v1.schema.json tests/test_semantic_schema.py
 git diff --cached --check
-git commit -m "feat: define M2 Requirement schemas"
+git commit -m "feat: define M2 Requirement schema"
 ~~~
 
 - [ ] Push, verify remote parity, report, and stop.
@@ -754,7 +778,10 @@ Files:
 
 - Create src/manafold_census/semantic/bundle.py
 - Modify src/manafold_census/semantic/__init__.py
-- Modify schemas/semantic-requirement-bundle.v1.schema.json
+- Create schemas/semantic-requirement-bundle.v1.schema.json
+- Modify src/manafold_census/validation.py
+- Modify tests/test_semantic_schema.py
+- Modify tests/test_resources.py
 - Create tests/test_semantic_bundle.py
 
 ### Required bundle and relation types
@@ -833,7 +860,10 @@ second occurrence ID.
   - reconcile evidence into one Requirement and assert one valid bundle.
 - [ ] Run the focused bundle tests before implementation and observe the
   expected import failure.
-- [ ] Implement bundle/relation value classes and schema branches.
+- [ ] Implement bundle/relation value classes, the bundle schema, and the
+  narrowly scoped offline registry entry for the local Requirement schema.
+- [ ] Add the second M2 schema resource assertions and local $ref resolution
+  test; preserve the existing source-lock registry behavior.
 - [ ] Rerun focused tests, then:
 
 ~~~powershell
@@ -844,20 +874,21 @@ python -m mypy src/manafold_census/semantic
 - [ ] Commit only Task 5 files:
 
 ~~~powershell
-git add src/manafold_census/semantic/bundle.py src/manafold_census/semantic/__init__.py schemas/semantic-requirement-bundle.v1.schema.json tests/test_semantic_bundle.py
+git add src/manafold_census/semantic/bundle.py src/manafold_census/semantic/__init__.py schemas/semantic-requirement-bundle.v1.schema.json src/manafold_census/validation.py tests/test_semantic_schema.py tests/test_resources.py tests/test_semantic_bundle.py
 git diff --cached --check
-git commit -m "feat: add M2 Requirement bundles"
+git commit -m "feat: add M2 Requirement bundles and schema"
 ~~~
 
 - [ ] Push, verify remote parity, report, and stop.
 
 ---
 
-## Task 6: Source-aware validation and reviewed representative fixtures
+## Task 6A: Source-aware validation and representative fixture proposals
 
 Scope: Validate Requirement and bundle source references against M1
-StructuralCardRecordV1 values and add the small reviewed fixture set. Do not
-enumerate the corpus, build an analysis dataset, or add a semantic extractor.
+StructuralCardRecordV1 values and produce only proposed representative
+fixtures. Do not enumerate the corpus, build an analysis dataset, add a
+semantic extractor, or write a terminal human review outcome.
 
 Files:
 
@@ -865,6 +896,7 @@ Files:
 - Create fixtures/semantic/representative-bundles.json
 - Create tests/test_semantic_validation.py
 - Create tests/test_semantic_fixtures.py
+- Create tests/semantic_fixture_review_report.py
 
 ### Required source-aware API
 
@@ -901,22 +933,49 @@ These functions must:
 The source-aware validator does not infer a kind or fill an unknown value. It only
 checks references and contract invariants.
 
-### Fixture construction
+### Proposal fixture construction
 
 Select at most twelve exact source records from the pinned M1 corpus. Use the
 case matrix in the design specification. For each case:
 
 1. verify exact M1 identity against the pinned source record;
 2. create only the Requirement/Bundle wire, not a copied raw source record;
-3. include at least one accepted-but-partial Requirement;
-4. include one unresolved keyword/outlier Requirement;
-5. include one conflicting-proposal pair with CONFLICTS_WITH;
-6. exercise multi-face evidence without a producer anchor;
-7. keep all fixture evidence and derivations canonicalized.
+3. persist every generated Requirement as PROPOSED or IN_REVIEW only;
+4. include at least one proposed accepted-but-partial candidate without
+   terminal review;
+5. include a proposed unresolved keyword/outlier Requirement;
+6. include a proposed conflicting pair with CONFLICTS_WITH;
+7. exercise multi-face evidence without a producer anchor;
+8. keep all fixture evidence and derivations canonicalized.
 
+The implementation agent must not set ACCEPTED or REJECTED on a real fixture.
 The fixture wrapper is test-only. Its bundle values must pass the normative
 bundle schema, and its case IDs must be unique. No fixture test may assert
 global semantic coverage or iterate all 38,740 records.
+
+### Non-committed review report
+
+tests/semantic_fixture_review_report.py is test-harness code only. It writes
+dist/m2-semantic-fixture-review/task6a-review.json, which is ignored and is not
+committed. Each report case must contain:
+
+~~~text
+case_id
+card_name_for_reviewer
+oracle_id
+face_index where applicable
+relevant exact pinned source fields or bounded fragments
+proposed family
+proposed kind
+proposed parameters
+proposed resolution
+proposed relationships
+review_status = PROPOSED
+~~~
+
+The report gives an independent semantic reviewer enough pinned context to
+accept, reject, or request changes. It is not a semantic authority and does not
+alter the persisted fixture contract.
 
 ### Test-first steps
 
@@ -927,32 +986,107 @@ global semantic coverage or iterate all 38,740 records.
   fragment mismatch, and missing face.
 - [ ] Add fixture matrix tests that assert no more than twelve cases and all
   twelve required case IDs.
-- [ ] Add tests that unresolved/partial fixture claims are valid and malformed
-  wire remains a validation error.
+- [ ] Add tests that fail if a real fixture has ACCEPTED or REJECTED status in
+  Task 6A, while unresolved and partial proposals remain valid.
+- [ ] Add report-generation tests that include the exact pinned context fields
+  without persisting card names or raw source records in the bundle file.
 - [ ] Run the focused tests before implementation and observe the expected
   import/fixture failure.
-- [ ] Implement validate.py without importing CLI, source acquisition, or
-  network modules.
-- [ ] Populate and validate the representative bundles against the local
-  pinned M1 source cache. If that cache is unavailable, record the acceptance
-  gate as BLOCKED and do not substitute another source.
+- [ ] Implement validate.py and the test-only review report helper without
+  importing CLI, source acquisition, or network modules.
+- [ ] Populate and validate the proposed representative bundles against the
+  local pinned M1 source cache. If that cache is unavailable, record the
+  source-aware gate as BLOCKED and do not substitute another source.
+- [ ] Generate the non-committed review report and stop for independent
+  semantic review.
 - [ ] Rerun focused tests and:
 
 ~~~powershell
 python -m pytest tests/test_semantic_validation.py tests/test_semantic_fixtures.py -q
-python -m ruff check src/manafold_census/semantic/validate.py tests/test_semantic_validation.py tests/test_semantic_fixtures.py
+python -m ruff check src/manafold_census/semantic/validate.py tests/test_semantic_validation.py tests/test_semantic_fixtures.py tests/semantic_fixture_review_report.py
 python -m mypy src/manafold_census/semantic
 ~~~
 
-- [ ] Commit only Task 6 files:
+- [ ] Commit only Task 6A files:
 
 ~~~powershell
-git add src/manafold_census/semantic/validate.py fixtures/semantic/representative-bundles.json tests/test_semantic_validation.py tests/test_semantic_fixtures.py
+git add src/manafold_census/semantic/validate.py fixtures/semantic/representative-bundles.json tests/test_semantic_validation.py tests/test_semantic_fixtures.py tests/semantic_fixture_review_report.py
 git diff --cached --check
-git commit -m "feat: validate M2 source provenance fixtures"
+git commit -m "feat: add M2 representative fixture proposals"
 ~~~
 
-- [ ] Push, verify remote parity, report source-cache status, and stop.
+- [ ] Push, verify remote parity, report source-cache status and the
+  non-committed review-report path, and stop with
+  TASK_6B_AUTHORIZED=NO.
+
+---
+
+## Task 6B: Apply independently reviewed fixture outcomes
+
+Scope: Apply only an externally supplied semantic review decision to the
+Task 6A proposals. This task does not select cards, alter proposed family/kind/
+parameters, invent evidence, or perform semantic interpretation.
+
+Precondition:
+
+~~~text
+TASK_6A_COMMIT = reviewed and pushed
+INDEPENDENT_FIXTURE_REVIEW = PASS
+REVIEW_DECISIONS = supplied for every terminal outcome
+REVIEW_DECISIONS_PATH = dist/m2-semantic-fixture-review/task6b-decisions.json
+~~~
+
+Files:
+
+- Modify fixtures/semantic/representative-bundles.json
+- Modify tests/test_semantic_fixtures.py
+
+The independent reviewer supplies, per case and Requirement ID:
+
+~~~text
+review.status
+reviewed_by
+reviewed_claim_digest
+approved or rejected decision
+any required correction request
+~~~
+
+The decisions file is external, ignored, and not committed. The implementation
+agent may mechanically apply only those supplied values. If the file is absent,
+Task 6B is BLOCKED and no terminal status may be written.
+If a correction to family, kind, parameters, evidence, or resolution is
+requested, stop and report it for a new proposal revision; do not invent the
+correction in Task 6B.
+
+Task 6B must preserve:
+
+- unresolved and partial resolutions exactly where the reviewer accepts them;
+- at least one accepted-but-partial Requirement after independent approval;
+- terminal digest equality against the exact reviewed claim projection;
+- historical proposal identity and evidence provenance;
+- the existing SUPERSEDES relationship semantics, if a reviewed correction
+  creates a new Requirement ID.
+
+### Test-first steps
+
+- [ ] Add a fixture test that loads the externally supplied decision set and
+  confirms every ACCEPTED/REJECTED entry has the supplied reviewer and current
+  reviewed_claim_digest.
+- [ ] Add a negative test for an agent-authored terminal status whose reviewer
+  decision is absent.
+- [ ] Apply only the supplied terminal review fields and rerun the fixture
+  tests.
+- [ ] Run the full per-task regression gate from the authorization protocol.
+- [ ] Commit only the reviewed fixture/test changes:
+
+~~~powershell
+git add fixtures/semantic/representative-bundles.json tests/test_semantic_fixtures.py
+git diff --cached --check
+git commit -m "test: record independently reviewed M2 fixtures"
+~~~
+
+- [ ] Push, verify remote parity, report the external review decision source,
+  and stop with TASK_7_AUTHORIZED=NO.
 
 ---
 
@@ -1089,9 +1223,9 @@ git commit -m "test: enforce M2 semantic contract boundaries"
 | Minimal relationships/hierarchy | Task 5 |
 | Canonical wire and digest domains | Tasks 3 and 4 |
 | Immutability and fail-closed parsing | Tasks 1 through 4 |
-| Representative fixture corpus | Task 6 |
+| Representative fixture proposals and independent review outcomes | Tasks 6A and 6B |
 | M2/M3 and M2/M4 boundaries | Task 7 scope tests and all task protocols |
-| Threat mitigations | Tasks 1, 3, 5, 6, and 7 |
+| Threat mitigations | Tasks 1, 3, 5, 6A, 6B, and 7 |
 | Maintainability and LOC budget | Task 7 |
 | Explicit exit gates | Task 7 |
 
@@ -1102,6 +1236,8 @@ git commit -m "test: enforce M2 semantic contract boundaries"
   locators and source-lock values.
 - [ ] The review-binding digest is tested against evidence, derivation,
   resolution, and source-lock changes.
+- [ ] Task 6A cannot persist a real ACCEPTED/REJECTED fixture, and Task 6B
+  requires externally supplied review decisions before applying terminal state.
 - [ ] SUPERSEDED is present only as the SUPERSEDES relationship and never as a
   review status.
 - [ ] The Descriptor label/text escape hatch has positive and negative tests.
