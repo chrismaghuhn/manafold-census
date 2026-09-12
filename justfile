@@ -14,4 +14,16 @@ typecheck:
 reproduce:
     python -m manafold_census.cli reproduce
 
-check: doctor lint typecheck test reproduce
+source-discover:
+    python -m manafold_census.cli source-discover
+
+source-acquire:
+    python -m manafold_census.cli source-acquire
+
+corpus-build:
+    python -m manafold_census.cli corpus-build
+
+corpus-check:
+    python -m manafold_census.cli corpus-check --synthetic
+
+check: doctor lint typecheck test reproduce corpus-check

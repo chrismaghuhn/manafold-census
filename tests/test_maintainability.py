@@ -34,3 +34,32 @@ def test_maintainer_commands_do_not_inject_platform_specific_source_paths() -> N
     assert "powershell.exe" not in justfile
     assert "PYTHONPATH" not in justfile
     assert "pythonpath" not in pyproject.lower()
+
+
+def test_task_01_golden_path_separates_live_acquisition_from_offline_checks() -> None:
+    justfile = (REPOSITORY_ROOT / "justfile").read_text(encoding="utf-8")
+
+    for command in (
+        "source-discover",
+        "source-acquire",
+        "corpus-build",
+        "corpus-check",
+    ):
+        assert f"{command}:" in justfile
+    check_line = next(
+        line for line in justfile.splitlines() if line.startswith("check:")
+    )
+    assert check_line == "check: doctor lint typecheck test reproduce corpus-check"
+    assert "source-acquire" not in check_line
+
+
+def test_ci_contains_fresh_non_editable_wheel_smoke_path() -> None:
+    workflow = (REPOSITORY_ROOT / ".github" / "workflows" / "ci.yml").read_text(
+        encoding="utf-8"
+    )
+
+    assert 'python-version: "3.12"' in workflow
+    assert "pip wheel" in workflow
+    assert "python -m venv" in workflow
+    assert "non-editable" in workflow
+    assert "corpus-check --synthetic" in workflow

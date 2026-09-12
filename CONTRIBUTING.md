@@ -10,3 +10,7 @@ Keep changes deterministic and narrowly scoped.
 - Report checks explicitly as `PASS`, `FAIL`, `NOT_RUN`, or `BLOCKED`.
 - Keep the Python reference implementation simple until real workloads justify
   algorithmic or performance changes.
+- Keep Scryfall acquisition explicit and source-bounded. Never replace a
+  missing live source with another dataset or an undocumented cache.
+- Keep Task 01 inventory records at `SOURCE_FACT` scope; semantic card
+  analysis belongs to a separately authorized task.

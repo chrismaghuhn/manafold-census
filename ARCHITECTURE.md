@@ -43,6 +43,36 @@ same opened file stream. Each public structure has one normative schema; the
 source-lock schema references the source-artifact schema rather than copying
 it.
 
-Task 00 uses only a local synthetic fixture. It does not implement MTG
-acquisition, parsing, rules, capability classification, interaction
-generation, review, export, databases, or accelerators.
+Task 01 source flow
+-------------------
+
+The first real-data slice is deliberately source-bounded:
+
+```text
+Scryfall /bulk-data (oracle_cards)
+  -> exact compressed gzip bytes
+  -> generic SourceArtifact / SourceLock
+  -> gzip JSONL record boundaries
+  -> four-field SOURCE_FACT inventory
+  -> oracle_id sort
+  -> records/0.jsonl ... records/f.jsonl
+```
+
+The compressed download is the source identity. Each inventory record hashes
+the exact decompressed JSONL line bytes, including its line framing; the
+canonical generated JSONL line is a separate representation. The 16 shard
+files are generated and ignored, while the source lock and acquisition
+configuration are small reviewable inputs to future intentional refreshes.
+For this multi-file output, the existing `ArtifactManifest` binds the ordered
+aggregate index digest in `content_sha256` and the sum of shard byte lengths in
+`byte_length`; the report exposes the same aggregate identity explicitly.
+
+The source and corpus packages have separate ownership. Task 01 does not
+inspect Oracle text, normalize faces, infer types or abilities, assign
+capabilities, cite rules, call an LLM, or depend on Manafold. A reported 100%
+coverage value means every valid record in the exact pinned Scryfall
+`oracle_cards` snapshot was indexed exactly once.
+
+Task 00's foundation and Task 01's synthetic tests remain offline. Live
+discovery/acquisition is an explicit maintainer operation, not part of normal
+CI or `just check`.

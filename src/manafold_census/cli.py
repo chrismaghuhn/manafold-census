@@ -13,6 +13,11 @@ from pathlib import Path
 from typing import cast
 
 from .canonical import JSONValue, canonical_json_bytes
+from .corpus.build import (
+    build_pinned_corpus,
+    run_synthetic_reproduction,
+    validate_corpus_output,
+)
 from .digest import (
     REPRODUCTION_DOMAIN,
     domain_digest,
@@ -26,6 +31,7 @@ from .models import (
     StudySpec,
 )
 from .resources import project_data_root
+from .source.scryfall import acquire_current_source, discover_oracle_cards
 from .validation import validate_document, validate_source_file
 
 
@@ -157,11 +163,103 @@ def doctor() -> int:
     return 0
 
 
+def source_discover() -> int:
+    """Print the current source facts without writing any local state."""
+
+    observation = discover_oracle_cards()
+    print(f"bulk_type={observation.bulk_type}")
+    print(f"observed_format={observation.advertised_format}")
+    print(f"download_field={observation.download_field}")
+    print(f"source_id={observation.source_id}")
+    print(f"updated_at={observation.updated_at or 'NOT_SUPPLIED'}")
+    print(f"source_locator={observation.download_uri}")
+    print(
+        "compressed_size="
+        + (
+            str(observation.compressed_size)
+            if observation.compressed_size is not None
+            else "NOT_SUPPLIED"
+        )
+    )
+    print("source_discovery=PASS")
+    return 0
+
+
+def source_acquire(repository_root: str | Path) -> int:
+    """Perform one explicit source refresh and write the small committed lock."""
+
+    root = Path(repository_root)
+    observation, artifact, lock = acquire_current_source(
+        cache_root=root / ".cache" / "sources" / "scryfall",
+        lock_path=root / "source-locks" / "scryfall-oracle-v1.json",
+    )
+    print(f"bulk_type={observation.bulk_type}")
+    print(f"observed_format={observation.advertised_format}")
+    print(f"download_field={observation.download_field}")
+    print(f"source_id={observation.source_id}")
+    print(f"source_sha256={artifact.sha256}")
+    print(f"source_byte_length={artifact.byte_length}")
+    print(f"source_media_type={artifact.media_type}")
+    print(f"source_lock_digest={lock.digest()}")
+    print("source_acquisition=PASS")
+    return 0
+
+
+def corpus_build(repository_root: str | Path, output_dir: str | Path) -> int:
+    """Build the pinned source into a fresh generated corpus directory."""
+
+    result = build_pinned_corpus(repository_root, output_dir)
+    print(f"record_count={result.index.record_count}")
+    print(f"unique_oracle_id_count={result.index.unique_oracle_id_count}")
+    print(f"aggregate_index_digest={result.index.aggregate_digest}")
+    print("corpus_build=PASS")
+    return 0
+
+
+def corpus_check(
+    repository_root: str | Path,
+    output_dir: str | Path | None,
+    synthetic: bool,
+) -> int:
+    """Validate a generated index, or run its fully offline synthetic check."""
+
+    if synthetic:
+        digest_a, digest_b = run_synthetic_reproduction()
+        print(f"run_a_digest={digest_a}")
+        print(f"run_b_digest={digest_b}")
+        print("synthetic_reproduction=PASS")
+        return 0
+    if output_dir is None:
+        raise ValueError("corpus-check requires --output or --synthetic")
+    digest = validate_corpus_output(output_dir)
+    print(f"aggregate_index_digest={digest}")
+    print("corpus_check=PASS")
+    return 0
+
+
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="manafold_census")
     subparsers = parser.add_subparsers(dest="command", required=True)
     subparsers.add_parser("doctor", help="check the local Python baseline")
     subparsers.add_parser("reproduce", help="run the two-build parity check")
+    subparsers.add_parser(
+        "source-discover", help="inspect current Scryfall bulk metadata"
+    )
+    acquire_parser = subparsers.add_parser(
+        "source-acquire", help="download and lock the current Scryfall source"
+    )
+    acquire_parser.add_argument("--repository-root", default=".")
+    build_parser = subparsers.add_parser(
+        "corpus-build", help="build the committed pinned source-record index"
+    )
+    build_parser.add_argument("--repository-root", default=".")
+    build_parser.add_argument("--output", default="dist/corpus/scryfall-oracle-v1")
+    check_parser = subparsers.add_parser(
+        "corpus-check", help="validate a corpus output or its offline fixture"
+    )
+    check_parser.add_argument("--repository-root", default=".")
+    check_parser.add_argument("--output")
+    check_parser.add_argument("--synthetic", action="store_true")
     return parser
 
 
@@ -176,6 +274,28 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(f"reproduction=FAIL: {error}", file=sys.stderr)
             return 1
         return 0
+    try:
+        if args.command == "source-discover":
+            return source_discover()
+        if args.command == "source-acquire":
+            return source_acquire(args.repository_root)
+        if args.command == "corpus-build":
+            root = Path(args.repository_root)
+            output = Path(args.output)
+            if not output.is_absolute():
+                output = root / output
+            return corpus_build(root, output)
+        if args.command == "corpus-check":
+            root = Path(args.repository_root)
+            check_output: Path | None = (
+                Path(args.output) if args.output is not None else None
+            )
+            if check_output is not None and not check_output.is_absolute():
+                check_output = root / check_output
+            return corpus_check(root, check_output, args.synthetic)
+    except (OSError, RuntimeError, TypeError, ValueError) as error:
+        print(f"{args.command}=FAIL: {error}", file=sys.stderr)
+        return 1
     return 2
 
 

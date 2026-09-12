@@ -1,0 +1,9 @@
+{
+  "schema": "census.source-acquisition.v1",
+  "source_family": "scryfall",
+  "bulk_type": "oracle_cards",
+  "discovery_uri": "https://api.scryfall.com/bulk-data",
+  "expected_format": "gzip-jsonl",
+  "download_field": "jsonl_download_uri",
+  "user_agent": "manafold-census/0.1.0 (Task 01 source acquisition)"
+}

@@ -1,0 +1,1 @@
+{"artifacts":[{"byte_length":24601964,"locator":"https://data.scryfall.io/oracle-cards/oracle-cards-20260912090152.jsonl.gz","media_type":"application/gzip","schema":"census.source-artifact.v1","sha256":"4d4b77fd2668f789ea97a855dd49e1e505322c56e09771d8d2ffd9f48681d3a0","source_id":"27bf3214-1271-490b-bdfe-c0be6c23d02e"}],"schema":"census.source-lock.v1"}
