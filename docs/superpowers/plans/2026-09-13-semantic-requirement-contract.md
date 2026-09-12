@@ -281,6 +281,20 @@ class ParameterValueV1:
     value: str | int | bool | SemanticDescriptorV1 | UnknownValueV1
 ~~~
 
+The unresolved payload uses existing closed vocabularies rather than inventing
+an implementation-only wire enum:
+
+~~~text
+observed_field   = controlled M1 source-field locator from the design spec
+observed_shape   = SemanticShapeV1
+candidate_kinds  = tuple[RequirementKindV1, ...]
+~~~
+
+There is no ObservedShapeV1. observed_field and observed_shape are orthogonal:
+the field identifies the source location, while SemanticShapeV1 identifies the
+known semantic descriptor shape or explicit unknown state. Candidate kinds are
+validated against the complete v1 RequirementKindV1 set.
+
 Use object_ref as the Python attribute for the wire key object. Do not use an
 arbitrary mapping for any typed atom.
 
@@ -304,6 +318,9 @@ Enforce:
 - strict booleans, with bool rejected where an integer is required;
 - valid UTF-8 and a 4096 UTF-8-byte limit for descriptor labels and hints;
 - no floats, sets, tuples, bytes, callbacks, paths, or arbitrary keys;
+- from_wire accepts JSON-shaped dict/list/scalar values only; internal tuples,
+  enums, model instances, and other Python objects are rejected recursively;
+  direct constructors may still normalize immutable internal tuples;
 - descriptor children are ordered and recursively immutable;
 - QuantityV1 cross-field rules:
   - exact uses an integer;
@@ -322,12 +339,19 @@ it as an arbitrary string.
 
 ### Test-first steps
 
-- [ ] Add tests for every enum value, family-to-kind mapping, exact fixed keys,
+- [ ] Add complete matrices for every primitive enum value, the exact closed
+  SemanticShapeV1 vocabulary, the complete RequirementKindV1 vocabulary,
+  and family-to-kind mapping; add exact fixed keys,
   signed-64-bit boundaries, immutable nested values, and fresh to_wire().
 - [ ] Add tests for DurationV1's five exact kinds, delayed descriptor payload,
   explicit unknown reason, and immutability.
 - [ ] Add tests that prove the generic text ParameterValue cannot carry a
   descriptor's required semantic dimensions.
+- [ ] Add tests that reject arbitrary observed_shape strings and arbitrary
+  candidate_kinds strings, while accepting only SemanticShapeV1 and
+  RequirementKindV1 values.
+- [ ] Add negative tests proving tuple-valued JSON arrays and nested Python
+  model/enum objects are rejected by from_wire().
 - [ ] Add tests for every kind's required and optional parameter key set.
 - [ ] Run:
 

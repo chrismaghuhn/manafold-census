@@ -572,6 +572,13 @@ Reusable parameter atoms are:
   does not form an open-ended map. 'label' is bounded source/review context,
   not a semantic escape hatch.
 
+The 'unresolved' payload reuses this existing closed 'SemanticShapeV1'
+vocabulary for 'observed_shape'. It does not introduce a separate
+'ObservedShapeV1' wire vocabulary. The exact values are 'event', 'condition',
+'restriction', 'effect', 'replacement', 'duration', 'cost', 'alternative', and
+'unknown'. 'observed_shape' is a semantic observation shape, not a source
+field and not a capability.
+
 The exact v1 parameter keys are:
 
 | Kind | Required parameter keys | Optional parameter keys |
@@ -594,8 +601,23 @@ The exact v1 parameter keys are:
 | 'keyword_reference' | 'keyword', 'keyword_index', 'expansion_state' | 'expansion' |
 | 'unresolved' | 'observed_field', 'observed_shape', 'question', 'candidate_kinds' | 'fragment' |
 
-'operation', 'subject_kind', 'expansion_state', and 'observed_shape' are
-closed enums. 'characteristics' and 'alternatives' are typed arrays; their
+'operation', 'subject_kind', and 'expansion_state' are closed enums;
+'observed_shape' is the existing 'SemanticShapeV1' closed enum. The
+'candidate_kinds' array contains only 'RequirementKindV1' values. The
+'observed_field' value is a controlled M1 source-field locator from this exact
+set:
+
+~~~text
+record, name, layout, mana_cost, type_line, oracle_text, colors,
+color_identity, color_indicator, keywords, produced_mana, power, toughness,
+loyalty, defense, hand_modifier, life_modifier, attraction_lights, faces,
+all_parts
+~~~
+
+'observed_field' and 'observed_shape' are orthogonal: the former says where
+the source observation came from, while the latter says which already-known
+semantic descriptor shape was observed or remains unknown. 'characteristics'
+and 'alternatives' are typed arrays; their
 declared ordering is semantic where the source presents an order. The
 'unresolved' payload may name candidate v1 kinds but may not invent a new
 kind.
