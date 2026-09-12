@@ -70,6 +70,21 @@ def test_ci_contains_fresh_non_editable_wheel_smoke_path() -> None:
     assert "corpus-check --synthetic" in workflow
 
 
+def test_ci_contains_offline_structural_gate_and_all_m1_schema_smoke() -> None:
+    workflow = (REPOSITORY_ROOT / ".github" / "workflows" / "ci.yml").read_text(
+        encoding="utf-8"
+    )
+
+    assert "structural-check --synthetic" in workflow
+    for schema in (
+        "structural-card.v1.schema.json",
+        "structural-card-index-manifest.v1.schema.json",
+        "structural-card-report.v1.schema.json",
+    ):
+        assert schema in workflow
+    assert 'cd "$RUNNER_TEMP"' in workflow
+
+
 def test_directly_imported_referencing_dependency_is_declared() -> None:
     pyproject = (REPOSITORY_ROOT / "pyproject.toml").read_text(encoding="utf-8")
 

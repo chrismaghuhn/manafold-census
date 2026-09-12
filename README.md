@@ -62,3 +62,31 @@ require Scryfall availability.
 The `reproduce` command builds the synthetic fixture twice in independent
 temporary directories and requires identical semantic files and SHA-256
 digests.
+
+## M1 structural census
+
+M1 projects source-provided structural facts into immutable card records. It
+preserves source absence, empty values, raw strings, face order, related-part
+fields, and Task 01 identity. It does not interpret Oracle text, keywords,
+mana costs, or rules semantics.
+
+The structural workflow is deterministic and offline when using the synthetic
+path:
+
+```text
+just structural-check
+python -m manafold_census.cli structural-check --synthetic
+```
+
+The explicit pinned-cache build and check commands are:
+
+```text
+just structural-build
+python -m manafold_census.cli structural-build --repository-root . --output dist/structural/scryfall-oracle-v1
+python -m manafold_census.cli structural-check --repository-root . --output dist/structural/scryfall-oracle-v1
+```
+
+Structural output uses 16 deterministic Oracle-ID shards. The structural index
+manifest has its own aggregate digest, while ArtifactManifest binds the exact
+canonical manifest bytes. Generated records remain ignored and are never
+committed.
