@@ -7,12 +7,15 @@ from pathlib import Path
 from typing import Any
 
 from jsonschema import Draft202012Validator  # type: ignore[import-untyped]
+from referencing import Registry, Resource
+from referencing.jsonschema import DRAFT202012
 
 from .canonical import canonical_json_bytes
-from .digest import sha256_file
+from .digest import measure_file
 from .models import SourceArtifact
+from .resources import project_data_root
 
-SCHEMA_DIRECTORY = Path(__file__).resolve().parents[2] / "schemas"
+SCHEMA_DIRECTORY = project_data_root() / "schemas"
 
 
 class SchemaValidationError(ValueError):
@@ -26,6 +29,32 @@ def _resolve_schema_path(schema: str | Path) -> Path:
     if not schema_path.is_file():
         raise FileNotFoundError(f"schema file does not exist: {schema_path}")
     return schema_path
+
+
+def _read_json_document(path: Path) -> dict[str, Any]:
+    with path.open("r", encoding="utf-8") as stream:
+        document = json.load(stream)
+    if not isinstance(document, dict):
+        raise ValueError(f"schema must be a JSON object: {path}")
+    return document
+
+
+def _schema_validator(schema_path: Path, schema_document: dict[str, Any]) -> Any:
+    if schema_path.name != "source-lock.v1.schema.json":
+        return Draft202012Validator(schema_document)
+
+    source_artifact_path = SCHEMA_DIRECTORY / "source-artifact.v1.schema.json"
+    source_artifact_document = _read_json_document(source_artifact_path)
+    source_artifact_id = source_artifact_document.get("$id")
+    if not isinstance(source_artifact_id, str):
+        raise ValueError("source artifact schema must define a string $id")
+    registry = Registry().with_resource(
+        source_artifact_id,
+        Resource.from_contents(
+            source_artifact_document, default_specification=DRAFT202012
+        ),
+    )
+    return Draft202012Validator(schema_document, registry=registry)
 
 
 def _error_path(error: Any) -> str:
@@ -69,9 +98,8 @@ def validate_document(document: object, schema: str | Path) -> None:
     """Validate one wire document against a repository JSON Schema and invariants."""
 
     schema_path = _resolve_schema_path(schema)
-    with schema_path.open("r", encoding="utf-8") as stream:
-        schema_document = json.load(stream)
-    validator = Draft202012Validator(schema_document)
+    schema_document = _read_json_document(schema_path)
+    validator = _schema_validator(schema_path, schema_document)
     errors = sorted(
         validator.iter_errors(document),
         key=lambda error: tuple(str(part) for part in error.path),
@@ -85,9 +113,8 @@ def validate_document(document: object, schema: str | Path) -> None:
 def validate_source_file(artifact: SourceArtifact, path: str | Path) -> None:
     """Verify that a local file matches a SourceArtifact's bytes and length."""
 
-    actual_digest = sha256_file(path)
-    if actual_digest != artifact.sha256:
+    measurement = measure_file(path)
+    if measurement.sha256 != artifact.sha256:
         raise ValueError("source digest mismatch")
-    actual_length = Path(path).stat().st_size
-    if actual_length != artifact.byte_length:
+    if measurement.byte_length != artifact.byte_length:
         raise ValueError("source byte length mismatch")

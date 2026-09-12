@@ -1,4 +1,3 @@
-import os
 import re
 import subprocess
 import sys
@@ -27,16 +26,9 @@ def test_two_independent_fixture_builds_have_byte_parity(tmp_path) -> None:
 
 def test_reproduce_command_reports_equal_run_digests() -> None:
     repository_root = Path(__file__).parents[1]
-    source_path = repository_root / "src"
-    env = os.environ.copy()
-    existing_pythonpath = env.get("PYTHONPATH")
-    env["PYTHONPATH"] = os.pathsep.join(
-        part for part in [str(source_path), existing_pythonpath] if part
-    )
     result = subprocess.run(
         [sys.executable, "-m", "manafold_census.cli", "reproduce"],
         cwd=repository_root,
-        env=env,
         capture_output=True,
         text=True,
         check=False,

@@ -6,17 +6,22 @@ import re
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
-from types import MappingProxyType
 from typing import ClassVar, cast
 
-from .canonical import JSONValue, canonical_json_bytes
+from .canonical import (
+    MAX_INTEGER,
+    FrozenJSONValue,
+    JSONValue,
+    freeze_json,
+    thaw_json,
+)
 from .digest import (
     ARTIFACT_MANIFEST_DOMAIN,
     DATASET_MANIFEST_DOMAIN,
     SOURCE_LOCK_DOMAIN,
     STUDY_SPEC_DOMAIN,
     domain_digest,
-    sha256_file,
+    measure_file,
 )
 
 _IDENTIFIER_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:/_-]*$")
@@ -56,6 +61,8 @@ def _require_nonnegative_int(field: str, value: object) -> int:
         raise TypeError(f"{field} must be an integer")
     if value < 0:
         raise ValueError(f"{field} must be non-negative")
+    if value > MAX_INTEGER:
+        raise ValueError(f"{field} is outside the signed 64-bit range")
     return value
 
 
@@ -115,11 +122,12 @@ class SourceArtifact:
         media_type: str,
     ) -> SourceArtifact:
         file_path = Path(path)
+        measurement = measure_file(file_path)
         return cls(
             source_id=source_id,
             locator=locator,
-            sha256=sha256_file(file_path),
-            byte_length=file_path.stat().st_size,
+            sha256=measurement.sha256,
+            byte_length=measurement.byte_length,
             media_type=media_type,
         )
 
@@ -166,11 +174,31 @@ class SourceLock:
         source_ids = [artifact.source_id for artifact in artifacts]
         if len(source_ids) != len(set(source_ids)):
             raise ValueError("duplicate source_id in source lock")
+        if source_ids != sorted(source_ids):
+            raise ValueError(
+                "source lock artifacts must be sorted; use SourceLock.build"
+            )
         object.__setattr__(
             self,
             "artifacts",
-            tuple(sorted(artifacts, key=lambda artifact: artifact.source_id)),
+            artifacts,
         )
+
+    @classmethod
+    def build(
+        cls, artifacts: tuple[SourceArtifact, ...] | list[SourceArtifact]
+    ) -> SourceLock:
+        """Build a lock from any input order, sorting it before construction."""
+
+        if not isinstance(artifacts, tuple | list):
+            raise TypeError("artifacts must be a tuple or list")
+        artifact_tuple = tuple(artifacts)
+        if any(not isinstance(artifact, SourceArtifact) for artifact in artifact_tuple):
+            raise TypeError("source lock artifacts must be SourceArtifact values")
+        sorted_artifacts = tuple(
+            sorted(artifact_tuple, key=lambda artifact: artifact.source_id)
+        )
+        return cls(sorted_artifacts)
 
     def to_wire(self) -> dict[str, JSONValue]:
         return {
@@ -279,16 +307,21 @@ class StudySpec:
         if not isinstance(self.parameters, Mapping):
             raise TypeError("parameters must be an object")
         parameter_document = dict(self.parameters)
-        canonical_json_bytes(parameter_document)
-        object.__setattr__(self, "parameters", MappingProxyType(parameter_document))
+        frozen_parameters = freeze_json(parameter_document)
+        if not isinstance(frozen_parameters, Mapping):
+            raise TypeError("parameters must be an object")
+        object.__setattr__(self, "parameters", frozen_parameters)
 
     def to_wire(self) -> dict[str, JSONValue]:
+        parameters = thaw_json(cast(FrozenJSONValue, self.parameters))
+        if not isinstance(parameters, dict):
+            raise TypeError("parameters must be an object")
         return {
             "schema": self.SCHEMA,
             "study_id": self.study_id,
             "dataset_refs": list(self.dataset_refs),
             "operation": self.operation,
-            "parameters": dict(self.parameters),
+            "parameters": parameters,
         }
 
     def digest(self) -> str:

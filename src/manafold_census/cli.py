@@ -13,22 +13,24 @@ from pathlib import Path
 from typing import cast
 
 from .canonical import JSONValue, canonical_json_bytes
-from .digest import REPRODUCTION_DOMAIN, domain_digest, sha256_bytes, sha256_file
+from .digest import (
+    REPRODUCTION_DOMAIN,
+    domain_digest,
+    measure_file,
+    sha256_bytes,
+)
 from .models import (
     ArtifactManifest,
     DatasetManifest,
     SourceLock,
     StudySpec,
 )
+from .resources import project_data_root
 from .validation import validate_document, validate_source_file
 
 
-def _repository_root() -> Path:
-    return Path(__file__).resolve().parents[2]
-
-
 def _read_fixture_spec(filename: str) -> dict[str, object]:
-    path = _repository_root() / "fixtures" / "specs" / filename
+    path = project_data_root() / "fixtures" / "specs" / filename
     with path.open("r", encoding="utf-8") as stream:
         value = json.load(stream)
     if not isinstance(value, dict):
@@ -51,8 +53,8 @@ def directory_digest(directory: str | Path) -> str:
     entries = [
         {
             "path": relative_path,
-            "sha256": sha256_file(path),
-            "byte_length": path.stat().st_size,
+            "sha256": (measurement := measure_file(path)).sha256,
+            "byte_length": measurement.byte_length,
         }
         for relative_path, path in sorted(_file_map(root).items())
     ]
@@ -67,7 +69,7 @@ def build_fixture(output_dir: str | Path) -> str:
     if any(output_path.iterdir()):
         raise ValueError("fixture output directory must be empty")
 
-    source_path = _repository_root() / "fixtures" / "source" / "example.txt"
+    source_path = project_data_root() / "fixtures" / "source" / "example.txt"
     source_lock = SourceLock.from_wire(_read_fixture_spec("example-source-lock.json"))
     source_artifact = source_lock.artifacts[0]
     validate_source_file(source_artifact, source_path)

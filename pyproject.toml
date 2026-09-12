@@ -17,8 +17,12 @@ dev = [
   "ruff>=0.6,<1",
 ]
 
+[tool.setuptools.data-files]
+"share/manafold-census/schemas" = ["schemas/*.json"]
+"share/manafold-census/fixtures/source" = ["fixtures/source/example.txt"]
+"share/manafold-census/fixtures/specs" = ["fixtures/specs/*.json"]
+
 [tool.pytest.ini_options]
-pythonpath = ["src"]
 testpaths = ["tests"]
 
 [tool.ruff]

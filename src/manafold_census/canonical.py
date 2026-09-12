@@ -3,11 +3,22 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Mapping
+from types import MappingProxyType
+from typing import cast
 
 MAX_INTEGER = (1 << 63) - 1
 MIN_INTEGER = -(1 << 63)
 
 type JSONValue = None | bool | int | str | list["JSONValue"] | dict[str, "JSONValue"]
+type FrozenJSONValue = (
+    None
+    | bool
+    | int
+    | str
+    | tuple["FrozenJSONValue", ...]
+    | Mapping[str, "FrozenJSONValue"]
+)
 
 
 def _validate_json_value(value: object, path: str) -> None:
@@ -70,3 +81,29 @@ def canonical_json_bytes(value: object) -> bytes:
         sort_keys=True,
     )
     return encoded.encode("utf-8")
+
+
+def freeze_json(value: object) -> FrozenJSONValue:
+    """Copy restricted JSON into a recursively immutable representation."""
+
+    _validate_json_value(value, "$")
+    return _freeze_json_value(value)
+
+
+def _freeze_json_value(value: object) -> FrozenJSONValue:
+    if isinstance(value, list):
+        return tuple(_freeze_json_value(item) for item in value)
+    if isinstance(value, dict):
+        frozen = {key: _freeze_json_value(item) for key, item in value.items()}
+        return MappingProxyType(frozen)
+    return cast(FrozenJSONValue, value)
+
+
+def thaw_json(value: FrozenJSONValue) -> JSONValue:
+    """Convert an immutable JSON model value back to explicit wire JSON."""
+
+    if isinstance(value, Mapping):
+        return {key: thaw_json(item) for key, item in value.items()}
+    if isinstance(value, tuple):
+        return [thaw_json(item) for item in value]
+    return value

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import re
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Final
 
@@ -19,6 +20,14 @@ _DOMAIN_PATTERN = re.compile(r"^census\.[a-z0-9]+(?:-[a-z0-9]+)*\.v[0-9]+$")
 _HASH_CHUNK_SIZE = 1024 * 1024
 
 
+@dataclass(frozen=True, slots=True)
+class FileMeasurement:
+    """Digest and byte length measured from one complete file stream."""
+
+    sha256: str
+    byte_length: int
+
+
 def sha256_bytes(data: bytes) -> str:
     """Return the lowercase hexadecimal SHA-256 digest of exact bytes."""
 
@@ -30,11 +39,19 @@ def sha256_bytes(data: bytes) -> str:
 def sha256_file(path: str | Path) -> str:
     """Return a streamed SHA-256 digest for a file."""
 
+    return measure_file(path).sha256
+
+
+def measure_file(path: str | Path) -> FileMeasurement:
+    """Measure digest and byte length from the same opened file stream."""
+
     digest = hashlib.sha256()
+    byte_length = 0
     with Path(path).open("rb") as stream:
         while chunk := stream.read(_HASH_CHUNK_SIZE):
             digest.update(chunk)
-    return digest.hexdigest()
+            byte_length += len(chunk)
+    return FileMeasurement(sha256=digest.hexdigest(), byte_length=byte_length)
 
 
 def domain_digest(domain: str, payload: JSONValue) -> str:
