@@ -72,9 +72,33 @@ def _read_canonical_document(path: Path) -> dict[str, object]:
     return document
 
 
+def _validate_structural_record_schemas(records_dir: Path) -> None:
+    """Validate every actual JSONL object against the normative card schema."""
+
+    if not records_dir.is_dir():
+        raise StructuralCheckError("structural records directory does not exist")
+    for path in sorted(records_dir.glob("*.jsonl")):
+        try:
+            stream = path.open("rb")
+        except OSError as error:
+            raise StructuralCheckError(
+                f"could not open structural shard {path.name}"
+            ) from error
+        with stream:
+            while raw_line := stream.readline():
+                if not raw_line.endswith(b"\n"):
+                    raise StructuralCheckError(f"shard {path.name} is missing final LF")
+                try:
+                    document = json.loads(raw_line)
+                    validate_document(document, "structural-card.v1.schema.json")
+                except (TypeError, ValueError, UnicodeDecodeError) as error:
+                    raise StructuralCheckError(str(error)) from error
+
+
 def _read_actual_records(
     records_dir: Path,
 ) -> tuple[StructuralIndexSummary, dict[str, StructuralCardRecordV1]]:
+    _validate_structural_record_schemas(records_dir)
     try:
         index = inspect_structural_index(records_dir)
     except StructuralIndexError as error:

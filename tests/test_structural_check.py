@@ -157,6 +157,19 @@ def test_checker_rejects_noncanonical_documents_and_jsonl(tmp_path: Path) -> Non
         validate_structural_output(output, source_path, lock_path)
 
 
+def test_checker_validates_each_structural_record_against_card_schema(
+    tmp_path: Path,
+) -> None:
+    source_path, lock_path, output = _build_fixture(tmp_path / "card-schema")
+    zero_path = output / "records" / "0.jsonl"
+    documents = _read_shard_documents(zero_path)
+    documents[0]["unexpected"] = True
+    _write_shard_documents(zero_path, documents)
+
+    with pytest.raises(ValueError, match="additional properties"):
+        validate_structural_output(output, source_path, lock_path)
+
+
 def test_checker_rejects_wrong_shard_order_and_duplicate_identity(
     tmp_path: Path,
 ) -> None:
@@ -190,7 +203,12 @@ def test_checker_rejects_task01_identity_projection_mutations(
     source_path, lock_path, output = _build_fixture(tmp_path / field)
     zero_path = output / "records" / "0.jsonl"
     documents = _read_shard_documents(zero_path)
-    documents[0][field] = "0" * 64 if field == "source_record_sha256" else "changed"
+    if field == "source_record_sha256":
+        documents[0][field] = "0" * 64
+    elif field == "source_card_id":
+        documents[0][field] = "11111111-1111-4111-8111-111111111111"
+    else:
+        documents[0][field] = "changed"
     _write_shard_documents(zero_path, documents)
 
     with pytest.raises(ValueError):
