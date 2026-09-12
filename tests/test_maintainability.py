@@ -6,7 +6,7 @@ MAX_PRODUCTION_MODULE_LINES = 500
 
 
 def test_production_modules_stay_below_maintainability_budget() -> None:
-    modules = sorted((REPOSITORY_ROOT / "src" / "manafold_census").glob("*.py"))
+    modules = sorted((REPOSITORY_ROOT / "src" / "manafold_census").rglob("*.py"))
 
     assert modules
     for module in modules:
