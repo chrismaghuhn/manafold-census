@@ -12,9 +12,9 @@ from manafold_census.structural.model import (
 )
 from manafold_census.validation import SchemaValidationError, validate_document
 
-ORACLE_ID = "00000000-0000-4000-8000-000000000000"
-SOURCE_CARD_ID = "00000000-0000-4000-8000-000000000001"
-RELATED_CARD_ID = "00000000-0000-4000-8000-000000000002"
+ORACLE_ID = "abcdefab-abcd-4abc-8abc-abcdefabcdef"
+SOURCE_CARD_ID = "abcdefab-abcd-4abc-8abc-abcdefabcdea"
+RELATED_CARD_ID = "abcdefab-abcd-4abc-8abc-abcdefabcdeb"
 SOURCE_RECORD_SHA256 = sha256_bytes(b"source-record\n")
 
 
@@ -147,6 +147,54 @@ def test_structural_card_round_trips_and_matches_json_schema() -> None:
     validate_document(wire, "structural-card.v1.schema.json")
 
     assert StructuralCardRecordV1.from_wire(wire) == record
+
+
+@pytest.mark.parametrize("field", ["oracle_id", "source_card_id"])
+def test_wire_decoder_rejects_noncanonical_uppercase_identity(field: str) -> None:
+    wire = _record().to_wire()
+    wire[field] = wire[field].upper()
+
+    with pytest.raises(ValueError, match=f"{field}.*lowercase"):
+        StructuralCardRecordV1.from_wire(wire)
+
+
+def test_wire_decoder_accepts_only_json_array_lists() -> None:
+    wire = _record().to_wire()
+    wire["colors"] = ("U",)
+
+    with pytest.raises(TypeError, match="colors"):
+        StructuralCardRecordV1.from_wire(wire)
+
+    face_wire = _record(faces=[_face(0)]).to_wire()
+    face_wire["faces"][0]["colors"] = ("G",)
+
+    with pytest.raises(TypeError, match="colors"):
+        StructuralCardRecordV1.from_wire(face_wire)
+
+
+def test_model_and_schema_reject_whitespace_only_card_name() -> None:
+    wire = _record().to_wire()
+    wire["name"] = "   "
+
+    with pytest.raises(ValueError, match="name"):
+        StructuralCardRecordV1.from_wire(wire)
+    with pytest.raises(SchemaValidationError, match="name"):
+        validate_document(wire, "structural-card.v1.schema.json")
+
+
+@pytest.mark.parametrize(
+    "faces",
+    [
+        [_face(1)],
+        [_face(0), _face(0)],
+        [_face(1), _face(0)],
+    ],
+)
+def test_model_rejects_face_indexes_not_equal_to_source_positions(
+    faces: list[StructuralFaceV1],
+) -> None:
+    with pytest.raises(ValueError, match="face_index"):
+        _record(faces=faces)
 
 
 def test_nullable_fields_accept_none_as_structural_absence() -> None:

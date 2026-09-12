@@ -65,6 +65,12 @@ def _optional_string_array(field: str, value: object) -> tuple[str, ...] | None:
     return tuple(items)
 
 
+def _wire_optional_string_array(field: str, value: object) -> tuple[str, ...] | None:
+    if value is not None and not isinstance(value, list):
+        raise TypeError(f"{field} must be a JSON array or null")
+    return _optional_string_array(field, value)
+
+
 def _optional_integer_array(field: str, value: object) -> tuple[int, ...] | None:
     if value is None:
         return None
@@ -78,6 +84,12 @@ def _optional_integer_array(field: str, value: object) -> tuple[int, ...] | None
             raise ValueError(f"{field}[{index}] is outside the signed 64-bit range")
         items.append(item)
     return tuple(items)
+
+
+def _wire_optional_integer_array(field: str, value: object) -> tuple[int, ...] | None:
+    if value is not None and not isinstance(value, list):
+        raise TypeError(f"{field} must be a JSON array or null")
+    return _optional_integer_array(field, value)
 
 
 def _require_face_index(value: object) -> int:
@@ -220,8 +232,8 @@ class StructuralFaceV1:
             mana_cost=cast(str | None, document["mana_cost"]),
             type_line=cast(str | None, document["type_line"]),
             oracle_text=cast(str | None, document["oracle_text"]),
-            colors=_optional_string_array("colors", document["colors"]),
-            color_indicator=_optional_string_array(
+            colors=_wire_optional_string_array("colors", document["colors"]),
+            color_indicator=_wire_optional_string_array(
                 "color_indicator", document["color_indicator"]
             ),
             power=cast(str | None, document["power"]),
@@ -346,6 +358,11 @@ class StructuralCardRecordV1:
             if any(not isinstance(face, StructuralFaceV1) for face in self.faces):
                 raise TypeError("faces must contain StructuralFaceV1 values")
             normalized_faces = tuple(self.faces)
+            for expected_index, face in enumerate(normalized_faces):
+                if face.face_index != expected_index:
+                    raise ValueError(
+                        "faces face_index must equal its source-array position"
+                    )
         object.__setattr__(self, "faces", normalized_faces)
         if self.all_parts is None:
             normalized_parts: tuple[StructuralRelatedPartV1, ...] | None = None
@@ -416,6 +433,19 @@ class StructuralCardRecordV1:
     def from_wire(cls, value: object) -> StructuralCardRecordV1:
         document = _require_wire_object(value, cls._WIRE_KEYS, "structural card")
         _require_schema(document, cls.SCHEMA)
+        identity = RecordIndexEntry.from_wire(
+            {
+                "oracle_id": document["oracle_id"],
+                "source_card_id": document["source_card_id"],
+                "name": document["name"],
+                "source_record_sha256": document["source_record_sha256"],
+            }
+        )
+        for field in ("oracle_id", "source_card_id"):
+            raw_value = document[field]
+            normalized_value = getattr(identity, field)
+            if raw_value != normalized_value:
+                raise ValueError(f"{field} must be a lowercase canonical UUID")
         raw_faces = document["faces"]
         faces: list[StructuralFaceV1] | None = None
         if raw_faces is not None:
@@ -437,15 +467,15 @@ class StructuralCardRecordV1:
             mana_cost=cast(str | None, document["mana_cost"]),
             type_line=cast(str | None, document["type_line"]),
             oracle_text=cast(str | None, document["oracle_text"]),
-            colors=_optional_string_array("colors", document["colors"]),
-            color_identity=_optional_string_array(
+            colors=_wire_optional_string_array("colors", document["colors"]),
+            color_identity=_wire_optional_string_array(
                 "color_identity", document["color_identity"]
             ),
-            color_indicator=_optional_string_array(
+            color_indicator=_wire_optional_string_array(
                 "color_indicator", document["color_indicator"]
             ),
-            keywords=_optional_string_array("keywords", document["keywords"]),
-            produced_mana=_optional_string_array(
+            keywords=_wire_optional_string_array("keywords", document["keywords"]),
+            produced_mana=_wire_optional_string_array(
                 "produced_mana", document["produced_mana"]
             ),
             power=cast(str | None, document["power"]),
@@ -454,7 +484,7 @@ class StructuralCardRecordV1:
             defense=cast(str | None, document["defense"]),
             hand_modifier=cast(str | None, document["hand_modifier"]),
             life_modifier=cast(str | None, document["life_modifier"]),
-            attraction_lights=_optional_integer_array(
+            attraction_lights=_wire_optional_integer_array(
                 "attraction_lights", document["attraction_lights"]
             ),
             faces=tuple(faces) if faces is not None else None,
