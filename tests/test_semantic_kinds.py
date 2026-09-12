@@ -507,3 +507,40 @@ def test_unresolved_rejects_arbitrary_shape_and_candidate_kind() -> None:
             candidate_kinds=("implement_card_x",),  # type: ignore[arg-type]
             fragment=None,
         )
+
+
+def test_unresolved_rejects_arbitrary_observed_field_directly() -> None:
+    with pytest.raises(ValueError, match="controlled M1 source field"):
+        UnresolvedParametersV1(
+            observed_field="not_a_real_m1_field",
+            observed_shape=SemanticShapeV1.UNKNOWN,
+            question="review",
+            candidate_kinds=(),
+            fragment=None,
+        )
+
+
+def test_unresolved_rejects_arbitrary_observed_field_from_wire() -> None:
+    wire = {
+        "observed_field": "not_a_real_m1_field",
+        "observed_shape": "unknown",
+        "question": "review",
+        "candidate_kinds": [],
+        "fragment": None,
+    }
+    with pytest.raises(ValueError, match="controlled M1 source field"):
+        payload_from_wire(
+            RequirementFamilyV1.UNKNOWN, RequirementKindV1.UNRESOLVED, wire
+        )
+
+
+def test_unresolved_accepts_controlled_m1_fields() -> None:
+    for field in ("record", "oracle_text"):
+        payload = UnresolvedParametersV1(
+            observed_field=field,
+            observed_shape=SemanticShapeV1.UNKNOWN,
+            question="review",
+            candidate_kinds=(),
+            fragment=None,
+        )
+        assert payload.observed_field == field
