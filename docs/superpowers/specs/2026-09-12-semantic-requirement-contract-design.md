@@ -63,7 +63,7 @@ The contract answers:
 > How can one semantic need be represented without losing its source,
 > derivation, uncertainty, review state, or deterministic identity?
 
-The contract deliberately stops at a source-anchored requirement occurrence.
+The contract deliberately stops at a source-scoped requirement assertion.
 It does not decide which occurrences are the same reusable capability. It
 allows later analysis to cluster or group occurrences without forcing that
 decision into the M2 identity.
@@ -146,7 +146,7 @@ Ownership is deliberately split:
 | Contract concern | Owner | M2 consequence |
 | --- | --- | --- |
 | Pinned source bytes, structural fields, faces, and source-record identity | M1 | M2 references and validates these facts; it does not redefine them. |
-| Requirement occurrence, kind/family grammar, typed parameters, evidence-reference union, derivation/review/resolution vocabulary, and fixture bundle | M2 | These are the only semantic contract concepts frozen here. |
+| Requirement assertion, kind/family grammar, typed parameters, evidence-reference union, derivation/review/resolution vocabulary, and fixture bundle | M2 | These are the only semantic contract concepts frozen here. |
 | Global per-card analysis, extraction runs, coverage, and corpus-scale proposal aggregation | M3 | No M3 analysis record or global artifact is part of M2. |
 | Requirement grouping, equivalence, capability names, hierarchy, and engine-independent ontology | M4 | No capability field or grouping decision enters Requirement v1. |
 | Reviewer authentication, chronology, and repository change history | Maintainer workflow/VCS | The wire stores minimal review identity but is not a workflow platform. |
@@ -161,8 +161,8 @@ The following terms are normative:
 | Term | Meaning | Not meaning |
 | --- | --- | --- |
 | Source fact | A value explicitly retained by M1 from the pinned source. | A rules interpretation. |
-| Requirement occurrence | One source-anchored assertion of one atomic semantic need. | A global deduplicated capability. |
-| Requirement | The persisted wire/model form of one occurrence. | A card executor or engine method. |
+| Requirement assertion | One source-scoped assertion of one atomic semantic need. | A global deduplicated capability or a producer-specific occurrence. |
+| Requirement | The persisted wire/model form of one assertion. | A card executor or engine method. |
 | Requirement kind | A closed M2 representation shape for the need. | The final M4 capability ontology. |
 | Requirement family | A small wire-validation partition of kinds. | A capability family or hierarchy. |
 | Evidence | A typed reference to source, rules, or an external reviewed artifact. | Proof that review was correct. |
@@ -185,12 +185,21 @@ Reproducible != Semantically Correct
 
 ### 6.1 Decision
 
-One persisted Requirement is one **atomic, source-anchored semantic need
-occurrence** with one kind, one parameter payload, and one primary source
-anchor. A card, face, ability, or sentence may produce zero, one, or multiple
-Requirements.
+One persisted Requirement is one **atomic, source-scoped semantic need
+assertion** with one kind and one parameter payload. A card, face, ability, or
+sentence may produce zero, one, or multiple Requirements. Structural field,
+face, keyword, and optional fragment locators live in the evidence union; they
+are review context and are not producer-defined identity coordinates.
 
-Examples of distinct occurrences include:
+If the same source record yields the same family, kind, and parameter payload
+more than once, M2 v1 intentionally stores one Requirement assertion. This
+coalescing is what lets independent producers reconcile an identical claim
+without agreeing on parser positions. M2 v1 does not preserve a separate
+occurrence multiplicity. A later analysis milestone may add a distinct
+occurrence envelope if repeated-use multiplicity becomes a demonstrated need;
+that envelope must not change this stable Requirement ID.
+
+Examples of distinct assertions include:
 
 - a zone transition;
 - an object or token creation need;
@@ -202,7 +211,7 @@ Examples of distinct occurrences include:
 Compound text is represented by multiple Requirements plus typed bundle
 relationships. A modal parent and its alternatives are not flattened into
 one card-level record. A condition, cost, or sequence is not silently lost
-when it requires a separate occurrence.
+when it requires a separate assertion.
 
 ### 6.2 Rejected granularity alternatives
 
@@ -211,7 +220,8 @@ when it requires a separate occurrence.
 - **One Requirement per ability or raw sentence:** ability/sentence boundaries
   are not stable semantic units and hide nested choices and costs.
 - **One globally reusable Requirement per semantic need:** performs the M4
-  equivalence decision too early and loses card-specific evidence multiplicity.
+  cross-card equivalence decision too early and loses card-specific evidence
+  scope.
 - **A fully general parent/child semantic graph:** introduces a graph model
   before representative evidence demonstrates the need.
 - **'implement_card_named_X':** couples the contract to card identity and an
@@ -219,20 +229,23 @@ when it requires a separate occurrence.
 
 ### 6.3 Observation versus later normalization
 
-M2 preserves occurrences as distinct observations. Two equal-looking payloads
-from different source cards have different Requirement IDs because their source
-references differ. Two occurrences on one source record also remain distinct
-when their anchors differ.
+M2 preserves source-scoped assertions as distinct observations. Two equal
+payloads from different source records have different Requirement IDs because
+their source identities differ. Two producer proposals for the same source,
+family, kind, and parameters have the same Requirement ID even when their
+evidence locators differ; reconciliation unions or reviews that evidence.
+Exact duplicate uses on one source are intentionally one v1 assertion.
 
 M4 may derive a normalized equivalence or capability grouping from these
-occurrences. M2 has no 'equivalent_to', 'capability_id', or global cluster
+assertions. M2 has no 'equivalent_to', 'capability_id', or global cluster
 field.
 
 ## 7. Requirement identity and versioning
 
 ### 7.1 Stable identity
 
-The persisted identity is a deterministic content-derived identifier:
+The persisted identity is a deterministic content-derived identifier for a
+source-scoped semantic claim:
 
 ~~~text
 requirement_id = 'srq_' + SHA256(
@@ -248,23 +261,17 @@ The wire pattern is:
 ^srq_[0-9a-f]{64}$
 ~~~
 
-'identity_payload' contains exactly:
+'identity_payload' contains exactly the source identity, family, kind, and
+typed parameters:
 
 ~~~json
 {
   "identity_schema": "census.semantic-requirement-id.v1",
-  "source": {
+  "source_identity": {
     "record_schema": "census.structural-card.v1",
-    "source_lock_digest": "...",
     "oracle_id": "...",
     "source_card_id": "...",
     "source_record_sha256": "..."
-  },
-  "anchor": {
-    "field": "oracle_text",
-    "face_index": null,
-    "path": [0, 1],
-    "occurrence": 0
   },
   "family": "effect",
   "kind": "draw_cards",
@@ -274,16 +281,22 @@ The wire pattern is:
 
 The displayed payload is illustrative; the parameter object is the exact
 typed payload for the selected kind. The identity payload excludes evidence,
-derivation provenance, review metadata, resolution metadata, and bundle
-relationships.
+source-lock context, evidence locators, derivation provenance, review
+metadata, resolution metadata, and bundle relationships.
 
 ### 7.2 Identity invariants
 
 - Review-status changes do not change 'requirement_id'.
-- Adding or removing corroborating evidence does not change 'requirement_id'.
-- Adding a second derivation record does not change 'requirement_id'.
-- Changing source lock, source record identity, face/field anchor, kind, family,
-  or any parameter creates a new 'requirement_id'.
+- Adding or removing evidence locators does not change 'requirement_id', but it
+  does change the review binding and therefore requires review reopening.
+- Adding a second derivation record does not change 'requirement_id', but it
+  does change the review binding and therefore requires review reopening.
+- Changing 'source_lock_digest' alone does not change 'requirement_id' when the
+  exact M1 source-record identity is unchanged.
+- Changing source record identity, kind, family, or any parameter creates a
+  new 'requirement_id' and requires fresh review.
+- Changing evidence field/face/fragment context does not change
+  'requirement_id'; the changed review-bound content must be reopened.
 - Changing a semantic field never mutates an old reviewed record in place.
   The old record remains available in its historical artifact and the new
   record may be related with 'SUPERSEDES'.
@@ -329,7 +342,6 @@ The individual wire object has exactly these required root properties:
 schema
 requirement_id
 source
-anchor
 family
 kind
 parameters
@@ -346,7 +358,7 @@ census.semantic-requirement.v1
 ~~~
 
 The reference model exposes one immutable 'RequirementV1' value and typed
-value classes for the nested source, anchor, evidence, derivation, review,
+value classes for the nested source, evidence, derivation, review,
 resolution, kind, and parameter variants. The implementation may split those
 classes across small modules; it must not replace them with an unvalidated
 dictionary bag.
@@ -355,9 +367,8 @@ The nested root shapes are fixed as follows:
 
 ~~~text
 source       = SourceRecordRefV1
-anchor       = {field, face_index, path, occurrence}
 provenance   = {derivations: [DerivationV1, ...]}
-review       = {status, reviewed_by}
+review       = {status, reviewed_by, reviewed_claim_digest}
 resolution   = {state, reason, unknown_paths: [string, ...]}
 evidence     = [EvidenceV1, ...]
 parameters   = exactly the branch payload selected by kind
@@ -383,40 +394,23 @@ between pinned source snapshots. A later checker must verify the complete
 reference against the selected M1 record and committed source lock; model
 construction alone cannot prove that an external record exists.
 
-### 8.3 Source anchor
+### 8.3 Source evidence locators
 
-'anchor' identifies the primary source location without pretending to be a
-rules parse tree:
+M2 v1 has no producer-owned 'anchor', parser path, AST coordinate, or
+occurrence ordinal in the Requirement wire or identity. Source location is
+carried only by typed structural evidence. The canonical locator fields are
+therefore exact M1 field names plus an optional face index, keyword index, and
+bounded exact fragment as defined below. Two producers may cite different
+locators for the same source-scoped claim; those locators are evidence to be
+reviewed, not identity coordinates.
 
-~~~text
-field       = one controlled M1 field name or 'record'
-face_index  = null for the parent record, otherwise non-negative int64
-path        = ordered array of non-negative int64 local positions
-occurrence  = non-negative int64 repeated-occurrence discriminator
-~~~
-
-The controlled field names are 'record', 'name', 'layout', 'mana_cost',
-'type_line', 'oracle_text', 'colors', 'color_identity', 'color_indicator',
-'keywords', 'produced_mana', 'power', 'toughness', 'loyalty', 'defense',
-'hand_modifier', 'life_modifier', 'attraction_lights', 'faces', and
-'all_parts'.
-
-When 'face_index' is null, the field is interpreted in the parent record. When
-it is non-null, the field must be one of the M1 face fields: 'name',
-'mana_cost', 'type_line', 'oracle_text', 'colors', 'color_indicator',
+When 'face_index' is null, a structural field is interpreted in the parent
+record. When it is non-null, the field must be one of the M1 face fields:
+'name', 'mana_cost', 'type_line', 'oracle_text', 'colors', 'color_indicator',
 'power', 'toughness', 'loyalty', or 'defense'. 'keywords', 'produced_mana',
-'all_parts', and the other parent-only fields cannot be paired with a face
-index. The same field name, such as 'name' or 'oracle_text', is therefore
-unambiguous by the combination of field and face index.
-
-'path' is a producer-owned positional coordinate within the selected source
-field. M2 does not assign semantic meaning to path segments and does not
-validate them as a rules grammar. It exists to distinguish multiple needs
-anchored in one field. When no finer coordinate is available, 'path=[]' and
-'occurrence' provide a valid source anchor.
-
-Cross-field validation requires a non-null 'face_index' for a face field and
-requires 'face_index=null' for a parent-only field or top-level keyword.
+'all_parts', and other parent-only fields cannot be paired with a face index.
+The same field name, such as 'name' or 'oracle_text', is unambiguous by the
+combination of field and face index.
 
 ### 8.4 Evidence references
 
@@ -476,7 +470,7 @@ one exists. A URL alone is not an authority and is not required.
 Evidence identity is distinct from Requirement identity. M2 derives an
 evidence ordering/deduplication key with domain
 'census.semantic-evidence.v1'; this key is not a Requirement ID and is not
-used to make two source-card occurrences equivalent.
+used to make two source-card claims equivalent.
 
 ### 8.5 Root-level invariants
 
@@ -484,7 +478,7 @@ The model and schema must enforce:
 
 - all required root keys are present exactly once;
 - 'schema' is the fixed v1 value;
-- 'requirement_id' matches the recomputed identity;
+- 'requirement_id' matches the recomputed source-scoped claim identity;
 - source identifiers and digests use lowercase canonical forms;
 - 'family', 'kind', and 'parameters' select exactly one known typed branch;
 - evidence is non-empty and contains structural evidence;
@@ -575,7 +569,8 @@ Reusable parameter atoms are:
   'object', 'value', and ordered 'children' fields. 'shape' is one of
   'event', 'condition', 'restriction', 'effect', 'replacement', 'duration',
   'cost', 'alternative', or 'unknown'. It is a non-executable description and
-  does not form an open-ended map.
+  does not form an open-ended map. 'label' is bounded source/review context,
+  not a semantic escape hatch.
 
 The exact v1 parameter keys are:
 
@@ -607,6 +602,19 @@ kind.
 
 The payload grammar is deliberately descriptive. It does not evaluate zones,
 quantities, targets, legality, timing, payment, or effects.
+
+Free-form descriptor labels are limited to 4096 UTF-8 bytes and are never a
+substitute for a typed dimension. A descriptor whose necessary meaning exists
+only in 'label', or only in a 'shape=unknown' label/child, cannot appear in a
+'COMPLETE' Requirement. It requires an explicit unknown value and
+'PARTIAL'/'UNRESOLVED' resolution. A complete descriptor must use its
+non-unknown shape together with typed 'subject', 'object', 'value', or typed
+children sufficient for the enclosing kind's required parameter.
+
+The generic 'ParameterValue' text branch is allowed only for a parameter key
+that explicitly calls for a bounded label or source value. It cannot carry a
+whole effect, condition, cost, or event in prose. If a required semantic
+dimension exists only as free text, the Requirement is not 'COMPLETE'.
 
 ## 10. Structured parameter design
 
@@ -640,7 +648,8 @@ unknown value and a partial resolution.
 Conditions, events, costs, alternatives, and restrictions use the fixed
 'SemanticDescriptor' shape or a dedicated kind parameter. Descriptor children
 are ordered. A descriptor is data only; it has no callback, Python expression,
-engine object, or executable rule.
+engine object, or executable rule. Its label is review/source context only;
+typed dimensions carry the semantic claim.
 
 Modal and nested structures use bundle relationships in addition to these
 parameters. The payload describes the local need; relationships preserve the
@@ -693,14 +702,20 @@ PROPOSED
 IN_REVIEW
 ACCEPTED
 REJECTED
-SUPERSEDED
 ~~~
 
 'PROPOSED' is the required initial state for generated output. A producer
 adapter may emit only 'PROPOSED'; it cannot claim human review by setting a
-terminal state. Terminal states require a non-null stable 'reviewed_by' value.
-There is no timestamp in the semantic record; repository history or a later
-workflow artifact supplies chronology without changing semantic identity.
+terminal state. 'ACCEPTED' and 'REJECTED' are review outcomes and require a
+non-null stable 'reviewed_by' plus a current 'reviewed_claim_digest'. There is
+no timestamp in the semantic record; repository history or a later workflow
+artifact supplies chronology without changing semantic identity.
+
+'SUPERSEDED' is not a review outcome. A later Requirement may point to an old
+Requirement with the bundle relationship 'SUPERSEDES'; the old Requirement
+retains its prior 'ACCEPTED' or 'REJECTED' review result. No individual
+Requirement status is rewritten merely because another assertion supersedes
+it.
 
 Review means that a human reviewed the Requirement's evidence, kind,
 parameters, and current resolution. It does not mean that the whole card was
@@ -709,6 +724,35 @@ unresolved Requirements simultaneously.
 
 'ACCEPTED' means the reviewer accepts the Requirement assertion at its stated
 resolution. It does not require 'resolution.state=COMPLETE'.
+
+The review object has exactly these fields:
+
+~~~text
+status                 = PROPOSED | IN_REVIEW | ACCEPTED | REJECTED
+reviewed_by            = null for PROPOSED/IN_REVIEW, stable ID otherwise
+reviewed_claim_digest  = null for PROPOSED/IN_REVIEW, required digest for
+                         ACCEPTED/REJECTED
+~~~
+
+The binding digest uses domain 'census.semantic-requirement-review.v1' over
+the canonical review-bound payload:
+
+~~~text
+source identity (record_schema, oracle_id, source_card_id,
+                 source_record_sha256; source_lock_digest omitted)
+family
+kind
+parameters
+evidence (with source_lock_digest omitted from structural references)
+provenance.derivations
+resolution
+~~~
+
+The review binding covers the reviewed source claim, all evidence, derivation
+provenance, and resolution while treating 'source_lock_digest' as snapshot
+provenance rather than semantic content. A terminal review is valid only when
+'reviewed_claim_digest' equals the recomputed digest. A changed reviewed
+content value therefore cannot silently retain 'ACCEPTED' or 'REJECTED'.
 
 ### 11.3 Resolution status
 
@@ -748,8 +792,17 @@ Cross-field rules are:
 - 'review.status=ACCEPTED' with 'resolution.state=PARTIAL' or 'UNRESOLVED' is
   valid when the reviewer accepts the existence of the need but not a complete
   classification.
-- 'review.status=ACCEPTED' with a changed kind, parameter, anchor, or source
-  is invalid as an edit; it requires a new Requirement and fresh review.
+- Any change to evidence, derivation provenance, or resolution keeps the same
+  Requirement ID only when source identity, family, kind, and parameters
+  remain byte-equivalent; it must reopen review by setting
+  'review.status=IN_REVIEW' and clearing the review binding before a new
+  terminal review.
+- Any change to source identity, family, kind, or parameters creates a new
+  Requirement ID and requires fresh review. A 'PARTIAL' to 'COMPLETE' change
+  follows this same split: replacing an unknown parameter value creates a new
+  ID; changing only resolution metadata keeps the ID but requires reopening.
+- A terminal review with a stale or missing binding digest is invalid, not an
+  implicitly accepted historical state.
 
 ### 11.4 Invalid input versus unresolved meaning
 
@@ -769,7 +822,7 @@ The distinction is normative:
 
 The review unit is one Requirement, including:
 
-- its M1 source reference and primary anchor;
+- its M1 source reference and structural evidence locators;
 - its structural/rules/external evidence references;
 - its typed kind and parameters;
 - its derivation provenance; and
@@ -780,18 +833,23 @@ without invalidating unrelated accepted Requirements.
 
 ### 12.2 Changes after review
 
-- Evidence additions that merely corroborate the same claim may retain the
-  identity and accepted status.
-- Adding evidence that changes the interpretation requires a new identity and
-  a 'SUPERSEDES' relationship; the old record remains immutable in its
-  historical artifact.
-- Changing kind, family, parameters, anchor, or source always creates a new
-  Requirement and requires fresh review.
-- Changing 'resolution' from partial/unresolved to complete reopens the record
-  to 'IN_REVIEW' and requires a new explicit acceptance. The Requirement ID
-  remains stable because resolution is not semantic identity.
+- Evidence additions that merely corroborate the same claim retain the
+  Requirement ID but invalidate the old review binding. The reconciler must
+  reopen the record to 'IN_REVIEW' and obtain a new terminal review; it may
+  not keep 'ACCEPTED' silently.
+- If new evidence reveals that the asserted kind or parameters were wrong, the
+  corrected assertion receives a new ID and may use 'SUPERSEDES'; the old
+  record remains immutable with its historical review outcome.
+- Changing source identity, family, kind, or parameters always creates a new
+  Requirement and requires fresh review. The source-lock wrapper alone is not
+  an identity change and does not invalidate the review binding.
+- Changing 'resolution' from partial/unresolved to complete reopens the same
+  ID only when no identity payload field changes. Replacing an unknown
+  parameter value creates a new ID; a pure resolution-state update clears the
+  old binding and requires new explicit acceptance.
 - Derivation provenance may gain an additional exact producer entry without
-  changing identity; conflicting status metadata is not auto-merged.
+  changing identity, but that change also reopens review. Conflicting status
+  metadata is not auto-merged.
 
 The reference model is frozen and defensive: caller-owned lists, mappings,
 and nested values are copied into immutable values; 'to_wire()' returns fresh
@@ -831,7 +889,7 @@ relationships  = canonical relationship edge list
 
 All Requirements and all relationship endpoints in a bundle must reference
 the same source record. A multi-face card is still one source record; each
-Requirement may identify its face in its anchor.
+Requirement may identify its face in structural evidence.
 
 M2 does not define a 'CardAnalysisRecord'. The bundle is a minimal fixture and
 relationship envelope, not a claim that every card has been analyzed.
@@ -881,7 +939,8 @@ record 'expansion_state=UNEXPANDED', 'EXPANDED', or 'UNKNOWN':
   the producer uses 'kind=unresolved' and 'resolution.state=UNRESOLVED'.
 - 'EXPANDED' requires typed expansion parameters/evidence; the keyword source
   item alone is not enough.
-- A keyword may produce several Requirements, each with its own source anchor
+- A keyword may produce several Requirements, each with its own structural
+  evidence locator
   and evidence. There is no one-keyword-one-capability rule.
 
 An optional rules citation can support a keyword-derived interpretation, but
@@ -972,6 +1031,7 @@ census.semantic-requirement-id.v1
 census.semantic-evidence.v1
 census.semantic-requirement-wire.v1
 census.semantic-requirement-bundle.v1
+census.semantic-requirement-review.v1
 ~~~
 
 'requirement_id' uses the identity domain and identity payload defined above.
@@ -980,10 +1040,16 @@ over the complete canonical wire object. It is derived, not an additional
 mutable field in the Requirement and therefore cannot become self-referential.
 The bundle digest uses the bundle domain over its complete canonical wire.
 
+'reviewed_claim_digest' uses 'census.semantic-requirement-review.v1' over the
+review-bound payload defined in Section 11.2. The full wire digest includes
+'source_lock_digest' and review metadata, so changing the source snapshot or
+review state changes artifact bytes even when the stable Requirement ID is
+unchanged.
+
 Semantic identity and artifact byte identity are distinct:
 
 ~~~text
-requirement_id       = stable semantic occurrence identity
+requirement_id       = stable source-scoped semantic claim identity
 wire_digest          = exact current Requirement representation identity
 bundle_digest        = exact current bundle representation identity
 artifact file digest = exact bytes of a later artifact file
@@ -1049,7 +1115,7 @@ The minimum fixture matrix is:
 | 1 | Simple single Requirement with complete resolution. |
 | 2 | One source record with multiple atomic Requirements. |
 | 3 | Modal choice, alternatives, and bundle relationships. |
-| 4 | Multi-face record with separate face anchors. |
+| 4 | Multi-face record with separate face evidence locators. |
 | 5 | Source keyword with unresolved or unexpanded semantics. |
 | 6 | Triggered text with an event/condition relationship. |
 | 7 | Replacement-like text. |
@@ -1138,18 +1204,23 @@ semantic extraction tests.
 | Wire round trip | Every typed branch round-trips to equal immutable values. |
 | Canonical bytes | Repeated serialization is byte-identical and has no whitespace/newline drift. |
 | Deterministic digest | Identity, evidence key, wire digest, and bundle digest are stable across process/order changes. |
+| Producer-neutral identity | Same source identity, family, kind, and parameters produce one ID despite different producer evidence locators; changing only source lock preserves that ID. |
+| Source-record identity change | Changing 'source_record_sha256', source card ID, kind, family, or parameters produces a new ID. |
 | Unknown properties | Root and nested unknown properties fail closed. |
 | Wrong schema | Wrong schema ID or unsupported major version fails closed. |
-| Status combinations | Invalid review/resolution combinations fail; accepted-plus-partial succeeds. |
-| Proposal separation | Generated adapters emit only 'PROPOSED'; terminal states require reviewer metadata; rules evidence never promotes status. |
+| Status combinations | Invalid review/resolution combinations fail; accepted-plus-partial succeeds; stale review bindings fail. |
+| Proposal separation | Generated adapters emit only 'PROPOSED'; terminal states require reviewer metadata and a current binding digest; rules evidence never promotes status. |
 | Unresolved | 'unresolved' and its reason/unknown paths round-trip as a valid Requirement. |
 | Partial | A known kind with explicit unknown parameter values round-trips and cannot serialize as complete. |
 | Source/face provenance | Oracle/source IDs, record SHA, source lock, field, face index, keyword index, and fragment are checked against M1. |
 | Invalid source identity | Uppercase/malformed UUIDs, bad digests, mismatched lock, and missing record fail. |
 | Parameter validation | Every kind accepts only its fixed keys, atom types, enums, and bounds. |
+| Review binding | A terminal review with changed evidence/provenance/resolution digest fails; reopening clears the binding; source-lock-only changes preserve it. |
+| Descriptor escape hatch | A label-only or unknown-shape descriptor cannot justify 'COMPLETE'; typed dimensions are required. |
 | Ordering | Requirements, evidence, derivations, candidates, set-like arrays, and relationships follow their declared ordering rules. |
 | Immutability | Mutating constructor input or prior 'to_wire()' output cannot alter a model or digest. |
 | Duplicate identity | Duplicate bundle IDs, duplicate evidence/derivation keys, and identity collisions fail closed. |
+| Review binding | Evidence, provenance, or resolution changes invalidate the old terminal binding; source-lock-only changes do not. |
 | Schema/model parity | Representative valid wires pass both schema and model; each negative mutation fails both at the intended seam. |
 | Fixture adequacy | The twelve-row matrix is satisfied by the smallest verified fixture set; no global count is asserted. |
 | Capability independence | No 'capability_id', capability hierarchy, engine ID, Manafold ID, or support state enters wire/model/schema. |
@@ -1172,15 +1243,15 @@ evidence, and explicit non-PASS status for incomplete semantic resolution.
 | Premature capability ontology | M2 family is only a wire-validation partition; no capability fields or hierarchy. | M4 must review any later grouping. |
 | Stringly typed parameter drift | Closed discriminated kind union, fixed parameter keys, typed atoms, 'additionalProperties=false'. | New shapes require a versioned contract change. |
 | Status contradictions | Orthogonal review/resolution fields with explicit cross-field invariants. | Invalid combinations are rejected rather than normalized. |
-| Review becomes stale after edits | Semantic edits create new IDs; resolution completion reopens review; evidence-only corroboration is constrained. | VCS preserves historical snapshots. |
-| Identity instability | Content-derived source/anchor/kind/parameter identity excludes evidence/status and all host/runtime data. | Source snapshot changes intentionally create new IDs. |
-| Duplicate equivalent proposals | Same exact identity is reconciled explicitly; direct bundles reject duplicates; cross-card occurrences remain distinct. | M4 owns cross-card grouping. |
+| Review becomes stale after edits | Terminal review binds a digest of source identity, evidence, provenance, and resolution; any bound-content change reopens review. | VCS preserves historical snapshots. |
+| Identity instability | Content-derived source/kind/parameter identity excludes producer locators, evidence, status, source-lock wrapper, and host/runtime data. | Exact source-record changes intentionally create new IDs; unchanged records retain IDs across locks. |
+| Duplicate equivalent proposals | Same source/kind/parameter identity is reconciled explicitly even when producer locators differ; direct bundles reject duplicate IDs; cross-card claims remain distinct. | M4 owns cross-card grouping. |
 | Fixture overfitting | A small dimension matrix includes modal, face, keyword, outlier, partial, and unresolved shapes; no global claims. | M3 must test corpus-scale behavior independently. |
 | Global extraction starts early | M2 exit gate and explicit M3 prohibition; no global artifact schema or command. | Any attempted global run is out of scope and must stop. |
 | Engine-specific contamination | Role-based references and descriptive descriptors only; no engine fields/dependencies. | Later consumers must adapt rather than redefine M2. |
 | Rules citation treated as proof | Rules evidence is optional and typed separately; it cannot change review/resolution. | Reviewers must record their decision independently. |
 | Raw source duplication drifts | M1 references are authoritative; fragments are bounded hints checked as substrings. | Fragment mismatch fails source-aware validation. |
-| Recursive descriptor becomes a hidden bag | Descriptor shape and fields are fixed, children ordered, no arbitrary keys or callbacks. | New descriptor shape requires v2. |
+| Recursive descriptor becomes a hidden bag | Descriptor shape and fields are fixed, labels are bounded context only, a label/unknown shape cannot yield 'COMPLETE', children are ordered, and arbitrary keys/callbacks are forbidden. | New typed descriptor shape requires v2. |
 
 ## 26. Maintainer ergonomics and module seams
 
@@ -1222,17 +1293,19 @@ generic graph library, or runtime semantic executor is justified by M2.
 
 | Question | DECISION | RATIONALE | REJECTED ALTERNATIVES | CONSEQUENCES |
 | --- | --- | --- | --- | --- |
-| Requirement granularity | One atomic source-anchored semantic need occurrence. | Preserves review locality and nested structure. | One/card, one/ability, global normalized node, generic graph. | Multiple Requirements may share a card; bundles carry relationships. |
-| Requirement identity | 'srq_' plus SHA-256 over source, anchor, family, kind, typed parameters. | Deterministic and independent of workflow metadata. | Random UUID, row ID, timestamp, host path, producer ID. | Cross-card equivalents remain distinct until M4. |
-| Evidence additions | Excluded from identity. | Evidence can grow without inventing a new semantic occurrence. | Hash full record including evidence/status. | Full wire digest changes while ID remains stable. |
+| Requirement granularity | One atomic source-scoped semantic claim; exact same-source/kind/parameter duplicates coalesce. | Preserves review locality while removing producer occurrence dependence. | One/card, one/ability, producer-specific occurrence identity, generic graph. | Multiple distinct claims share a card; repeated-use multiplicity is deferred. |
+| Requirement identity | 'srq_' plus SHA-256 over source identity (without source lock), family, kind, and typed parameters. | Deterministic and producer-independent. | Random UUID, row ID, timestamp, host path, parser path, producer ID. | Same exact claim reconciles across producers; cross-card claims remain distinct until M4. |
+| Source-lock identity | Required in source/provenance and full wire digest, excluded from stable Requirement ID and review binding. | Avoids global ID churn when an unchanged record appears in a new lock. | Snapshot-specific IDs for every lock, omitting source provenance. | Exact source-record changes still create new IDs; artifact bytes remain snapshot-bound. |
+| Evidence additions | Excluded from identity but included in review binding. | Evidence can grow without inventing a new claim, while review cannot silently remain accepted. | Hash full record including evidence/status, or retain terminal review blindly. | Reconciler reopens review and obtains a new terminal binding. |
 | Parameter changes | Create a new identity. | A changed semantic assertion must not mutate history. | In-place ID mutation, version counter only. | Use 'SUPERSEDES' for reviewed replacements. |
 | Requirement versioning | Closed v1; new kinds/meanings require a new major contract. | Strict readers cannot safely interpret unknown branches. | Open-ended minor enum, permissive 'extra', unversioned JSON. | Conservative evolution and explicit migrations. |
 | Kind/family representation | Closed 'family' plus discriminated 'kind' and typed branch payload. | Type safety without making M4 the contract owner. | Giant capability enum, arbitrary kind/JSON bag, raw text only. | New semantic shapes require deliberate contract work. |
 | Parameter representation | Fixed per-kind objects plus typed atoms/descriptors and explicit unknowns. | Supports partial semantics without executable rules. | Generic JSON map, callbacks, engine objects, null-as-unknown. | More schema code, much less drift. |
 | Source evidence | Typed structural record/face/field/keyword references with bounded optional fragments. | Auditable and sufficient without copying M1. | Full source duplication, character-span framework, URI dereference. | Source-aware validation is required for face/field checks. |
-| Face linkage | 'face_index' in anchor/evidence; source record remains parent identity. | Preserves exact M1 face order and scope. | Parent/face inheritance, face names as IDs, separate card identity. | Multi-face requirements remain same-card occurrences. |
+| Face linkage | 'face_index' in structural evidence; source record remains parent identity. | Preserves exact M1 face order and scope without producer anchor identity. | Parent/face inheritance, face names as IDs, separate card identity. | Multi-face claims remain same-record assertions. |
 | Derivation model | List of producer/version entries, orthogonal to review. | Multiple producers may produce the same exact identity. | Single giant status, producer in ID, hidden provenance. | Explicit reconciliation is needed for duplicate proposals. |
-| Review model | 'PROPOSED', 'IN_REVIEW', 'ACCEPTED', 'REJECTED', 'SUPERSEDED'; terminal states require reviewer ID. | Human review is distinct from generation and resolution. | Model confidence as approval, card-level boolean, timestamps as identity. | Accepted-but-partial is valid; workflow authentication is external. |
+| Review model | 'PROPOSED', 'IN_REVIEW', 'ACCEPTED', 'REJECTED'; terminal states require reviewer ID and 'reviewed_claim_digest'; 'SUPERSEDES' is a relationship only. | Human review is distinct from generation, resolution, and replacement lifecycle. | Model confidence as approval, 'SUPERSEDED' as review outcome, card-level boolean, timestamps as identity. | Accepted-but-partial is valid; stale bindings fail; old review outcomes remain auditable. |
+| Review binding | Digest binds source identity, evidence, derivations, and resolution; bound changes reopen review; source-lock-only changes do not. | Prevents evidence/provenance/resolution edits from silently retaining a terminal review. | Reviewer flag without content binding, blind accepted metadata retention. | A new terminal review is required after reviewed-content changes. |
 | Resolution model | 'COMPLETE', 'PARTIAL', 'UNRESOLVED' with explicit reason/paths. | Represents uncertainty without malformed-data ambiguity. | Silent guessing, null everywhere, one giant combined status enum. | Consumers must handle unresolved results explicitly. |
 | Confidence | No authoritative confidence field. | Scores are producer-specific and not review. | Numeric probability, coarse confidence authority. | Sidecar scores may exist outside M2. |
 | Relationship model | Minimal bundle edges: parent, alternative, condition, cost, sequence, conflict, supersedes. | Enough structure for representative nested cases. | General semantic graph, arbitrary edges, no relationships. | M3/M4 can extend only with a demonstrated need. |
@@ -1286,10 +1359,12 @@ REQUIREMENT_MODEL_SCHEMA_PARITY       = PASS
 REQUIREMENT_ID_DETERMINISTIC          = PASS
 REQUIREMENT_WIRE_CANONICAL            = PASS
 REQUIREMENT_WIRE_ROUND_TRIP           = PASS
+PRODUCER_NEUTRAL_IDENTITY             = PASS
 REQUIREMENT_PROVENANCE_DEFINED        = PASS
 SOURCE_FACE_PROVENANCE_VALIDATED      = PASS
 DERIVATION_STATUS_EXPLICIT            = PASS
 PROPOSAL_REVIEW_SEPARATION            = PASS
+REVIEW_BINDING_INTEGRITY              = PASS
 UNRESOLVED_STATE_SUPPORTED            = PASS
 PARTIAL_STATE_SUPPORTED               = PASS
 RELATIONSHIP_VALIDATION               = PASS
