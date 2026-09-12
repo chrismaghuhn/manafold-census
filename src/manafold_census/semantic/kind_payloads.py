@@ -5,7 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import ClassVar, cast
 
-from ..canonical import JSONValue
+from ..canonical import JSONValue, canonical_json_bytes
+from .kinds import RequirementKindV1
 from .primitives import (
     CharacteristicAssignmentV1,
     CharacteristicRefV1,
@@ -14,6 +15,7 @@ from .primitives import (
     EntityRefV1,
     ExpansionStateV1,
     ModificationOperationV1,
+    ObservedShapeV1,
     ParameterValueV1,
     QuantityV1,
     SemanticDescriptorV1,
@@ -87,6 +89,22 @@ class CreateObjectParametersV1(_Payload):
         ),
         "duration": _optional_parser(_instance_parser(DurationV1)),
     }
+
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        encoded = [
+            canonical_json_bytes(item.to_wire()) for item in self.characteristics
+        ]
+        if len(encoded) != len(set(encoded)):
+            raise ValueError("characteristics must not contain duplicates")
+        ordered = tuple(
+            item
+            for _, item in sorted(
+                zip(encoded, self.characteristics, strict=True),
+                key=lambda pair: pair[0],
+            )
+        )
+        object.__setattr__(self, "characteristics", ordered)
 
 
 @dataclass(frozen=True, slots=True)
@@ -324,9 +342,9 @@ class KeywordReferenceParametersV1(_Payload):
 @dataclass(frozen=True, slots=True)
 class UnresolvedParametersV1(_Payload):
     observed_field: str
-    observed_shape: str
+    observed_shape: ObservedShapeV1
     question: str
-    candidate_kinds: tuple[str, ...]
+    candidate_kinds: tuple[RequirementKindV1, ...]
     fragment: str | None
     _WIRE_KEYS: ClassVar[set[str]] = {
         "observed_field",
@@ -337,18 +355,18 @@ class UnresolvedParametersV1(_Payload):
     }
     _PARSERS: ClassVar[dict[str, _Parser]] = {
         "observed_field": _text_parser("observed_field"),
-        "observed_shape": _text_parser("observed_shape"),
+        "observed_shape": _enum_parser(ObservedShapeV1),
         "question": _text_parser("question"),
         "candidate_kinds": _tuple_parser(
-            _text_parser("candidate_kinds item"), "candidate_kinds"
+            _enum_parser(RequirementKindV1), "candidate_kinds"
         ),
         "fragment": _optional_parser(_text_parser("fragment")),
     }
 
     def __post_init__(self) -> None:
         super().__post_init__()
-        candidates = tuple(self.candidate_kinds)
-        if candidates != tuple(sorted(set(candidates))):
+        ordered = tuple(sorted(set(self.candidate_kinds), key=lambda kind: kind.value))
+        if ordered != self.candidate_kinds:
             raise ValueError("candidate_kinds must be unique and sorted")
 
 

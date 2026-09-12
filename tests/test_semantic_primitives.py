@@ -168,6 +168,8 @@ def test_zone_and_characteristic_labels_are_limited_to_explicit_fallbacks() -> N
         ZoneRefV1(ZoneNameV1.HAND, "not allowed")
     with pytest.raises(ValueError):
         CharacteristicRefV1(CharacteristicNameV1.COLOR, "not allowed")
+    with pytest.raises(ValueError, match="explicit label"):
+        CharacteristicRefV1(CharacteristicNameV1.OTHER, None)
 
 
 @pytest.mark.parametrize("value", [MAX_INTEGER + 1, MIN_INTEGER - 1])
@@ -187,3 +189,19 @@ def test_unknown_wire_properties_fail_closed() -> None:
 def test_textual_context_is_bounded_by_utf8_bytes() -> None:
     with pytest.raises(ValueError, match="4096"):
         UnknownValueV1(UnknownReasonV1.UNKNOWN_SEMANTICS, "x" * 4097)
+
+
+def test_from_wire_rejects_python_tuples_for_json_arrays() -> None:
+    descriptor = SemanticDescriptorV1(
+        shape=SemanticShapeV1.EFFECT,
+        label=None,
+        subject=None,
+        object_ref=None,
+        value=None,
+        children=(),
+    )
+    wire = descriptor.to_wire()
+    wire["children"] = ()
+
+    with pytest.raises(TypeError, match="JSON array|tuple"):
+        SemanticDescriptorV1.from_wire(wire)

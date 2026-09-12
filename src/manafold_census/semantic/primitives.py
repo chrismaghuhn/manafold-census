@@ -122,6 +122,16 @@ class ExpansionStateV1(StrEnum):
     UNKNOWN = "unknown"
 
 
+class ObservedShapeV1(StrEnum):
+    ORACLE_TEXT = "oracle_text"
+    KEYWORD = "keyword"
+    COST = "cost"
+    EVENT = "event"
+    EFFECT = "effect"
+    OUTLIER = "outlier"
+    UNKNOWN = "unknown"
+
+
 class DurationKindV1(StrEnum):
     UNTIL_END_OF_TURN = "until_end_of_turn"
     THIS_TURN = "this_turn"
@@ -138,9 +148,21 @@ class UnknownReasonV1(StrEnum):
     UNKNOWN_SEMANTICS = "UNKNOWN_SEMANTICS"
 
 
+def _reject_wire_tuples(value: object, path: str) -> None:
+    if isinstance(value, tuple):
+        raise TypeError(f"{path} must be a JSON array, not a tuple")
+    if isinstance(value, list):
+        for index, item in enumerate(value):
+            _reject_wire_tuples(item, f"{path}[{index}]")
+    elif isinstance(value, dict):
+        for key, item in value.items():
+            _reject_wire_tuples(item, f"{path}.{key}")
+
+
 def _require_object(value: object, keys: set[str], label: str) -> dict[str, object]:
     if not isinstance(value, dict):
         raise TypeError(f"{label} must be an object")
+    _reject_wire_tuples(value, label)
     actual = set(value)
     missing = sorted(keys - actual)
     unexpected = sorted(actual - keys)
@@ -347,6 +369,8 @@ class CharacteristicRefV1(_WireModel):
 
     def __post_init__(self) -> None:
         super().__post_init__()
+        if self.name is CharacteristicNameV1.OTHER and self.label is None:
+            raise ValueError("other characteristics require an explicit label")
         if self.label is not None and self.name is not CharacteristicNameV1.OTHER:
             raise ValueError("label is allowed only for other characteristics")
 
@@ -464,14 +488,11 @@ class DurationV1(_WireModel):
         return cls(kind, cast(Any, parsed))
 
 
-_PARSERS_AFTER_DEFINITION: dict[str, dict[str, _Parser]] = {
-    "SemanticDescriptorV1": {
-        "shape": _enum_parser(SemanticShapeV1),
-        "label": _optional_text_parser("label"),
-        "subject": _optional_parser(_instance_parser(EntityRefV1)),
-        "object_ref": _optional_parser(_instance_parser(EntityRefV1)),
-        "value": _optional_parser(_instance_parser(ParameterValueV1)),
-        "children": _tuple_parser(_instance_parser(SemanticDescriptorV1), "children"),
-    }
+SemanticDescriptorV1._PARSERS = {
+    "shape": _enum_parser(SemanticShapeV1),
+    "label": _optional_text_parser("label"),
+    "subject": _optional_parser(_instance_parser(EntityRefV1)),
+    "object_ref": _optional_parser(_instance_parser(EntityRefV1)),
+    "value": _optional_parser(_instance_parser(ParameterValueV1)),
+    "children": _tuple_parser(_instance_parser(SemanticDescriptorV1), "children"),
 }
-SemanticDescriptorV1._PARSERS = _PARSERS_AFTER_DEFINITION["SemanticDescriptorV1"]
