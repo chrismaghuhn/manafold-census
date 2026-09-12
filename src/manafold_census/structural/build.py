@@ -9,7 +9,13 @@ from typing import cast
 from ..canonical import JSONValue, canonical_json_bytes
 from ..corpus.build import load_source_lock
 from ..digest import sha256_bytes
-from ..models import ArtifactManifest, DatasetManifest, SourceLock, StudySpec
+from ..models import (
+    ArtifactManifest,
+    DatasetManifest,
+    SourceArtifact,
+    SourceLock,
+    StudySpec,
+)
 from ..source.transfer import cache_path_for
 from ..validation import validate_document, validate_source_file
 from .extract import iter_structural_records
@@ -29,6 +35,9 @@ STRUCTURAL_STUDY_ID = "scryfall-oracle-structural-build"
 STRUCTURAL_OPERATION = "scryfall-oracle-structural.v1"
 STRUCTURAL_ARTIFACT_ID = "scryfall-oracle-structural-index"
 STRUCTURAL_ARTIFACT_KIND = "census.structural-card-index.v1"
+PINNED_SOURCE_LOCK_DIGEST = (
+    "4767dccbb518b4009c235bb1ce531f509c0923ba0ebe190936c2dc2d14e2d4bd"
+)
 SHARD_COUNT = 16
 
 
@@ -47,6 +56,12 @@ class StructuralBuildResult:
     report: dict[str, JSONValue]
 
 
+def _require_single_source_artifact(source_lock: SourceLock) -> SourceArtifact:
+    if len(source_lock.artifacts) != 1:
+        raise ValueError("source lock must contain exactly one source artifact")
+    return source_lock.artifacts[0]
+
+
 def _write_document(path: Path, document: dict[str, JSONValue], schema: str) -> None:
     validate_document(document, schema)
     path.write_bytes(canonical_json_bytes(document))
@@ -60,7 +75,7 @@ def _structural_report(
     index: StructuralIndexSummary,
     statistics: StructuralStatistics,
 ) -> dict[str, JSONValue]:
-    source = source_lock.artifacts[0]
+    source = _require_single_source_artifact(source_lock)
     return {
         "schema": REPORT_SCHEMA,
         "record_provenance": REPORT_PROVENANCE,
@@ -104,7 +119,7 @@ def build_structural_corpus(
     """Build one exact source artifact into the complete structural output."""
 
     source_lock = load_source_lock(source_lock_path)
-    source_artifact = source_lock.artifacts[0]
+    source_artifact = _require_single_source_artifact(source_lock)
     source_file = Path(source_path)
     validate_source_file(source_artifact, source_file)
 
@@ -202,8 +217,11 @@ def build_pinned_structural(
     root = Path(repository_root)
     lock_path = root / "source-locks" / "scryfall-oracle-v1.json"
     source_lock = load_source_lock(lock_path)
+    source_artifact = _require_single_source_artifact(source_lock)
+    if source_lock.digest() != PINNED_SOURCE_LOCK_DIGEST:
+        raise ValueError("pinned source lock digest mismatch")
     source_path = cache_path_for(
         root / ".cache" / "sources" / "scryfall",
-        source_lock.artifacts[0].sha256,
+        source_artifact.sha256,
     )
     return build_structural_corpus(source_path, lock_path, output_dir)

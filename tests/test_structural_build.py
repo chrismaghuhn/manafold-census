@@ -4,6 +4,7 @@ from pathlib import Path
 
 import pytest
 
+import manafold_census.structural.build as structural_build_module
 from manafold_census.canonical import canonical_json_bytes
 from manafold_census.digest import sha256_bytes
 from manafold_census.models import SourceArtifact, SourceLock
@@ -188,7 +189,24 @@ def test_build_rejects_nonempty_output_and_source_digest_mismatch(
         build_structural_corpus(source_path, lock_path, clean_output)
 
 
-def test_pinned_build_uses_only_the_content_addressed_cache(
+def test_build_rejects_multi_artifact_source_lock(tmp_path: Path) -> None:
+    source_path, lock_path, lock = _write_source_and_lock(tmp_path)
+    first = lock.artifacts[0]
+    second = SourceArtifact(
+        source_id="second-structural-test-source",
+        locator="fixture://second-structural-test-source.jsonl.gz",
+        sha256=first.sha256,
+        byte_length=first.byte_length,
+        media_type=first.media_type,
+    )
+    multi_lock = SourceLock.build((first, second))
+    lock_path.write_bytes(canonical_json_bytes(multi_lock.to_wire()))
+
+    with pytest.raises(ValueError, match="exactly one"):
+        build_structural_corpus(source_path, lock_path, tmp_path / "multi-build")
+
+
+def test_pinned_build_rejects_valid_substituted_lock_and_cache(
     tmp_path: Path,
 ) -> None:
     source_path, lock_path, lock = _write_source_and_lock(tmp_path)
@@ -196,6 +214,24 @@ def test_pinned_build_uses_only_the_content_addressed_cache(
     cache_root.mkdir(parents=True)
     cache_path_for(cache_root, lock.artifacts[0].sha256).write_bytes(
         source_path.read_bytes()
+    )
+
+    with pytest.raises(ValueError, match="pinned source lock digest"):
+        build_pinned_structural(tmp_path, tmp_path / "substituted-build")
+
+
+def test_pinned_build_uses_only_the_content_addressed_cache(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source_path, lock_path, lock = _write_source_and_lock(tmp_path)
+    cache_root = tmp_path / ".cache" / "sources" / "scryfall"
+    cache_root.mkdir(parents=True)
+    cache_path_for(cache_root, lock.artifacts[0].sha256).write_bytes(
+        source_path.read_bytes()
+    )
+    monkeypatch.setattr(
+        structural_build_module, "PINNED_SOURCE_LOCK_DIGEST", lock.digest()
     )
 
     result = build_pinned_structural(tmp_path, tmp_path / "pinned-build")
