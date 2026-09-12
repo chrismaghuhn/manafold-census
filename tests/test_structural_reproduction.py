@@ -24,9 +24,11 @@ def test_synthetic_source_covers_required_structural_shapes() -> None:
     ]
 
     assert any("card_faces" not in record for record in records)
+    assert any(len(record.get("card_faces", [])) == 1 for record in records)
     assert any(len(record.get("card_faces", [])) > 1 for record in records)
     assert any(record.get("power") == "1+*" for record in records)
     assert any(record.get("keywords") == [] for record in records)
+    assert any(record.get("keywords") == ["Second", "First"] for record in records)
     assert any(record.get("oracle_text") == "" for record in records)
     assert any(record.get("all_parts") for record in records)
     assert any(record.get("attraction_lights") == [1, 5] for record in records)

@@ -27,6 +27,23 @@ def _synthetic_records() -> tuple[dict[str, JSONValue], ...]:
         },
         {
             "object": "card",
+            "oracle_id": "44444444-4444-4444-8444-444444444444",
+            "id": "44444444-4444-4444-8444-444444444445",
+            "name": "Synthetic One Face",
+            "layout": "normal",
+            "card_faces": [
+                {
+                    "name": "Only Face",
+                    "mana_cost": "{1}",
+                    "type_line": "Artifact",
+                    "oracle_text": "",
+                    "colors": [],
+                    "color_indicator": [],
+                }
+            ],
+        },
+        {
+            "object": "card",
             "oracle_id": "88888888-8888-4888-8888-888888888888",
             "id": "88888888-8888-4888-8888-888888888889",
             "name": "Synthetic Faces",
