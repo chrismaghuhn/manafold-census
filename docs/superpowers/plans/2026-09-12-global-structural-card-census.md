@@ -42,12 +42,32 @@ For every authorized task:
 4. run only that task's required verification and the shared preservation
    checks;
 5. commit the task as one standalone reviewable commit;
-6. report the exact commit SHA, parent SHA, changed files, executed gates,
+6. push the authorized task commit to
+   feat/m1-global-structural-card-census;
+7. verify that the remote branch head equals the local task commit;
+8. report the exact commit SHA, parent SHA, changed files, executed gates,
    findings, and stop conditions;
-7. set NEXT_TASK_AUTHORIZED = NO and stop.
+9. set NEXT_TASK_AUTHORIZED = NO;
+10. stop.
 
 Authorization of this plan does not authorize all tasks. A passing task does
 not authorize the next task.
+
+Push authorization is not PR authorization. PR authorization is not merge
+authorization. Every task push remains a branch-only review checkpoint.
+
+### Mandatory post-commit push verification
+
+Immediately after every numbered task commit, run:
+
+~~~powershell
+git push origin feat/m1-global-structural-card-census
+$localTaskHead = git rev-parse HEAD
+$remoteTaskHead = git ls-remote origin refs/heads/feat/m1-global-structural-card-census
+if ($remoteTaskHead -notmatch $localTaskHead) { throw "remote task head does not match local task head" }
+~~~
+
+Do not create a PR or merge as part of this verification.
 
 ### Shared preservation checks
 
@@ -172,7 +192,12 @@ manifest/report schema, build output, or add CLI commands.
 - Every projected wire property is required.
 - Source absence is null; present empty string and present empty array remain
   empty.
-- Explicit source JSON null is rejected for retained source fields.
+- None/null is a valid StructuralCardRecordV1 value for every nullable
+  projected field and represents source absence at the structural model
+  boundary.
+- The model does not determine whether null originated from source absence or
+  from an untrusted source value; explicit source-null rejection belongs only
+  to Task 2 extraction.
 - Face and related-part nested objects reject unknown properties.
 - face_index is non-negative and within signed 64-bit range.
 - Raw characteristics remain strings.
@@ -207,6 +232,9 @@ the builtin; its wire key remains object and its source value remains exact.
 - [ ] Add model tests for the exact top-level, face, and related-part key sets,
   fixed schema ID, a valid null-containing record, a valid ordered multi-face
   record, and a valid six-field related part.
+- [ ] Add an explicit model test that constructs every nullable field with
+  None, serializes successfully, and asserts that the model treats None as a
+  valid structural absence value without source-origin metadata.
 - [ ] Add tests for round-trip equality, unknown keys, wrong scalar types,
   wrong array element types, negative face_index, and values above
   MAX_INTEGER.
@@ -297,6 +325,8 @@ sort, shard, write manifests, build reports, or add CLI commands.
   and all six opaque source values.
 - all_parts.uri is copied but never dereferenced.
 - Present empty values remain empty; explicit source null fails.
+- Explicit source-null rejection is owned by this extractor before the model
+  receives a structural None value.
 - Source fields outside the projection are ignored.
 - No text, cost, keyword, layout, or relationship semantics are inferred.
 
@@ -1008,7 +1038,8 @@ explicitly authorized:
 - verify only intended source, schema, test, docs, CI, and closure-report files
   are tracked;
 - verify generated outputs and source cache remain ignored;
-- push feat/m1-global-structural-card-census;
+- verify every reviewed task commit is already synchronized with
+  origin/feat/m1-global-structural-card-census;
 - create one unmerged PR against main;
 - use Relates to #4 unless every M1 gate is PASS, then use Closes #4;
 - do not merge and do not start M2.
