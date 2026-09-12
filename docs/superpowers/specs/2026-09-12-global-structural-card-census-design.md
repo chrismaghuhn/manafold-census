@@ -507,7 +507,7 @@ The report maps have these exact contracts:
 face_count_distribution:
   object with decimal non-negative face-count strings as keys
   value = non-negative signed-64-bit card count
-  key pattern = (0|[1-9][0-9]*)
+  key pattern = [1-9][0-9]*
   additionalProperties = count schema; no other map metadata
 
 layout_counts:
