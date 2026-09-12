@@ -1,4 +1,5 @@
 from dataclasses import FrozenInstanceError
+from pathlib import Path
 
 import pytest
 
@@ -6,10 +7,13 @@ from manafold_census.canonical import MAX_INTEGER, MIN_INTEGER
 from manafold_census.semantic.primitives import (
     CharacteristicNameV1,
     CharacteristicRefV1,
+    CostOperationV1,
     DurationKindV1,
     DurationV1,
     EntityRefV1,
     EntityRoleV1,
+    ExpansionStateV1,
+    ModificationOperationV1,
     MultiplicityV1,
     ParameterValueTypeV1,
     ParameterValueV1,
@@ -17,6 +21,7 @@ from manafold_census.semantic.primitives import (
     QuantityV1,
     SemanticDescriptorV1,
     SemanticShapeV1,
+    SubjectKindV1,
     UnknownReasonV1,
     UnknownValueV1,
     ZoneNameV1,
@@ -37,6 +42,102 @@ def _unknown() -> UnknownValueV1:
         reason=UnknownReasonV1.UNKNOWN_SEMANTICS,
         hint="review this value",
     )
+
+
+@pytest.mark.parametrize(
+    ("enum_type", "expected"),
+    [
+        (
+            EntityRoleV1,
+            {
+                "source",
+                "target",
+                "chosen",
+                "affected",
+                "created",
+                "event_subject",
+                "controller",
+                "owner",
+                "payer",
+                "chooser",
+                "unknown",
+            },
+        ),
+        (MultiplicityV1, {"one", "many", "each", "unknown"}),
+        (
+            ZoneNameV1,
+            {
+                "library",
+                "hand",
+                "battlefield",
+                "graveyard",
+                "exile",
+                "stack",
+                "command",
+                "outside_game",
+                "unknown",
+            },
+        ),
+        (QuantityModeV1, {"exact", "all", "each", "symbolic", "unknown"}),
+        (
+            CharacteristicNameV1,
+            {
+                "power",
+                "toughness",
+                "color",
+                "type",
+                "subtype",
+                "ability",
+                "controller",
+                "owner",
+                "zone",
+                "cost",
+                "base",
+                "other",
+            },
+        ),
+        (ParameterValueTypeV1, {"text", "integer", "boolean", "descriptor", "unknown"}),
+        (
+            SemanticShapeV1,
+            {
+                "event",
+                "condition",
+                "restriction",
+                "effect",
+                "replacement",
+                "duration",
+                "cost",
+                "alternative",
+                "unknown",
+            },
+        ),
+        (SubjectKindV1, {"object", "player", "card", "zone", "ability", "unknown"}),
+        (
+            ModificationOperationV1,
+            {"set", "add", "subtract", "grant", "remove", "change", "unknown"},
+        ),
+        (CostOperationV1, {"increase", "decrease", "alternative", "unknown"}),
+        (ExpansionStateV1, {"unexpanded", "expanded", "unknown"}),
+        (
+            DurationKindV1,
+            {"until_end_of_turn", "this_turn", "permanent", "delayed", "unknown"},
+        ),
+        (
+            UnknownReasonV1,
+            {
+                "INSUFFICIENT_EVIDENCE",
+                "AMBIGUOUS_SOURCE",
+                "UNSUPPORTED_SHAPE",
+                "CONFLICTING_INTERPRETATIONS",
+                "UNKNOWN_SEMANTICS",
+            },
+        ),
+    ],
+)
+def test_every_primitive_enum_value_is_closed(
+    enum_type: type, expected: set[str]
+) -> None:
+    assert {member.value for member in enum_type} == expected
 
 
 def test_entity_reference_round_trips_and_is_immutable() -> None:
@@ -203,5 +304,66 @@ def test_from_wire_rejects_python_tuples_for_json_arrays() -> None:
     wire = descriptor.to_wire()
     wire["children"] = ()
 
-    with pytest.raises(TypeError, match="JSON array|tuple"):
+    with pytest.raises(TypeError, match="JSON array|tuple|unsupported"):
+        SemanticDescriptorV1.from_wire(wire)
+
+
+@pytest.mark.parametrize(
+    "wire",
+    [
+        {
+            "role": EntityRoleV1.SOURCE,
+            "multiplicity": "one",
+            "ordinal": None,
+        },
+        {
+            "role": "source",
+            "multiplicity": "one",
+            "ordinal": 1.0,
+        },
+        {
+            "role": "source",
+            "multiplicity": "one",
+            "ordinal": {"not": "an integer"},
+        },
+        {
+            1: "non-string key",
+            "hint": None,
+        },
+        {
+            "reason": "UNKNOWN_SEMANTICS",
+            "hint": {"set"},
+        },
+        {
+            "reason": "UNKNOWN_SEMANTICS",
+            "hint": b"bytes",
+        },
+        {
+            "reason": "UNKNOWN_SEMANTICS",
+            "hint": Path("host-path"),
+        },
+    ],
+)
+def test_from_wire_rejects_non_json_values(wire: object) -> None:
+    with pytest.raises(
+        (TypeError, ValueError), match="JSON|object|integer|unsupported|forbidden"
+    ):
+        if "reason" in wire:  # type: ignore[operator]
+            UnknownValueV1.from_wire(wire)
+        else:
+            EntityRefV1.from_wire(wire)
+
+
+def test_from_wire_rejects_nested_python_model_objects() -> None:
+    wire = SemanticDescriptorV1(
+        shape=SemanticShapeV1.EFFECT,
+        label=None,
+        subject=None,
+        object_ref=None,
+        value=None,
+        children=(),
+    ).to_wire()
+    wire["subject"] = _entity()
+
+    with pytest.raises(TypeError, match="JSON|object|unsupported"):
         SemanticDescriptorV1.from_wire(wire)

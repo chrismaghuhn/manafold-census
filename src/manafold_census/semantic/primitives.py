@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass, fields
-from enum import StrEnum
+from enum import Enum, StrEnum
 from typing import Any, ClassVar, TypeVar, cast
 
 from ..canonical import MAX_INTEGER, MIN_INTEGER, JSONValue
@@ -122,16 +122,6 @@ class ExpansionStateV1(StrEnum):
     UNKNOWN = "unknown"
 
 
-class ObservedShapeV1(StrEnum):
-    ORACLE_TEXT = "oracle_text"
-    KEYWORD = "keyword"
-    COST = "cost"
-    EVENT = "event"
-    EFFECT = "effect"
-    OUTLIER = "outlier"
-    UNKNOWN = "unknown"
-
-
 class DurationKindV1(StrEnum):
     UNTIL_END_OF_TURN = "until_end_of_turn"
     THIS_TURN = "this_turn"
@@ -148,21 +138,37 @@ class UnknownReasonV1(StrEnum):
     UNKNOWN_SEMANTICS = "UNKNOWN_SEMANTICS"
 
 
-def _reject_wire_tuples(value: object, path: str) -> None:
-    if isinstance(value, tuple):
-        raise TypeError(f"{path} must be a JSON array, not a tuple")
+def _validate_json_wire(value: object, path: str) -> None:
+    if isinstance(value, Enum):
+        raise TypeError(f"{path} contains an enum, not a JSON scalar")
+    if value is None or type(value) is bool:
+        return
+    if type(value) is int:
+        if value < MIN_INTEGER or value > MAX_INTEGER:
+            raise ValueError(f"{path} is outside the signed 64-bit range")
+        return
+    if isinstance(value, str):
+        value.encode("utf-8")
+        return
+    if isinstance(value, float):
+        raise TypeError(f"{path} contains a forbidden float")
     if isinstance(value, list):
         for index, item in enumerate(value):
-            _reject_wire_tuples(item, f"{path}[{index}]")
-    elif isinstance(value, dict):
+            _validate_json_wire(item, f"{path}[{index}]")
+        return
+    if isinstance(value, dict):
         for key, item in value.items():
-            _reject_wire_tuples(item, f"{path}.{key}")
+            if not isinstance(key, str):
+                raise TypeError(f"{path} has a non-string JSON object key")
+            _validate_json_wire(item, f"{path}.{key}")
+        return
+    raise TypeError(f"{path} contains an unsupported non-JSON value")
 
 
 def _require_object(value: object, keys: set[str], label: str) -> dict[str, object]:
     if not isinstance(value, dict):
         raise TypeError(f"{label} must be an object")
-    _reject_wire_tuples(value, label)
+    _validate_json_wire(value, label)
     actual = set(value)
     missing = sorted(keys - actual)
     unexpected = sorted(actual - keys)
@@ -201,12 +207,8 @@ def _require_text(field: str, value: object, *, allow_empty: bool = False) -> st
     return value
 
 
-def _optional_text(field: str, value: object) -> str | None:
-    return None if value is None else _require_text(field, value)
-
-
 def _optional_text_parser(field: str) -> _Parser:
-    return lambda value: _optional_text(field, value)
+    return lambda value: None if value is None else _require_text(field, value)
 
 
 def _require_int(field: str, value: object, *, nonnegative: bool = False) -> int:

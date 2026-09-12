@@ -15,10 +15,10 @@ from .primitives import (
     EntityRefV1,
     ExpansionStateV1,
     ModificationOperationV1,
-    ObservedShapeV1,
     ParameterValueV1,
     QuantityV1,
     SemanticDescriptorV1,
+    SemanticShapeV1,
     SubjectKindV1,
     ZoneRefV1,
     _enum_parser,
@@ -36,6 +36,39 @@ from .primitives import (
 
 def _text_parser(field: str) -> _Parser:
     return lambda value: _require_text(field, value)
+
+
+M1_SOURCE_FIELDS = frozenset(
+    {
+        "record",
+        "name",
+        "layout",
+        "mana_cost",
+        "type_line",
+        "oracle_text",
+        "colors",
+        "color_identity",
+        "color_indicator",
+        "keywords",
+        "produced_mana",
+        "power",
+        "toughness",
+        "loyalty",
+        "defense",
+        "hand_modifier",
+        "life_modifier",
+        "attraction_lights",
+        "faces",
+        "all_parts",
+    }
+)
+
+
+def _source_field(value: object) -> str:
+    text = _require_text("observed_field", value)
+    if text not in M1_SOURCE_FIELDS:
+        raise ValueError("observed_field is not a controlled M1 source field")
+    return text
 
 
 class _Payload(_WireModel):
@@ -342,7 +375,7 @@ class KeywordReferenceParametersV1(_Payload):
 @dataclass(frozen=True, slots=True)
 class UnresolvedParametersV1(_Payload):
     observed_field: str
-    observed_shape: ObservedShapeV1
+    observed_shape: SemanticShapeV1
     question: str
     candidate_kinds: tuple[RequirementKindV1, ...]
     fragment: str | None
@@ -354,8 +387,8 @@ class UnresolvedParametersV1(_Payload):
         "fragment",
     }
     _PARSERS: ClassVar[dict[str, _Parser]] = {
-        "observed_field": _text_parser("observed_field"),
-        "observed_shape": _enum_parser(ObservedShapeV1),
+        "observed_field": _source_field,
+        "observed_shape": _enum_parser(SemanticShapeV1),
         "question": _text_parser("question"),
         "candidate_kinds": _tuple_parser(
             _enum_parser(RequirementKindV1), "candidate_kinds"

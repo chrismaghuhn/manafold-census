@@ -42,7 +42,6 @@ from manafold_census.semantic.primitives import (
     ExpansionStateV1,
     ModificationOperationV1,
     MultiplicityV1,
-    ObservedShapeV1,
     ParameterValueTypeV1,
     ParameterValueV1,
     QuantityModeV1,
@@ -217,7 +216,7 @@ def test_representative_payloads_round_trip_through_typed_dispatch() -> None:
     )
     unresolved = UnresolvedParametersV1(
         observed_field="oracle_text",
-        observed_shape=ObservedShapeV1.OUTLIER,
+        observed_shape=SemanticShapeV1.UNKNOWN,
         question="which typed shape applies",
         candidate_kinds=(RequirementKindV1.DRAW_CARDS,),
         fragment="raw fragment",
@@ -384,7 +383,7 @@ def test_every_payload_class_round_trips_through_typed_dispatch() -> None:
             RequirementKindV1.UNRESOLVED,
             UnresolvedParametersV1(
                 "oracle_text",
-                ObservedShapeV1.OUTLIER,
+                SemanticShapeV1.UNKNOWN,
                 "review",
                 (RequirementKindV1.DRAW_CARDS,),
                 None,
@@ -441,7 +440,7 @@ def test_payload_from_wire_rejects_tuple_arrays() -> None:
         RequirementFamilyV1.EFFECT, RequirementKindV1.CREATE_OBJECT, payload
     )
     wire["characteristics"] = ()
-    with pytest.raises(TypeError, match="JSON array|tuple"):
+    with pytest.raises(TypeError, match="JSON array|tuple|unsupported"):
         payload_from_wire(
             RequirementFamilyV1.EFFECT, RequirementKindV1.CREATE_OBJECT, wire
         )
@@ -450,7 +449,7 @@ def test_payload_from_wire_rejects_tuple_arrays() -> None:
 def test_unresolved_payload_preserves_explicit_unknown_reason() -> None:
     payload = UnresolvedParametersV1(
         observed_field="keywords",
-        observed_shape=ObservedShapeV1.KEYWORD,
+        observed_shape=SemanticShapeV1.UNKNOWN,
         question="keyword expansion is not reviewed",
         candidate_kinds=(),
         fragment=None,
@@ -503,7 +502,7 @@ def test_unresolved_rejects_arbitrary_shape_and_candidate_kind() -> None:
     with pytest.raises((TypeError, ValueError), match="unsupported|value"):
         UnresolvedParametersV1(
             observed_field="oracle_text",
-            observed_shape=ObservedShapeV1.OUTLIER,
+            observed_shape=SemanticShapeV1.UNKNOWN,
             question="review",
             candidate_kinds=("implement_card_x",),  # type: ignore[arg-type]
             fragment=None,
