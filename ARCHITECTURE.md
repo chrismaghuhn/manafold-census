@@ -61,11 +61,18 @@ Scryfall /bulk-data (oracle_cards)
 The compressed download is the source identity. Each inventory record hashes
 the exact decompressed JSONL line bytes, including its line framing; the
 canonical generated JSONL line is a separate representation. The 16 shard
-files are generated and ignored, while the source lock and acquisition
-configuration are small reviewable inputs to future intentional refreshes.
-For this multi-file output, the existing `ArtifactManifest` binds the ordered
-aggregate index digest in `content_sha256` and the sum of shard byte lengths in
-`byte_length`; the report exposes the same aggregate identity explicitly.
+files are generated and ignored. `source-refresh` may place a new snapshot in
+the content-addressed cache and write a proposed lock, while
+`source-fetch-pinned` resolves only the committed lock's locator and expected
+digest/length. These operations remain separate so multiple snapshots can
+coexist safely.
+
+The multi-file index has a small `OracleRecordIndexManifestV1` containing all
+16 relative shard paths, byte digests, lengths, and record counts plus the
+aggregate index digest. The existing `ArtifactManifestV1` binds the exact
+canonical bytes of that aggregate manifest in `content_sha256` and
+`byte_length`; it is not repurposed to make an aggregate digest look like the
+SHA-256 of the shard bytes.
 
 The source and corpus packages have separate ownership. Task 01 does not
 inspect Oracle text, normalize faces, infer types or abilities, assign

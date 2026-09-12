@@ -10,14 +10,15 @@ import pytest
 from manafold_census.corpus.build import (
     build_corpus,
     run_synthetic_reproduction,
-    validate_corpus_output,
 )
+from manafold_census.corpus.check import validate_corpus_output
 from manafold_census.corpus.index import (
     CorpusIndexError,
     build_record_index,
     inspect_record_index,
     iter_source_records,
 )
+from manafold_census.corpus.manifest import IndexRecordManifest
 from manafold_census.digest import sha256_bytes
 from manafold_census.models import SourceArtifact, SourceLock
 
@@ -269,7 +270,10 @@ def test_build_emits_manifests_and_source_fact_report(tmp_path: Path) -> None:
 
     assert result.dataset.record_count == 2
     assert result.dataset.source_lock_digest == lock.digest()
-    assert result.artifact.content_sha256 == result.index.aggregate_digest
+    index_manifest_bytes = (output / "index-manifest.json").read_bytes()
+    assert result.artifact.content_sha256 == sha256_bytes(index_manifest_bytes)
+    assert result.artifact.byte_length == len(index_manifest_bytes)
+    assert result.index_manifest == IndexRecordManifest.from_summary(result.index)
     report = json.loads((output / "corpus-report.json").read_text(encoding="utf-8"))
     assert report["record_provenance"] == "SOURCE_FACT"
     assert report["record_count"] == 2
@@ -333,7 +337,7 @@ def test_corpus_validator_rejects_index_aggregate_digest_mismatch(
         json.dumps(artifact, sort_keys=True, separators=(",", ":")).encode("utf-8")
     )
 
-    with pytest.raises(ValueError, match="aggregate digest mismatch"):
+    with pytest.raises(ValueError, match="index manifest digest mismatch"):
         validate_corpus_output(output)
 
 
@@ -354,10 +358,51 @@ def test_corpus_validator_rejects_report_count_mismatch(tmp_path: Path) -> None:
         validate_corpus_output(output)
 
 
+def test_corpus_validator_rejects_unbound_source_provenance(tmp_path: Path) -> None:
+    source_path = tmp_path / "source.jsonl.gz"
+    _write_gzip_jsonl(source_path, [_record(OID_0, CID_0, "Zero")])
+    lock_path = tmp_path / "source-lock.json"
+    _write_lock(source_path, lock_path)
+    output = tmp_path / "build"
+    build_corpus(source_path, lock_path, output)
+    report = json.loads((output / "corpus-report.json").read_text(encoding="utf-8"))
+    report["source_locator"] = "https://example.invalid/fake.jsonl.gz"
+    (output / "corpus-report.json").write_bytes(
+        json.dumps(report, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    )
+
+    with pytest.raises(ValueError, match="source lock digest"):
+        validate_corpus_output(output)
+
+
+def test_corpus_validator_rejects_noncanonical_manifest_bytes(tmp_path: Path) -> None:
+    source_path = tmp_path / "source.jsonl.gz"
+    _write_gzip_jsonl(source_path, [_record(OID_0, CID_0, "Zero")])
+    lock_path = tmp_path / "source-lock.json"
+    _write_lock(source_path, lock_path)
+    output = tmp_path / "build"
+    build_corpus(source_path, lock_path, output)
+    document = json.loads(
+        (output / "dataset-manifest.json").read_text(encoding="utf-8")
+    )
+    (output / "dataset-manifest.json").write_text(
+        json.dumps(document, indent=2), encoding="utf-8"
+    )
+
+    with pytest.raises(ValueError, match="canonical"):
+        validate_corpus_output(output)
+
+
 def test_offline_synthetic_reproduction_is_byte_identical() -> None:
     digest_a, digest_b = run_synthetic_reproduction()
 
     assert digest_a == digest_b
+
+
+def test_synthetic_source_bytes_are_stable_across_process_runs() -> None:
+    from manafold_census.corpus.build import synthetic_source_bytes
+
+    assert synthetic_source_bytes() == synthetic_source_bytes()
 
 
 def test_corpus_check_cli_runs_the_offline_synthetic_reproduction() -> None:

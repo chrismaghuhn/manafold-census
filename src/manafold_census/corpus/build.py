@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import filecmp
 import gzip
-import hashlib
+import io
 import json
 import tempfile
 from dataclasses import dataclass
@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import cast
 
 from ..canonical import JSONValue, canonical_json_bytes
-from ..digest import REPRODUCTION_DOMAIN, domain_digest, measure_file
+from ..digest import REPRODUCTION_DOMAIN, domain_digest, measure_file, sha256_bytes
 from ..models import (
     ArtifactManifest,
     DatasetManifest,
@@ -21,7 +21,8 @@ from ..models import (
     StudySpec,
 )
 from ..validation import validate_document, validate_source_file
-from .index import IndexSummary, build_record_index, inspect_record_index
+from .index import IndexSummary, build_record_index
+from .manifest import IndexRecordManifest
 
 DATASET_ID = "scryfall-oracle-corpus"
 DATASET_VERSION = "1.0.0"
@@ -45,6 +46,7 @@ class BuildResult:
     study: StudySpec
     artifact: ArtifactManifest
     index: IndexSummary
+    index_manifest: IndexRecordManifest
     report: dict[str, JSONValue]
 
 
@@ -86,6 +88,8 @@ def _report_for(
         "dataset_manifest_digest": dataset.digest(),
         "study_digest": study.digest(),
         "artifact_manifest_digest": artifact.digest(),
+        "index_manifest_sha256": artifact.content_sha256,
+        "index_manifest_byte_length": artifact.byte_length,
         "record_count": index.record_count,
         "unique_oracle_id_count": index.unique_oracle_id_count,
         "duplicate_oracle_id_count": index.duplicate_oracle_id_count,
@@ -115,6 +119,7 @@ def build_corpus(
         raise ValueError("corpus output directory must be empty")
 
     index = build_record_index(source_file, output_path / "records")
+    index_manifest = IndexRecordManifest.from_summary(index)
     dataset = DatasetManifest(
         dataset_id=DATASET_ID,
         dataset_version=DATASET_VERSION,
@@ -131,12 +136,13 @@ def build_corpus(
             "source_lock_digest": source_lock.digest(),
         },
     )
+    index_manifest_bytes = index_manifest.canonical_bytes()
     artifact = ArtifactManifest(
         artifact_id=ARTIFACT_ID,
         artifact_kind=ARTIFACT_KIND,
         study_digest=study.digest(),
-        content_sha256=index.aggregate_digest,
-        byte_length=index.total_byte_length,
+        content_sha256=sha256_bytes(index_manifest_bytes),
+        byte_length=len(index_manifest_bytes),
     )
     report = _report_for(source_lock, dataset, study, artifact, index)
 
@@ -156,6 +162,11 @@ def build_corpus(
         "artifact-manifest.v1.schema.json",
     )
     _write_document(
+        output_path / "index-manifest.json",
+        index_manifest.to_wire(),
+        "oracle-record-index-manifest.v1.schema.json",
+    )
+    _write_document(
         output_path / "corpus-report.json",
         report,
         "oracle-corpus-report.v1.schema.json",
@@ -167,6 +178,7 @@ def build_corpus(
         study=study,
         artifact=artifact,
         index=index,
+        index_manifest=index_manifest,
         report=report,
     )
 
@@ -182,12 +194,12 @@ def _file_map(directory: Path) -> dict[str, Path]:
 def _directory_digest(directory: Path) -> str:
     entries: list[dict[str, JSONValue]] = []
     for relative_path, path in sorted(_file_map(directory).items()):
-        data = path.read_bytes()
+        measurement = measure_file(path)
         entries.append(
             {
                 "path": relative_path,
-                "sha256": hashlib.sha256(data).hexdigest(),
-                "byte_length": len(data),
+                "sha256": measurement.sha256,
+                "byte_length": measurement.byte_length,
             }
         )
     return domain_digest(REPRODUCTION_DOMAIN, cast(JSONValue, entries))
@@ -211,9 +223,17 @@ def _synthetic_records() -> tuple[dict[str, JSONValue], ...]:
 
 
 def _write_synthetic_source(path: Path) -> None:
-    with gzip.open(path, "wb") as stream:
+    path.write_bytes(synthetic_source_bytes())
+
+
+def synthetic_source_bytes() -> bytes:
+    """Return stable gzip JSONL bytes for the offline maintainer check."""
+
+    output = io.BytesIO()
+    with gzip.GzipFile(fileobj=output, mode="wb", filename="", mtime=0) as stream:
         for record in _synthetic_records():
             stream.write(canonical_json_bytes(record) + b"\n")
+    return output.getvalue()
 
 
 def _write_synthetic_lock(source_path: Path, lock_path: Path) -> None:
@@ -265,57 +285,6 @@ def run_synthetic_reproduction() -> tuple[str, str]:
         return digest_a, digest_b
 
 
-def validate_corpus_output(output_dir: str | Path) -> str:
-    """Validate generated index/manifests and return the aggregate index digest."""
-
-    output_path = Path(output_dir)
-    index = inspect_record_index(output_path / "records")
-    with (output_path / "dataset-manifest.json").open("r", encoding="utf-8") as stream:
-        dataset_document = json.load(stream)
-    with (output_path / "study-spec.json").open("r", encoding="utf-8") as stream:
-        study_document = json.load(stream)
-    with (output_path / "artifact-manifest.json").open("r", encoding="utf-8") as stream:
-        artifact_document = json.load(stream)
-    with (output_path / "corpus-report.json").open("r", encoding="utf-8") as stream:
-        report_document = json.load(stream)
-    validate_document(dataset_document, "dataset-manifest.v1.schema.json")
-    validate_document(study_document, "study-spec.v1.schema.json")
-    validate_document(artifact_document, "artifact-manifest.v1.schema.json")
-    validate_document(report_document, "oracle-corpus-report.v1.schema.json")
-    dataset = DatasetManifest.from_wire(dataset_document)
-    study = StudySpec.from_wire(study_document)
-    artifact = ArtifactManifest.from_wire(artifact_document)
-    if dataset.record_count != index.record_count:
-        raise ValueError("corpus dataset record count does not match index")
-    if artifact.content_sha256 != index.aggregate_digest:
-        raise ValueError("corpus artifact aggregate digest mismatch")
-    if artifact.byte_length != index.total_byte_length:
-        raise ValueError("corpus artifact byte length mismatch")
-    if artifact.study_digest != study.digest():
-        raise ValueError("corpus artifact study digest mismatch")
-    if report_document["aggregate_index_digest"] != index.aggregate_digest:
-        raise ValueError("corpus report aggregate digest mismatch")
-    if report_document["record_count"] != index.record_count:
-        raise ValueError("corpus report record count mismatch")
-    if report_document["unique_oracle_id_count"] != index.unique_oracle_id_count:
-        raise ValueError("corpus report unique Oracle ID count mismatch")
-    if report_document["duplicate_oracle_id_count"] != index.duplicate_oracle_id_count:
-        raise ValueError("corpus report duplicate Oracle ID count mismatch")
-    if report_document["shard_count"] != SHARD_COUNT:
-        raise ValueError("corpus report shard count mismatch")
-    if report_document["shard_record_counts"] != index.shard_record_counts:
-        raise ValueError("corpus report shard counts mismatch")
-    if report_document["source_lock_digest"] != dataset.source_lock_digest:
-        raise ValueError("corpus report source lock digest mismatch")
-    if report_document["dataset_manifest_digest"] != dataset.digest():
-        raise ValueError("corpus report dataset digest mismatch")
-    if report_document["study_digest"] != study.digest():
-        raise ValueError("corpus report study digest mismatch")
-    if report_document["artifact_manifest_digest"] != artifact.digest():
-        raise ValueError("corpus report artifact digest mismatch")
-    return index.aggregate_digest
-
-
 def build_pinned_corpus(
     repository_root: str | Path, output_dir: str | Path
 ) -> BuildResult:
@@ -324,6 +293,10 @@ def build_pinned_corpus(
     root = Path(repository_root)
     lock_path = root / "source-locks" / "scryfall-oracle-v1.json"
     lock = load_source_lock(lock_path)
-    source_id = lock.artifacts[0].source_id
-    source_path = root / ".cache" / "sources" / "scryfall" / f"{source_id}.jsonl.gz"
+    from ..source.transfer import cache_path_for
+
+    source_path = cache_path_for(
+        root / ".cache" / "sources" / "scryfall",
+        lock.artifacts[0].sha256,
+    )
     return build_corpus(source_path, lock_path, output_dir)

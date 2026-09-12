@@ -17,8 +17,11 @@ reproduce:
 source-discover:
     python -m manafold_census.cli source-discover
 
-source-acquire:
-    python -m manafold_census.cli source-acquire
+source-refresh:
+    python -m manafold_census.cli source-refresh
+
+source-fetch-pinned:
+    python -m manafold_census.cli source-fetch-pinned
 
 corpus-build:
     python -m manafold_census.cli corpus-build

@@ -44,15 +44,20 @@ The explicit live-source commands are separate from the offline check path:
 
 ```text
 just source-discover
-just source-acquire
+just source-refresh
+just source-fetch-pinned
 just corpus-build
 just corpus-check
 ```
 
-`source-acquire` is an intentional refresh operation. It streams one HTTPS
-gzip JSONL download to a temporary file, verifies the complete bytes, and then
-promotes it atomically into `.cache/sources/scryfall/`. Ordinary tests, CI, and
-`just check` use synthetic data and do not require Scryfall availability.
+`source-refresh` is an intentional live operation. It streams one HTTPS gzip
+JSONL download to a temporary file, verifies the complete bytes, promotes it
+atomically into the content-addressed `.cache/sources/scryfall/<sha256>.jsonl.gz`
+cache, and writes a reviewable proposed lock without changing the committed
+lock. `source-fetch-pinned` uses the committed lock's exact locator and verifies
+its digest and length, which makes a fresh clone reproducible after upstream
+refreshes. Ordinary tests, CI, and `just check` use synthetic data and do not
+require Scryfall availability.
 
 The `reproduce` command builds the synthetic fixture twice in independent
 temporary directories and requires identical semantic files and SHA-256

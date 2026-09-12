@@ -40,8 +40,8 @@ def test_task_01_golden_path_separates_live_acquisition_from_offline_checks() ->
     justfile = (REPOSITORY_ROOT / "justfile").read_text(encoding="utf-8")
 
     for command in (
-        "source-discover",
-        "source-acquire",
+        "source-refresh",
+        "source-fetch-pinned",
         "corpus-build",
         "corpus-check",
     ):
@@ -63,3 +63,9 @@ def test_ci_contains_fresh_non_editable_wheel_smoke_path() -> None:
     assert "python -m venv" in workflow
     assert "non-editable" in workflow
     assert "corpus-check --synthetic" in workflow
+
+
+def test_directly_imported_referencing_dependency_is_declared() -> None:
+    pyproject = (REPOSITORY_ROOT / "pyproject.toml").read_text(encoding="utf-8")
+
+    assert "referencing>=" in pyproject

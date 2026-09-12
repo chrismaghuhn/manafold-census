@@ -5,5 +5,7 @@
   "discovery_uri": "https://api.scryfall.com/bulk-data",
   "expected_format": "gzip-jsonl",
   "download_field": "jsonl_download_uri",
-  "user_agent": "manafold-census/0.1.0 (Task 01 source acquisition)"
+  "user_agent": "manafold-census/0.1.0 (Task 01 source acquisition)",
+  "discovery_accept": "application/json",
+  "download_accept": "application/gzip"
 }
