@@ -3,6 +3,12 @@ from __future__ import annotations
 import copy
 
 import pytest
+from analysis_fixtures import (
+    OTHER_SOURCE_LOCK_DIGEST,
+    bundle,
+    bundle_from_other_source,
+    source_ref,
+)
 
 from manafold_census.analysis.model import (
     AnalysisOutcomeV1,
@@ -11,12 +17,6 @@ from manafold_census.analysis.model import (
     card_source_key,
 )
 from manafold_census.validation import validate_document
-from tests.analysis_fixtures import (
-    OTHER_SOURCE_LOCK_DIGEST,
-    bundle,
-    bundle_from_other_source,
-    source_ref,
-)
 
 
 def test_requirements_produced_requires_one_bundle() -> None:

@@ -3,6 +3,7 @@ from __future__ import annotations
 import copy
 
 import pytest
+from analysis_fixtures import source_ref
 
 from manafold_census.analysis.authority import (
     NegativeAuthorityScopeV1,
@@ -12,7 +13,6 @@ from manafold_census.analysis.authority import (
     validate_negative_requirement_authority,
 )
 from manafold_census.validation import validate_document
-from tests.analysis_fixtures import source_ref
 
 
 def scope() -> NegativeAuthorityScopeV1:
