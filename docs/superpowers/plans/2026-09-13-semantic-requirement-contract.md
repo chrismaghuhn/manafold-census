@@ -18,6 +18,7 @@ implementation task is authorized by this plan.
 ~~~text
 DESIGN_SPECIFICATION = docs/superpowers/specs/2026-09-12-semantic-requirement-contract-design.md
 DESIGN_HEAD          = 003de7ce53477157bcac23b4c6d21869dba46e13
+TASK_4_CONTRACT_CLARIFICATION = APPLIED_PENDING_INDEPENDENT_REVIEW
 BRANCH               = feat/m2-semantic-requirement-contract
 BASELINE_MAIN        = b7b4b27567e1407d2580ec57f1ce1e2d5dab3cfa
 M2_IMPLEMENTATION     = NOT_AUTHORIZED
@@ -316,7 +317,8 @@ Enforce:
 - signed-64-bit bounds through MAX_INTEGER and MIN_INTEGER;
 - non-negative bounds for ordinals and cardinalities;
 - strict booleans, with bool rejected where an integer is required;
-- valid UTF-8 and a 4096 UTF-8-byte limit for descriptor labels and hints;
+- valid UTF-8 and a 4096 Unicode-code-point limit for bounded descriptor labels
+  and hints; JSON Schema and Python use the same code-point unit;
 - no floats, sets, tuples, bytes, callbacks, paths, or arbitrary keys;
 - from_wire accepts JSON-shaped dict/list/scalar values only; internal tuples,
   enums, model instances, and other Python objects are rejected recursively;
@@ -474,8 +476,8 @@ Enforce:
 - structural field names from the frozen M1 parent/face sets;
 - parent-only fields cannot carry a face index;
 - keyword evidence is parent-level and preserves exact keyword value;
-- fragments are optional, textual, exact-context hints at most 4096 UTF-8
-  bytes;
+- fragments are optional, textual, exact-context hints at most 4096 Unicode
+  code points and valid UTF-8;
 - rules citations and external review records remain distinguishable from
   structural evidence;
 - all nested values are immutable and to_wire() is fresh.
@@ -664,7 +666,10 @@ Enforce:
 - a partial-to-complete transition creates a new ID if any unknown parameter is
   replaced, otherwise keeps the ID but reopens review;
 - accepted-plus-partial and accepted-plus-unresolved are valid;
-- complete requires no unknown value/path and kind not equal to unresolved;
+- complete requires no unknown value/path, no semantic parameter enum sentinel
+  whose wire value is 'unknown', and kind not equal to unresolved;
+- complete keyword_reference requires expansion_state=EXPANDED with typed
+  expansion; UNEXPANDED and UNKNOWN are PARTIAL for a known kind;
 - complete also rejects any required SemanticDescriptor whose necessary
   meaning exists only in label/text or shape=unknown; this cross-field rule
   belongs to RequirementV1 rather than the primitive layer;
@@ -685,8 +690,9 @@ Enforce:
   derivation, or resolution digest is rejected, while reopening to IN_REVIEW
   with a cleared digest is accepted.
 - [ ] Add tests for all review/resolution combinations, unknown paths, accepted
-  unresolved claims, invalid terminal metadata, proposal separation, and
-  label-only/unknown-shape descriptors rejected under COMPLETE.
+  unresolved claims, invalid terminal metadata, proposal separation, every
+  semantic UNKNOWN enum sentinel, keyword UNEXPANDED/UNKNOWN versus EXPANDED,
+  and label-only/unknown-shape descriptors rejected under COMPLETE.
 - [ ] Add immutability tests for constructor input, nested values, previous
   to_wire() output, and repeated digest calls.
 - [ ] Run the two focused test files before implementation and record the
@@ -754,7 +760,9 @@ resolution
 Use closed oneOf branches for every kind payload and every evidence variant.
 Use fixed keys and additionalProperties=false at every nested object. Encode
 signed-64-bit bounds, lowercase UUID/SHA-256 patterns, enum values, null rules,
-bounded fragment/label lengths, terminal review binding requirements, and the
+4096 Unicode-code-point fragment/label lengths, terminal review binding
+requirements, semantic UNKNOWN-sentinel exclusion from COMPLETE,
+keyword-reference EXPANDED requirements for COMPLETE, and the
 complete-resolution descriptor restriction. The bundle schema and local
 cross-schema registry are owned by Task 5.
 
@@ -763,11 +771,13 @@ cross-schema registry are owned by Task 5.
 - [ ] Add tests that load semantic-requirement.v1.schema.json through
   project_data_root().
 - [ ] Add model/schema parity cases for every kind family, unresolved/partial
-  values, all evidence variants, and COMPLETE/label-only descriptor rejection.
+  values, semantic UNKNOWN sentinels, keyword expansion states, all evidence
+  variants, and COMPLETE/label-only descriptor rejection.
 - [ ] Add negative schema tests for unknown properties, wrong schema, bad
   source IDs/digests, wrong kind/family branch, missing review binding,
   terminal review without digest, label-only COMPLETE descriptor, unknown
-  enum values, floats, and negative indexes.
+  enum values, COMPLETE UNKNOWN sentinels, multibyte length boundaries,
+  floats, and negative indexes.
 - [ ] Run the focused schema tests before implementation and observe the
   expected missing-resource failure.
 - [ ] Implement the Draft 2020-12 individual Requirement schema.
@@ -1256,6 +1266,42 @@ git commit -m "test: enforce M2 semantic contract boundaries"
 
 ---
 
+## Task 4 contract clarification 01
+
+The Task 4 schema/model review identified two cross-layer invariants that must
+be closed before Task 5. This clarification changes no root key, kind, family,
+evidence variant, digest domain, or Requirement identity rule.
+
+**DECISION — COMPLETE unknowns**
+
+`COMPLETE` excludes every semantic parameter enum sentinel whose wire value is
+`unknown`, not only `UnknownValueV1`. This includes UNKNOWN entity roles,
+multiplicities, zones, subject kinds, modification/cost operations,
+expansion states, semantic shapes, quantity modes, parameter-value types, and
+durations. A known `keyword_reference` is `PARTIAL` for `UNEXPANDED` or
+`UNKNOWN`; COMPLETE requires `EXPANDED` plus typed expansion. The model’s
+recursive unknown scan and the schema’s complete branches must agree.
+
+**DECISION — bounded text**
+
+The normative limit for bounded descriptor labels, hints, question text, and
+fragments is 4096 Unicode code points plus valid UTF-8 encodability. Python
+must count code points, not UTF-8 bytes, and JSON Schema `maxLength: 4096` is
+the same authority. Source-preserved strings and stable identifiers that are
+unbounded remain uncapped.
+
+The next coordinated implementation fix must update all bounded-text
+consumers, including the existing primitive/evidence validators, the Task 3
+complete scan, the Task 4 schema, and their parity tests. No implementation
+fix, schema rewrite, Task 5 work, or new authorization is granted by this
+clarification.
+
+~~~text
+M2_CONTRACT_CLARIFICATION_01 = APPLIED_PENDING_INDEPENDENT_REVIEW
+TASK_4_FIX_AUTHORIZED         = NO
+TASK_5_AUTHORIZED             = NO
+~~~
+
 ## Spec coverage map
 
 | Frozen design section | Plan task |
@@ -1294,6 +1340,8 @@ git commit -m "test: enforce M2 semantic contract boundaries"
 - [ ] The plan contains no placeholder markers or tentative task wording.
 - [ ] The plan uses one consistent root field set, status vocabulary, digest
   domain list, and public function names throughout.
+- [ ] COMPLETE excludes every semantic UNKNOWN sentinel and keyword
+  UNEXPANDED/UNKNOWN, and bounded text uses the shared 4096-code-point rule.
 - [ ] No production module exceeds the 500-line budget.
 - [ ] No fixture task stores raw corpus data or asserts global semantic coverage.
 
@@ -1303,6 +1351,7 @@ git commit -m "test: enforce M2 semantic contract boundaries"
 IMPLEMENTATION_PLAN_WRITTEN        = YES
 IMPLEMENTATION_PLAN_PATH            = docs/superpowers/plans/2026-09-13-semantic-requirement-contract.md
 IMPLEMENTATION_PLAN_REVIEW          = PENDING
+TASK_4_CONTRACT_CLARIFICATION_01   = APPLIED_PENDING_INDEPENDENT_REVIEW
 M2_IMPLEMENTATION_AUTHORIZED       = NO
 NEXT_TASK_AUTHORIZED                = IMPLEMENTATION_PLAN_ONLY
 PR_AUTHORIZED                       = NO

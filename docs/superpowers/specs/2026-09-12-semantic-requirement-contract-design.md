@@ -10,6 +10,7 @@ BASELINE_MAIN                = b7b4b27567e1407d2580ec57f1ce1e2d5dab3cfa
 BASELINE_DRIFT               = NO
 M1_FROZEN                    = YES
 DESIGN_SPECIFICATION         = AUTHORED_PENDING_INDEPENDENT_REVIEW
+CONTRACT_CLARIFICATION_01    = APPLIED_PENDING_INDEPENDENT_REVIEW
 IMPLEMENTATION_PLAN          = NOT_AUTHORIZED
 M2_IMPLEMENTATION            = NOT_AUTHORIZED
 GLOBAL_EXTRACTION            = NOT_STARTED
@@ -121,6 +122,13 @@ M2 reuses the existing Census foundations:
 - JSON Schema Draft 2020-12 validation;
 - frozen, slot-based Python reference values with defensive copying; and
 - fail-closed source and wire validation.
+
+M2-bounded text values use a maximum of 4096 Unicode code points and must also
+be encodable as valid UTF-8. The existing JSON Schema 'maxLength' meaning is
+the normative length unit; Python validators must not apply a second UTF-8-byte
+limit. This rule applies to bounded descriptor labels, unknown hints, question
+text, and bounded evidence fragments. Source-preserved strings and stable
+identifiers that are explicitly unbounded remain outside this limit.
 
 There is no second M2 canonicalization or digest implementation.
 
@@ -454,7 +462,7 @@ M1 'keywords' array.
 textual. It is an exact, bounded review hint, not a general span system:
 
 ~~~text
-fragment is absent, or is at most 4096 UTF-8 bytes
+fragment is absent, or is at most 4096 Unicode code points and valid UTF-8
 fragment is not the authoritative source value
 fragment must be an exact substring when cross-checked against M1
 ~~~
@@ -622,10 +630,21 @@ declared ordering is semantic where the source presents an order. The
 'unresolved' payload may name candidate v1 kinds but may not invent a new
 kind.
 
+For resolution purposes, every semantic parameter enum member whose wire value
+is 'unknown' is an explicit unresolved sentinel. This includes UNKNOWN values
+of 'EntityRoleV1', 'MultiplicityV1', 'ZoneNameV1', 'SubjectKindV1',
+'ModificationOperationV1', 'CostOperationV1', 'ExpansionStateV1',
+'SemanticShapeV1', 'QuantityModeV1', 'ParameterValueTypeV1', and
+'DurationKindV1'. The explicit tagged 'UnknownValueV1' forms remain unknown as
+well. These sentinels are valid in PARTIAL or UNRESOLVED claims, but no such
+sentinel may occur in a COMPLETE Requirement. 'RequirementKindV1.UNRESOLVED'
+is governed by its dedicated UNRESOLVED rule below.
+
 The payload grammar is deliberately descriptive. It does not evaluate zones,
 quantities, targets, legality, timing, payment, or effects.
 
-Free-form descriptor labels are limited to 4096 UTF-8 bytes and are never a
+Free-form descriptor labels are limited to 4096 Unicode code points, must be
+valid UTF-8, and are never a
 substitute for a typed dimension. A descriptor whose necessary meaning exists
 only in 'label', or only in a 'shape=unknown' label/child, cannot appear in a
 'COMPLETE' Requirement. It requires an explicit unknown value and
@@ -804,7 +823,10 @@ empty only for 'COMPLETE', and non-empty for 'PARTIAL' or 'UNRESOLVED'.
 Cross-field rules are:
 
 - 'COMPLETE' requires 'reason=NONE', no unknown paths, no unknown parameter
-  values, and 'kind != unresolved'.
+  values, no semantic enum sentinel with wire value 'unknown', and
+  'kind != unresolved'. A 'keyword_reference' is COMPLETE only when
+  'expansion_state=EXPANDED' and its typed 'expansion' is present; the
+  'UNEXPANDED' and 'UNKNOWN' states are necessarily PARTIAL for a known kind.
 - 'PARTIAL' requires a known v1 kind and at least one explicit unknown value or
   unknown path.
 - 'UNRESOLVED' requires 'kind=unresolved' or a conflict reason with an
@@ -961,6 +983,10 @@ record 'expansion_state=UNEXPANDED', 'EXPANDED', or 'UNKNOWN':
   the producer uses 'kind=unresolved' and 'resolution.state=UNRESOLVED'.
 - 'EXPANDED' requires typed expansion parameters/evidence; the keyword source
   item alone is not enough.
+- A COMPLETE 'keyword_reference' therefore requires 'EXPANDED' plus a present
+  typed expansion whose required dimensions are themselves complete. The
+  'UNEXPANDED' and 'UNKNOWN' states are valid unresolved knowledge only in a
+  PARTIAL known-kind Requirement.
 - A keyword may produce several Requirements, each with its own structural
   evidence locator
   and evidence. There is no one-keyword-one-capability rule.
@@ -1039,6 +1065,11 @@ M2 uses the existing 'canonical_json_bytes' rules exactly:
 - no floats, sets, tuples, bytes, paths, timestamps, randomness, or callbacks;
 - fixed object keys and 'additionalProperties=false'; and
 - array ordering follows the semantic ordering rules in this document.
+
+For every bounded M2 text field, the normative limit is 4096 Unicode code
+points plus valid UTF-8 encodability. JSON Schema 'maxLength' and Python
+model validation must express that same code-point boundary; a separate
+UTF-8-byte limit is not part of the v1 contract.
 
 'to_wire()' returns fresh mutable JSON-compatible lists/dicts. A previous
 'to_wire()' result may be mutated by a caller without changing the model or a
@@ -1234,6 +1265,7 @@ semantic extraction tests.
 | Proposal separation | Generated adapters emit only 'PROPOSED'; terminal states require reviewer metadata and a current binding digest; rules evidence never promotes status. |
 | Unresolved | 'unresolved' and its reason/unknown paths round-trip as a valid Requirement. |
 | Partial | A known kind with explicit unknown parameter values round-trips and cannot serialize as complete. |
+| COMPLETE unknown sentinels | Every semantic enum value 'unknown' and keyword 'UNEXPANDED'/'UNKNOWN' fails COMPLETE; EXPANDED keyword references require typed expansion. |
 | Source/face provenance | Oracle/source IDs, record SHA, source lock, field, face index, keyword index, and fragment are checked against M1. |
 | Invalid source identity | Uppercase/malformed UUIDs, bad digests, mismatched lock, and missing record fail. |
 | Parameter validation | Every kind accepts only its fixed keys, atom types, enums, and bounds. |
@@ -1249,6 +1281,7 @@ semantic extraction tests.
 | Engine independence | No engine object, executable callback, Rust type, or engine dependency is accepted. |
 | Global extraction guard | M2 commands/tests never enumerate the full corpus or write a global analysis artifact. |
 | Module LOC guard | Every production module remains at or below the project 500-line limit. |
+| Bounded text parity | Multibyte and ASCII boundary cases agree at 4096 Unicode code points across Python and JSON Schema; valid UTF-8 remains required. |
 
 Expected failure classes are 'ValueError'/schema validation failure for
 malformed or unsupported wire, 'BLOCKED' for unavailable unverifiable M1
@@ -1322,16 +1355,16 @@ generic graph library, or runtime semantic executor is justified by M2.
 | Parameter changes | Create a new identity. | A changed semantic assertion must not mutate history. | In-place ID mutation, version counter only. | Use 'SUPERSEDES' for reviewed replacements. |
 | Requirement versioning | Closed v1; new kinds/meanings require a new major contract. | Strict readers cannot safely interpret unknown branches. | Open-ended minor enum, permissive 'extra', unversioned JSON. | Conservative evolution and explicit migrations. |
 | Kind/family representation | Closed 'family' plus discriminated 'kind' and typed branch payload. | Type safety without making M4 the contract owner. | Giant capability enum, arbitrary kind/JSON bag, raw text only. | New semantic shapes require deliberate contract work. |
-| Parameter representation | Fixed per-kind objects plus typed atoms/descriptors and explicit unknowns. | Supports partial semantics without executable rules. | Generic JSON map, callbacks, engine objects, null-as-unknown. | More schema code, much less drift. |
+| Parameter representation | Fixed per-kind objects plus typed atoms/descriptors and explicit unknowns; every semantic 'unknown' enum sentinel is unresolved. | Supports partial semantics without executable rules and prevents sentinel values from masquerading as COMPLETE. | Generic JSON map, callbacks, engine objects, null-as-unknown, silently accepted UNKNOWN enums. | More schema code, but COMPLETE/partial parity is explicit. |
 | Source evidence | Typed structural record/face/field/keyword references with bounded optional fragments. | Auditable and sufficient without copying M1. | Full source duplication, character-span framework, URI dereference. | Source-aware validation is required for face/field checks. |
 | Face linkage | 'face_index' in structural evidence; source record remains parent identity. | Preserves exact M1 face order and scope without producer anchor identity. | Parent/face inheritance, face names as IDs, separate card identity. | Multi-face claims remain same-record assertions. |
 | Derivation model | List of producer/version entries, orthogonal to review. | Multiple producers may produce the same exact identity. | Single giant status, producer in ID, hidden provenance. | Explicit reconciliation is needed for duplicate proposals. |
 | Review model | 'PROPOSED', 'IN_REVIEW', 'ACCEPTED', 'REJECTED'; terminal states require reviewer ID and 'reviewed_claim_digest'; 'SUPERSEDES' is a relationship only. | Human review is distinct from generation, resolution, and replacement lifecycle. | Model confidence as approval, 'SUPERSEDED' as review outcome, card-level boolean, timestamps as identity. | Accepted-but-partial is valid; stale bindings fail; old review outcomes remain auditable. |
 | Review binding | Digest binds source identity, evidence, derivations, and resolution; bound changes reopen review; source-lock-only changes do not. | Prevents evidence/provenance/resolution edits from silently retaining a terminal review. | Reviewer flag without content binding, blind accepted metadata retention. | A new terminal review is required after reviewed-content changes. |
-| Resolution model | 'COMPLETE', 'PARTIAL', 'UNRESOLVED' with explicit reason/paths. | Represents uncertainty without malformed-data ambiguity. | Silent guessing, null everywhere, one giant combined status enum. | Consumers must handle unresolved results explicitly. |
+| Resolution model | 'COMPLETE', 'PARTIAL', 'UNRESOLVED' with explicit reason/paths; COMPLETE excludes tagged unknown sentinels and requires EXPANDED keyword references. | Represents uncertainty without malformed-data ambiguity. | Silent semantic guessing, null everywhere, one giant combined status enum. | Consumers must handle unresolved results explicitly. |
 | Confidence | No authoritative confidence field. | Scores are producer-specific and not review. | Numeric probability, coarse confidence authority. | Sidecar scores may exist outside M2. |
 | Relationship model | Minimal bundle edges: parent, alternative, condition, cost, sequence, conflict, supersedes. | Enough structure for representative nested cases. | General semantic graph, arbitrary edges, no relationships. | M3/M4 can extend only with a demonstrated need. |
-| Keyword model | Keyword evidence plus 'keyword_reference'; expansion may remain unresolved. | Source keyword presence is not keyword meaning. | Automatic keyword semantics, keyword-as-capability, ignore keyword provenance. | Rules/evidence may support later review. |
+| Keyword model | Keyword evidence plus 'keyword_reference'; UNEXPANDED/UNKNOWN is PARTIAL, while COMPLETE requires EXPANDED typed expansion. | Source keyword presence is not keyword meaning. | Automatic keyword semantics, keyword-as-capability, ignore keyword provenance. | Rules/evidence may support later review. |
 | Rules citations | Optional typed evidence with explicit ruleset/version/rule. | Auditable context without mandatory rules dependency. | URL-only citation, mandatory citations, citation=proof. | Structural-only proposals remain valid. |
 | Canonical wire | Reuse existing Census canonical JSON and SHA-256 domains. | Prevents a second incompatible identity system. | YAML, CBOR, Python repr, insertion-order JSON. | All v1 outputs are reproducible. |
 | Schema ownership | Two schemas: individual Requirement and minimal bundle; evidence nested. | Few authoritative files and clear M3 boundary. | Separate schema per nested type, M2 analysis schema. | M3 owns 'CardAnalysisRecordV1'. |
@@ -1451,4 +1484,89 @@ M2_IMPLEMENTATION_AUTHORIZED   = NO
 NEXT_TASK_AUTHORIZED           = NO
 PR_AUTHORIZED                  = NO
 MERGE_AUTHORIZED               = NO
+~~~
+
+## 32. M2 Contract Clarification 01 — Task 4 cross-layer closure
+
+This clarification records two normative corrections found during the Task 4
+schema/model review. It changes no wire key, kind, family, evidence variant,
+digest domain, or Requirement identity rule. It must be independently reviewed
+before the corresponding implementation fix is authorized.
+
+### 32.1 COMPLETE and explicit unknown sentinels
+
+**DECISION**
+
+`COMPLETE` means that no unresolved semantic meaning remains anywhere in the
+typed parameter tree. In addition to `UnknownValueV1`, `shape=unknown`, and
+label-only descriptors, every semantic parameter enum member whose wire value
+is `unknown` is an unresolved sentinel and is forbidden under `COMPLETE`.
+This includes the `UNKNOWN` members of `EntityRoleV1`, `MultiplicityV1`,
+`ZoneNameV1`, `SubjectKindV1`, `ModificationOperationV1`, `CostOperationV1`,
+`ExpansionStateV1`, `SemanticShapeV1`, `QuantityModeV1`,
+`ParameterValueTypeV1`, and `DurationKindV1`.
+
+`keyword_reference` has one additional closed rule: `UNEXPANDED` and `UNKNOWN`
+are valid only as `PARTIAL` for a known kind. A `COMPLETE` keyword reference
+must be `EXPANDED` and must carry a typed expansion whose own required
+dimensions satisfy the same COMPLETE rules. `RequirementKindV1.UNRESOLVED`
+continues to require `UNRESOLVED` resolution.
+
+**RATIONALE**
+
+An enum sentinel is an explicit statement that a semantic dimension is not
+known. Treating it as complete would contradict the existing unknown-value and
+keyword contracts while allowing the schema and model to certify incomplete
+claims.
+
+**REJECTED ALTERNATIVES**
+
+Treating only `UnknownValueV1` as unresolved, accepting `UNEXPANDED` as
+complete, or relying on human review to compensate for an unresolved enum all
+silently promote incomplete semantics.
+
+**CONSEQUENCES**
+
+The next coordinated implementation fix must update the recursive model
+unknown scan, complete keyword validation, complete-schema branches, and
+positive/negative parity tests. No Task 5 bundle may rely on the old behavior.
+
+### 32.2 Bounded text length authority
+
+**DECISION**
+
+The authoritative M2 bounded-text limit is **4096 Unicode code points**, with
+valid UTF-8 encodability still required. JSON Schema Draft 2020-12 `maxLength`
+and Python model validation use this same code-point unit. A separate
+UTF-8-byte limit is not part of the M2 v1 contract.
+
+**RATIONALE**
+
+JSON Schema `maxLength` is defined over string length/code points, while a
+byte-count rule would require a second non-portable validator beside the
+normative schema. Code-point parity is deterministic across the project’s
+Python model and schema consumers and still rejects invalid Unicode encoding.
+
+**REJECTED ALTERNATIVES**
+
+Keeping a hidden 4096-byte Python rule beside `maxLength: 4096` creates
+model/schema drift for multibyte text. Removing the bound would weaken the
+bounded descriptor/evidence context contract.
+
+**CONSEQUENCES**
+
+The next coordinated implementation fix must change every bounded-text
+consumer that still counts UTF-8 bytes, including the existing primitive and
+structural-fragment validators, to count Unicode code points after validating
+UTF-8. It must add ASCII and multibyte boundary tests and keep source-preserved
+unbounded strings/identifiers outside the cap. The schema’s existing
+`maxLength: 4096` remains the correct representation after this alignment.
+
+~~~text
+M2_CONTRACT_CLARIFICATION_01 = APPLIED_PENDING_INDEPENDENT_REVIEW
+PRODUCTION_FILES_CHANGED     = 0
+SCHEMA_FILES_CHANGED         = 0
+TEST_FILES_CHANGED           = 0
+IMPLEMENTATION_FIX_AUTHORIZED = NO
+TASK_5_AUTHORIZED             = NO
 ~~~
