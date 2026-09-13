@@ -308,8 +308,16 @@ def validate_analysis_closure(
     }
     if not trace_keys <= actual_key_set:
         raise AnalysisClosureError("trace contains an unknown source identity")
-    if manifest.source_lock_digest != source_lock.digest():
+    expected_source_lock_digest = source_lock.digest()
+    if manifest.source_lock_digest != expected_source_lock_digest:
         raise AnalysisClosureError("analysis source lock digest mismatch")
+    for value in records.values:
+        record = cast(CardAnalysisRecordV1, value)
+        if (
+            record.source.source_lock_digest != manifest.source_lock_digest
+            or record.source.source_lock_digest != expected_source_lock_digest
+        ):
+            raise AnalysisClosureError("analysis record source lock digest mismatch")
     if manifest.structural_index_manifest_sha256 != structural_manifest_sha256:
         raise AnalysisClosureError("analysis structural manifest digest mismatch")
     if (

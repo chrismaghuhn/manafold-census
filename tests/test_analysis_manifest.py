@@ -121,6 +121,38 @@ def test_partition_merge_parity_is_not_a_worker_backend() -> None:
         )
 
 
+def test_partition_merge_rejects_duplicate_identity() -> None:
+    records = [card_record(1), card_record(2)]
+    expected = [card_source_key(record.source) for record in records]
+
+    with pytest.raises(ValueError, match="duplicate"):
+        merge_partitioned_records(((records[0],), (records[0],)), expected)
+
+
+def test_partition_merge_rejects_missing_identity() -> None:
+    records = [card_record(1), card_record(2)]
+    expected = [card_source_key(record.source) for record in records]
+
+    with pytest.raises(ValueError, match="identity mismatch.*missing=1"):
+        merge_partitioned_records(((records[0],), ()), expected)
+
+
+def test_partition_merge_rejects_extra_identity() -> None:
+    records = [card_record(1), card_record(2), card_record(3)]
+    expected = [card_source_key(record.source) for record in records[:2]]
+
+    with pytest.raises(ValueError, match="identity mismatch.*extra=1"):
+        merge_partitioned_records(((records[0],), (records[1], records[2])), expected)
+
+
+def test_partition_merge_rejects_out_of_order_partition() -> None:
+    records = [card_record(1), card_record(2)]
+    expected = [card_source_key(record.source) for record in records]
+
+    with pytest.raises(ValueError, match="out of order"):
+        merge_partitioned_records(((records[1], records[0]),), expected)
+
+
 def test_manifest_rejects_report_identity_fields_and_bad_shard_set() -> None:
     wire = manifest_for_fixture().to_wire()
     wire["report_index_digest"] = "f" * 64

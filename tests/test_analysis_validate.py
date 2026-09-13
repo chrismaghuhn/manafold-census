@@ -195,6 +195,26 @@ def test_validate_analysis_closure_reads_m1_and_m3_authority_independently(
     assert len(trace_result.values) == 1
 
 
+def test_record_source_lock_digest_mismatch_fails_closed(tmp_path: Path) -> None:
+    m1_root, records, m1_manifest = write_m1_authority(tmp_path)
+    m3_root, _ = write_m3_artifact(tmp_path, m1_root, m1_manifest, records)
+
+    record_path = m3_root / "records" / "a.jsonl"
+    record_document = json.loads(record_path.read_bytes())
+    record_document["source"]["source_lock_digest"] = "f" * 64
+    record_path.write_bytes(canonical_json_bytes(record_document) + b"\n")
+
+    manifest_path = m3_root / "analysis-manifest.json"
+    manifest_document = json.loads(manifest_path.read_bytes())
+    record_descriptor = manifest_document["record_shards"][10]
+    record_descriptor["sha256"] = hashlib.sha256(record_path.read_bytes()).hexdigest()
+    record_descriptor["byte_length"] = record_path.stat().st_size
+    manifest_path.write_bytes(canonical_json_bytes(manifest_document))
+
+    with pytest.raises(AnalysisClosureError, match="record source lock"):
+        validate_analysis_closure(m1_root, m3_root, SOURCE_LOCK_PATH)
+
+
 @pytest.mark.parametrize(
     "field, value, message",
     [
