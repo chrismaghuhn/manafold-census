@@ -95,5 +95,78 @@
         "DISPUTED_IDENTITY_OMITTED"
       ]
     }
-  }
+  },
+  "allOf": [
+    {
+      "oneOf": [
+        {
+          "properties": {
+            "pattern_id": {"type": "null"},
+            "pattern_version": {"type": "null"},
+            "pattern_digest": {"type": "null"}
+          }
+        },
+        {
+          "properties": {
+            "pattern_id": {"type": "string", "minLength": 1},
+            "pattern_version": {"type": "string", "minLength": 1},
+            "pattern_digest": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "if": {
+        "properties": {
+          "source_field": {"const": "keywords"}
+        }
+      },
+      "then": {
+        "properties": {
+          "face_index": {"type": "null"},
+          "exact_fragment": {"type": "null"}
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "source_field": {"type": "null"}
+        }
+      },
+      "then": {
+        "properties": {
+          "face_index": {"type": "null"},
+          "exact_fragment": {"type": "null"}
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "face_index": {"type": "integer"}
+        }
+      },
+      "then": {
+        "properties": {
+          "source_field": {"const": "oracle_text"}
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "exact_fragment": {"type": "string"}
+        }
+      },
+      "then": {
+        "properties": {
+          "source_field": {"const": "oracle_text"}
+        }
+      }
+    }
+  ]
 }

@@ -203,6 +203,10 @@ class PatternRuleV1:
             raise TypeError("output_template must be PatternOutputTemplateV1")
         if normalization is not NormalizationProfileV1.NONE:
             raise ValueError("M3 V1 supports only NONE normalization")
+        if self.m2_contract_version != "census.semantic-requirement.v1":
+            raise ValueError(
+                "m2_contract_version must be census.semantic-requirement.v1"
+            )
         if matcher_kind is MatcherKindV1.EXACT_FIELD_TEXT:
             if self.source_scope.face_index is not None:
                 raise ValueError("EXACT_FIELD_TEXT cannot have a face_index")
@@ -404,6 +408,29 @@ class EffectivePatternRegistryV1:
 
     def digest(self) -> str:
         return domain_digest(PATTERN_REGISTRY_DIGEST_DOMAIN, self.to_wire())
+
+    def matches_exact_text(
+        self,
+        pattern_id: str,
+        pattern_version: str,
+        text: str,
+        *,
+        face_index: int | None,
+    ) -> bool:
+        """Match only a rule explicitly eligible for deterministic reuse."""
+
+        key = (pattern_id, pattern_version)
+        rules = {(item.pattern_id, item.pattern_version): item for item in self.rules}
+        eligibilities = {
+            (item.pattern_id, item.pattern_version): item for item in self.eligibility
+        }
+        rule = rules.get(key)
+        eligibility = eligibilities.get(key)
+        if rule is None or eligibility is None:
+            raise ValueError("pattern rule is not present in effective registry")
+        if eligibility.eligibility is not PatternEligibilityStateV1.REVIEWED_FOR_REUSE:
+            return False
+        return matches_exact_text(rule, text, face_index=face_index)
 
 
 def matches_exact_text(

@@ -200,7 +200,14 @@ def effective_pattern_registry(*, reviewed_for_reuse: bool = True):
     return EffectivePatternRegistryV1.build((rule,), (eligibility,))
 
 
-def trace_event(*, span: tuple[int, int] = (0, 15)):
+def trace_event(
+    *,
+    span: tuple[int, int] = (0, 15),
+    pattern_digest: str = "e" * 64,
+    source_field: str = "oracle_text",
+    face_index: int | None = None,
+    exact_fragment: str = "Draw two cards.",
+):
     from manafold_census.analysis.trace import (
         RequirementTraceEventV1,
         TraceDispositionV1,
@@ -217,10 +224,10 @@ def trace_event(*, span: tuple[int, int] = (0, 15)):
         producer_version="1",
         pattern_id="m3.exact-clause.draw",
         pattern_version="1",
-        pattern_digest="e" * 64,
-        source_field="oracle_text",
-        face_index=None,
-        exact_fragment="Draw two cards.",
+        pattern_digest=pattern_digest,
+        source_field=source_field,
+        face_index=face_index,
+        exact_fragment=exact_fragment,
         clause_ordinal=0,
         parser_span=span,
         candidate_requirement_id=bundle().requirements[0].requirement_id,

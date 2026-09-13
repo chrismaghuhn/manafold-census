@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 from analysis_fixtures import effective_pattern_registry, exact_pattern_rule
 from jsonschema import Draft202012Validator
+from jsonschema.exceptions import ValidationError
 from referencing import Registry, Resource
 from referencing.jsonschema import DRAFT202012
 
@@ -45,6 +46,34 @@ def test_effective_pattern_registry_digest_changes_when_eligibility_changes() ->
     eligible = effective_pattern_registry(reviewed_for_reuse=True)
     ineligible = effective_pattern_registry(reviewed_for_reuse=False)
     assert eligible.digest() != ineligible.digest()
+
+
+def test_not_eligible_rule_cannot_match_through_effective_registry() -> None:
+    registry = effective_pattern_registry(reviewed_for_reuse=False)
+    assert (
+        registry.matches_exact_text(
+            "m3.exact-clause.draw",
+            "1",
+            "Draw two cards.",
+            face_index=None,
+        )
+        is False
+    )
+
+
+def test_checked_in_fixture_has_one_eligible_and_one_ineligible_rule() -> None:
+    root = Path(__file__).parents[1]
+    document = json.loads(
+        (root / "fixtures" / "analysis" / "pattern-registry.v1.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert len(document["rules"]) == 2
+    assert len(document["eligibility"]) == 2
+    assert sorted(item["eligibility"] for item in document["eligibility"]) == [
+        "NOT_ELIGIBLE",
+        "REVIEWED_FOR_REUSE",
+    ]
 
 
 def test_pattern_identity_contains_behavior_but_not_card_name() -> None:
@@ -116,3 +145,23 @@ def test_pattern_registry_rejects_missing_or_mismatched_eligibility() -> None:
                 ),
             ),
         )
+
+
+def test_pattern_model_and_schema_reject_matcher_contract_drift() -> None:
+    registry = effective_pattern_registry().to_wire()
+    mutated = copy.deepcopy(registry)
+    mutated["rules"][0]["matcher_kind"] = "EXACT_FIELD_TEXT"
+    with pytest.raises((TypeError, ValueError), match="EXACT_FIELD|EXACT_FRAGMENT"):
+        EffectivePatternRegistryV1.from_wire(mutated)
+    with pytest.raises(ValidationError):
+        validate_pattern_schema(mutated)
+
+
+def test_pattern_model_and_schema_require_exact_m2_contract_version() -> None:
+    registry = effective_pattern_registry().to_wire()
+    mutated = copy.deepcopy(registry)
+    mutated["rules"][0]["m2_contract_version"] = "census.semantic-requirement.v2"
+    with pytest.raises((TypeError, ValueError), match="contract"):
+        EffectivePatternRegistryV1.from_wire(mutated)
+    with pytest.raises(ValidationError):
+        validate_pattern_schema(mutated)

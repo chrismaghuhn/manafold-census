@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from enum import StrEnum
 from typing import ClassVar, cast
 
-from ..canonical import JSONValue
+from ..canonical import JSONValue, canonical_json_bytes
 from ..semantic.primitives import _require_enum, _require_object
 from .patterns import PatternSourceFieldV1
 
@@ -291,11 +291,17 @@ def trace_sort_key(
         event.producer_version,
         event.pattern_id or "",
         event.pattern_version or "",
+        event.pattern_digest or "",
+        "" if event.source_field is None else event.source_field.value,
+        "" if event.face_index is None else str(event.face_index),
+        event.exact_fragment or "",
+        "" if event.clause_ordinal is None else str(event.clause_ordinal),
         event.candidate_requirement_id or "",
         event.local_candidate_key or "",
         event.disposition.value,
         "" if event.parser_span is None else str(event.parser_span[0]),
         "" if event.parser_span is None else str(event.parser_span[1]),
+        canonical_json_bytes(event.to_wire()).decode("utf-8"),
     )
 
 

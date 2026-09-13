@@ -21,12 +21,19 @@ def test_trace_locator_does_not_change_requirement_identity() -> None:
 
 
 def test_trace_events_have_deterministic_order() -> None:
-    first = trace_event(span=(20, 35))
-    second = trace_event(span=(0, 15))
-    assert sorted((second, first), key=trace_sort_key) == sorted(
-        (first, second),
-        key=trace_sort_key,
+    first = trace_event(
+        span=(0, 15),
+        pattern_digest="a" * 64,
+        exact_fragment="Draw two cards.",
     )
+    second = trace_event(
+        span=(0, 15),
+        pattern_digest="b" * 64,
+        exact_fragment="Draw cards.",
+    )
+    expected = tuple(sorted((first, second), key=trace_sort_key))
+    assert tuple(sorted((second, first), key=trace_sort_key)) == expected
+    assert trace_sort_key(first) != trace_sort_key(second)
 
 
 def test_trace_schema_accepts_a_valid_event() -> None:
@@ -50,3 +57,21 @@ def test_trace_wire_rejects_unknown_fields_and_invalid_source_key() -> None:
 
 def test_trace_disposition_is_closed() -> None:
     assert TraceDispositionV1.CANDIDATE_EMITTED.value == "CANDIDATE_EMITTED"
+
+
+def test_trace_model_and_schema_reject_partial_pattern_identity() -> None:
+    wire = trace_event().to_wire()
+    wire["pattern_version"] = None
+    with pytest.raises((TypeError, ValueError), match="pattern"):
+        RequirementTraceEventV1.from_wire(wire)
+    with pytest.raises(ValueError):
+        validate_document(wire, "analysis-trace.v1.schema.json")
+
+
+def test_trace_model_and_schema_reject_keyword_fragment_scope() -> None:
+    wire = trace_event().to_wire()
+    wire["source_field"] = "keywords"
+    with pytest.raises((TypeError, ValueError), match="oracle_text|fragment"):
+        RequirementTraceEventV1.from_wire(wire)
+    with pytest.raises(ValueError):
+        validate_document(wire, "analysis-trace.v1.schema.json")
