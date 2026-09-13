@@ -46,6 +46,62 @@
       ]
     }
   },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "outcome": {
+            "const": "REQUIREMENTS_PRODUCED"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "bundle": {
+            "type": "object"
+          },
+          "no_requirements_basis": {
+            "type": "null"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "outcome": {
+            "const": "NO_REQUIREMENTS_APPLICABLE"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "bundle": {
+            "type": "null"
+          },
+          "no_requirements_basis": {
+            "type": "object"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "outcome": {
+            "const": "UNRESOLVED_ANALYSIS"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "no_requirements_basis": {
+            "type": "null"
+          }
+        }
+      }
+    }
+  ],
   "$defs": {
     "digest": {
       "type": "string",

@@ -101,6 +101,51 @@ def test_card_analysis_schema_accepts_a_valid_record() -> None:
     validate_document(record.to_wire(), "card-analysis.v1.schema.json")
 
 
+def test_card_analysis_schema_rejects_no_requirements_without_authority() -> None:
+    record = CardAnalysisRecordV1(
+        source=source_ref(),
+        outcome=AnalysisOutcomeV1.REQUIREMENTS_PRODUCED,
+        bundle=bundle(),
+        no_requirements_basis=None,
+    ).to_wire()
+    record["outcome"] = "NO_REQUIREMENTS_APPLICABLE"
+    record["bundle"] = None
+    with pytest.raises(ValueError):
+        validate_document(record, "card-analysis.v1.schema.json")
+
+
+def test_card_analysis_schema_rejects_produced_without_bundle() -> None:
+    record = CardAnalysisRecordV1(
+        source=source_ref(),
+        outcome=AnalysisOutcomeV1.REQUIREMENTS_PRODUCED,
+        bundle=bundle(),
+        no_requirements_basis=None,
+    ).to_wire()
+    record["bundle"] = None
+    with pytest.raises(ValueError):
+        validate_document(record, "card-analysis.v1.schema.json")
+
+
+def test_card_analysis_schema_rejects_unresolved_with_authority() -> None:
+    record = CardAnalysisRecordV1(
+        source=source_ref(),
+        outcome=AnalysisOutcomeV1.REQUIREMENTS_PRODUCED,
+        bundle=bundle(),
+        no_requirements_basis=None,
+    ).to_wire()
+    record["outcome"] = "UNRESOLVED_ANALYSIS"
+    record["bundle"] = None
+    record["no_requirements_basis"] = {
+        "authority_id": "fixture-negative-authority",
+        "authority_version": "1",
+        "record_id": "nra_" + "a" * 64,
+        "record_sha256": "b" * 64,
+        "scope_digest": "c" * 64,
+    }
+    with pytest.raises(ValueError):
+        validate_document(record, "card-analysis.v1.schema.json")
+
+
 def test_negative_authority_reference_requires_deterministic_record_id() -> None:
     with pytest.raises(ValueError, match="record_id"):
         NegativeReviewAuthorityRefV1(

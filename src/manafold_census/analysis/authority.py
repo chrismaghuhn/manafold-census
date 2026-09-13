@@ -314,20 +314,36 @@ def negative_authority_record_sha256(
 
 def validate_negative_requirement_authority(
     record: NegativeRequirementAuthorityRecordV1,
+    reference: object,
     expected_source: SourceRecordRefV1,
 ) -> None:
+    from .model import NegativeReviewAuthorityRefV1
+
     if not isinstance(record, NegativeRequirementAuthorityRecordV1):
         raise TypeError("record must be NegativeRequirementAuthorityRecordV1")
+    if not isinstance(reference, NegativeReviewAuthorityRefV1):
+        raise TypeError("reference must be NegativeReviewAuthorityRefV1")
     if not isinstance(expected_source, SourceRecordRefV1):
         raise TypeError("expected_source must be SourceRecordRefV1")
     if record.source != expected_source:
         raise ValueError("negative authority source does not match card source")
     if record.decision is not NegativeAuthorityDecisionV1.NO_REQUIREMENTS_APPLICABLE:
         raise ValueError("negative authority decision is unsupported")
+    checks = (
+        ("authority_id", reference.authority_id, record.authority_id),
+        ("authority_version", reference.authority_version, record.authority_version),
+        ("record_id", reference.record_id, record.record_id),
+        ("record_sha256", reference.record_sha256, record.record_sha256),
+        ("scope_digest", reference.scope_digest, record.scope_digest),
+    )
+    for field, actual, expected in checks:
+        if actual != expected:
+            raise ValueError(f"negative authority {field} does not match record")
 
 
 def load_negative_requirement_authority(
     path: str | Path,
+    reference: object,
     expected_source: SourceRecordRefV1,
 ) -> NegativeRequirementAuthorityRecordV1:
     try:
@@ -338,7 +354,7 @@ def load_negative_requirement_authority(
 
     validate_document(document, "negative-requirement-authority.v1.schema.json")
     record = NegativeRequirementAuthorityRecordV1.from_wire(document)
-    validate_negative_requirement_authority(record, expected_source)
+    validate_negative_requirement_authority(record, reference, expected_source)
     return record
 
 
