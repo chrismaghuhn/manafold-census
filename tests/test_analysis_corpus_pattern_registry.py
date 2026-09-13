@@ -33,6 +33,7 @@ from manafold_census.resources import project_data_root
 PROPOSAL_RECORD_ID = "m3.corpus.pattern-proposal.draw-two-cards.v1"
 DECISION_RECORD_ID = "m3.corpus.pattern-decision.draw-two-cards.v1"
 NEW_PROPOSAL_RECORD_ID = "m3.corpus.pattern-proposal.draw-two-cards-exact-field.v1"
+APPROVAL_RECORD_ID = "m3.corpus.pattern-decision.draw-two-cards-exact-field.v1"
 EXPECTED_PROPOSAL_SHA256 = (
     "f963d6ae37a6895458da2ed40b606d3d5f52f2f9daea97d6033c417fbbf478cb"
 )
@@ -43,13 +44,16 @@ EXPECTED_DECISION_SHA256 = (
     "89b73bb76d2a54bd847a322519a12a43b0e9736361f307771598b2225e67fd07"
 )
 EXPECTED_POST_PROPOSAL_REGISTRY_DIGEST = (
-    "8cf822b4b8459f5335d3fe393209765040ee8506aac0a2e229a5842d1eab50d9"
+    "a27effa3d7f5497fca0d9d2e3e3abb562037278b17cf7b17b0f54523d58e5eb1"
 )
 EXPECTED_NEW_PROPOSAL_SHA256 = (
     "04d659d2e21e3b2333efc4d5bd974f46119fe128e20ec5cebcb3aa894b00897f"
 )
 EXPECTED_NEW_RULE_DIGEST = (
     "b97740ed2d63e8b23e1a2e6fec5ed340d9b223078ca6d728e9feb279e2a7a32c"
+)
+EXPECTED_APPROVAL_DECISION_SHA256 = (
+    "a393c3c4bf91bf03469075ce5ad372edb79249cdb30e43d3b59f7d90053485fe"
 )
 
 
@@ -297,14 +301,14 @@ def test_replacement_proposal_sha_and_rule_digest_are_pinned() -> None:
     )
 
     assert proposal_sha == EXPECTED_NEW_PROPOSAL_SHA256
-    assert new_eligibility.eligibility is PatternEligibilityStateV1.NOT_ELIGIBLE
-    assert new_eligibility.review_record_id == NEW_PROPOSAL_RECORD_ID
-    assert new_eligibility.review_record_sha256 == proposal_sha
+    assert new_eligibility.eligibility is PatternEligibilityStateV1.REVIEWED_FOR_REUSE
+    assert new_eligibility.review_record_id == APPROVAL_RECORD_ID
+    assert new_eligibility.review_record_sha256 == EXPECTED_APPROVAL_DECISION_SHA256
     assert pattern_rule_digest_for(new_rule) == EXPECTED_NEW_RULE_DIGEST
     assert registry.digest() == EXPECTED_POST_PROPOSAL_REGISTRY_DIGEST
 
 
-def test_proposed_corpus_rule_is_not_activated_by_registry_configuration() -> None:
+def test_approved_exact_field_rule_is_the_only_active_corpus_rule() -> None:
     registry = EffectivePatternRegistryV1.from_wire(_read_json(_registry_path()))
     from manafold_census.analysis.pattern_producer import (
         RegistryDrivenExactPatternProducerV1,
@@ -319,9 +323,12 @@ def test_proposed_corpus_rule_is_not_activated_by_registry_configuration() -> No
         _context_for_registry(registry),
     )
 
-    assert result.status is ProducerResultStatusV1.NO_MATCH
-    assert result.candidates == ()
-    assert result.findings == ()
+    assert result.status is ProducerResultStatusV1.EMITTED
+    assert len(result.candidates) == 1
+    assert len(result.findings) == 1
+    assert result.findings[0].pattern_id == "m3.corpus.exact-field.draw-two-cards"
+    assert result.relationship_proposals == ()
+    assert result.negative_authority is None
 
 
 def test_exact_field_matcher_semantics_are_whole_parent_field_only() -> None:
