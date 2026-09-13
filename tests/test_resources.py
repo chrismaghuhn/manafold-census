@@ -39,3 +39,15 @@ def test_project_data_root_contains_all_m3_schema_resources() -> None:
         assert json.loads(path.read_text(encoding="utf-8"))["$schema"] == (
             "https://json-schema.org/draft/2020-12/schema"
         )
+
+
+def test_project_data_root_contains_all_required_m3_analysis_fixtures() -> None:
+    root = project_data_root()
+    for fixture_name in (
+        "golden-cards.json",
+        "negative-authority.v1.json",
+        "pattern-registry.v1.json",
+    ):
+        path = root / "fixtures" / "analysis" / fixture_name
+        assert path.is_file()
+        assert isinstance(json.loads(path.read_text(encoding="utf-8")), object)

@@ -69,7 +69,7 @@ def test_m3_analysis_scope_forbids_later_milestone_and_dynamic_execution_logic()
         (
             re.compile(
                 r"(?<!\.)\b(?:eval|exec|compile|__import__)\s*\(|"
-                r"\b(?:importlib|subprocess)\b"
+                r"\b(?:importlib|subprocess|pickle)\b"
             ),
             "dynamic execution",
         ),

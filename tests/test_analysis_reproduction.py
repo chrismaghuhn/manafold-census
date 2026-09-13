@@ -51,8 +51,12 @@ def test_m3_public_export_boundary_is_explicit() -> None:
         "AnalysisOutcomeV1",
         "CardAnalysisRecordV1",
         "EffectivePatternRegistryV1",
+        "NegativeAuthorityDecisionV1",
+        "NegativeAuthorityInputV1",
         "NegativeAuthorityTraceEventV1",
+        "NegativeAuthorityScopeV1",
         "NegativeRequirementAuthorityRecordV1",
+        "NegativeReviewAuthorityRefV1",
         "ProducerRegistryV1",
         "ReferenceBuildResultV1",
         "RequirementTraceEventV1",
@@ -61,7 +65,12 @@ def test_m3_public_export_boundary_is_explicit() -> None:
         "build_reference_m3",
         "build_reports",
         "validate_analysis_closure",
+        "load_negative_requirement_authority",
+        "negative_authority_record_sha256",
+        "negative_authority_scope_digest",
+        "validate_negative_requirement_authority",
+        "card_source_key",
     }
-    assert expected <= set(analysis.__all__)
+    assert set(analysis.__all__) == expected
     assert all(hasattr(analysis, name) for name in expected)
     assert "_matches_exact_text" not in analysis.__all__
