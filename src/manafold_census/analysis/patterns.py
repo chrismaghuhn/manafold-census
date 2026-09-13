@@ -348,6 +348,8 @@ class EffectivePatternRegistryV1:
     def __post_init__(self) -> None:
         rules = tuple(self.rules)
         eligibility = tuple(self.eligibility)
+        if not rules or not eligibility:
+            raise ValueError("rules and eligibility must be non-empty")
         if any(not isinstance(item, PatternRuleV1) for item in rules):
             raise TypeError("rules must contain PatternRuleV1 values")
         if any(not isinstance(item, PatternEligibilityV1) for item in eligibility):
@@ -430,10 +432,10 @@ class EffectivePatternRegistryV1:
             raise ValueError("pattern rule is not present in effective registry")
         if eligibility.eligibility is not PatternEligibilityStateV1.REVIEWED_FOR_REUSE:
             return False
-        return matches_exact_text(rule, text, face_index=face_index)
+        return _matches_exact_text(rule, text, face_index=face_index)
 
 
-def matches_exact_text(
+def _matches_exact_text(
     rule: PatternRuleV1,
     text: str,
     *,
@@ -463,6 +465,5 @@ __all__ = [
     "PatternRuleV1",
     "PatternSourceFieldV1",
     "PatternSourceScopeV1",
-    "matches_exact_text",
     "pattern_rule_digest_for",
 ]

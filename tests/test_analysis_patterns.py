@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import copy
+import importlib
 import json
 from pathlib import Path
 
@@ -59,6 +60,12 @@ def test_not_eligible_rule_cannot_match_through_effective_registry() -> None:
         )
         is False
     )
+
+
+def test_bare_rule_matcher_is_not_public() -> None:
+    module = importlib.import_module("manafold_census.analysis.patterns")
+    assert not hasattr(module, "matches_exact_text")
+    assert hasattr(module, "_matches_exact_text")
 
 
 def test_checked_in_fixture_has_one_eligible_and_one_ineligible_rule() -> None:
@@ -145,6 +152,11 @@ def test_pattern_registry_rejects_missing_or_mismatched_eligibility() -> None:
                 ),
             ),
         )
+
+
+def test_effective_pattern_registry_rejects_empty_snapshot() -> None:
+    with pytest.raises(ValueError, match="non-empty"):
+        EffectivePatternRegistryV1.build((), ())
 
 
 def test_pattern_model_and_schema_reject_matcher_contract_drift() -> None:
