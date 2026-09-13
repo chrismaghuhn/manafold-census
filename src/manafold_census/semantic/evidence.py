@@ -23,44 +23,25 @@ _DIGEST_PATTERN = re.compile(r"^[0-9a-f]{64}$")
 _SOURCE_SCHEMA = "census.structural-card.v1"
 EVIDENCE_DIGEST_DOMAIN = "census.semantic-evidence.v1"
 
-M1_TOP_LEVEL_FIELDS = frozenset(
-    {
-        "record",
-        "name",
-        "layout",
-        "mana_cost",
-        "type_line",
-        "oracle_text",
-        "colors",
-        "color_identity",
-        "color_indicator",
-        "keywords",
-        "produced_mana",
-        "power",
-        "toughness",
-        "loyalty",
-        "defense",
-        "hand_modifier",
-        "life_modifier",
-        "attraction_lights",
-        "faces",
-        "all_parts",
-    }
+
+def _source_fields(value: str) -> frozenset[str]:
+    return frozenset(value.split())
+
+
+M1_FACE_FIELDS = _source_fields(
+    "name mana_cost type_line oracle_text colors color_indicator "
+    "power toughness loyalty defense"
 )
-M1_FACE_FIELDS = frozenset(
-    {
-        "name",
-        "mana_cost",
-        "type_line",
-        "oracle_text",
-        "colors",
-        "color_indicator",
-        "power",
-        "toughness",
-        "loyalty",
-        "defense",
-    }
+M1_TOP_LEVEL_FIELDS = M1_FACE_FIELDS | _source_fields(
+    "layout color_identity keywords produced_mana hand_modifier life_modifier "
+    "attraction_lights faces all_parts"
 )
+M1_TEXT_FACE_FIELDS = M1_FACE_FIELDS - {"colors", "color_indicator"}
+M1_TEXT_PARENT_FIELDS = M1_TEXT_FACE_FIELDS | {
+    "layout",
+    "hand_modifier",
+    "life_modifier",
+}
 
 
 class EvidenceKindV1(StrEnum):
@@ -89,6 +70,20 @@ def _require_digest(field: str, value: object) -> str:
     if _DIGEST_PATTERN.fullmatch(text) is None:
         raise ValueError(f"{field} must be a lowercase SHA-256 digest")
     return text
+
+
+def _require_identifier_text(field: str, value: object) -> str:
+    if not isinstance(value, str) or value == "":
+        raise ValueError(f"{field} must be a non-empty string")
+    value.encode("utf-8")
+    return value
+
+
+def _require_source_string(field: str, value: object) -> str:
+    if not isinstance(value, str):
+        raise TypeError(f"{field} must be a string")
+    value.encode("utf-8")
+    return value
 
 
 def _optional_digest(field: str, value: object) -> str | None:
@@ -169,10 +164,6 @@ class StructuralRecordEvidenceV1(_Evidence):
     KIND: ClassVar[EvidenceKindV1] = EvidenceKindV1.STRUCTURAL_RECORD
     _WIRE_KEYS: ClassVar[set[str]] = {"kind", "source"}
 
-    @property
-    def kind(self) -> EvidenceKindV1:
-        return self.KIND
-
     def __post_init__(self) -> None:
         if not isinstance(self.source, SourceRecordRefV1):
             raise TypeError("source must be SourceRecordRefV1")
@@ -193,10 +184,6 @@ class StructuralFaceEvidenceV1(_Evidence):
     face_index: int
     KIND: ClassVar[EvidenceKindV1] = EvidenceKindV1.STRUCTURAL_FACE
     _WIRE_KEYS: ClassVar[set[str]] = {"kind", "source", "face_index"}
-
-    @property
-    def kind(self) -> EvidenceKindV1:
-        return self.KIND
 
     def __post_init__(self) -> None:
         if not isinstance(self.source, SourceRecordRefV1):
@@ -239,10 +226,6 @@ class StructuralFieldEvidenceV1(_Evidence):
         "fragment",
     }
 
-    @property
-    def kind(self) -> EvidenceKindV1:
-        return self.KIND
-
     def __post_init__(self) -> None:
         if not isinstance(self.source, SourceRecordRefV1):
             raise TypeError("source must be SourceRecordRefV1")
@@ -259,6 +242,13 @@ class StructuralFieldEvidenceV1(_Evidence):
                 raise ValueError("face_index is not allowed for this field")
         object.__setattr__(self, "field", field)
         if self.fragment is not None:
+            text_fields = (
+                M1_TEXT_FACE_FIELDS
+                if self.face_index is not None
+                else M1_TEXT_PARENT_FIELDS
+            )
+            if field not in text_fields:
+                raise ValueError("fragment is allowed only for textual fields")
             object.__setattr__(
                 self, "fragment", _require_text("fragment", self.fragment)
             )
@@ -299,10 +289,6 @@ class StructuralKeywordEvidenceV1(_Evidence):
         "keyword_value",
     }
 
-    @property
-    def kind(self) -> EvidenceKindV1:
-        return self.KIND
-
     def __post_init__(self) -> None:
         if not isinstance(self.source, SourceRecordRefV1):
             raise TypeError("source must be SourceRecordRefV1")
@@ -312,7 +298,9 @@ class StructuralKeywordEvidenceV1(_Evidence):
             _require_int("keyword_index", self.keyword_index, nonnegative=True),
         )
         object.__setattr__(
-            self, "keyword_value", _require_text("keyword_value", self.keyword_value)
+            self,
+            "keyword_value",
+            _require_source_string("keyword_value", self.keyword_value),
         )
 
     def to_wire(self) -> dict[str, JSONValue]:
@@ -349,20 +337,20 @@ class RulesCitationEvidenceV1(_Evidence):
         "rules_artifact_sha256",
     }
 
-    @property
-    def kind(self) -> EvidenceKindV1:
-        return self.KIND
-
     def __post_init__(self) -> None:
         object.__setattr__(
-            self, "ruleset_id", _require_text("ruleset_id", self.ruleset_id)
+            self,
+            "ruleset_id",
+            _require_identifier_text("ruleset_id", self.ruleset_id),
         )
         object.__setattr__(
             self,
             "ruleset_version",
-            _require_text("ruleset_version", self.ruleset_version),
+            _require_identifier_text("ruleset_version", self.ruleset_version),
         )
-        object.__setattr__(self, "rule_id", _require_text("rule_id", self.rule_id))
+        object.__setattr__(
+            self, "rule_id", _require_identifier_text("rule_id", self.rule_id)
+        )
         object.__setattr__(
             self,
             "rules_artifact_sha256",
@@ -407,21 +395,19 @@ class ExternalReviewEvidenceV1(_Evidence):
         "record_sha256",
     }
 
-    @property
-    def kind(self) -> EvidenceKindV1:
-        return self.KIND
-
     def __post_init__(self) -> None:
         object.__setattr__(
-            self, "authority_id", _require_text("authority_id", self.authority_id)
+            self,
+            "authority_id",
+            _require_identifier_text("authority_id", self.authority_id),
         )
         object.__setattr__(
             self,
             "authority_version",
-            _require_text("authority_version", self.authority_version),
+            _require_identifier_text("authority_version", self.authority_version),
         )
         object.__setattr__(
-            self, "record_id", _require_text("record_id", self.record_id)
+            self, "record_id", _require_identifier_text("record_id", self.record_id)
         )
         object.__setattr__(
             self, "record_sha256", _require_digest("record_sha256", self.record_sha256)

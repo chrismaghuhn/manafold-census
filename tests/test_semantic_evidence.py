@@ -102,10 +102,16 @@ def test_structural_field_evidence_enforces_parent_and_face_field_vocabulary() -
         StructuralFieldEvidenceV1(_source(), "keywords", 0, "Flying")
     with pytest.raises(ValueError, match="field"):
         StructuralFieldEvidenceV1(_source(), "not_m1_field", None, None)
+    with pytest.raises(ValueError, match="field"):
+        StructuralFieldEvidenceV1(_source(), "record", None, None)
     with pytest.raises(ValueError, match="non-negative"):
         StructuralFieldEvidenceV1(_source(), "oracle_text", -1, None)
     with pytest.raises(ValueError, match="4096"):
         StructuralFieldEvidenceV1(_source(), "oracle_text", None, "x" * 4097)
+
+    for field in ("colors", "keywords", "faces", "all_parts"):
+        with pytest.raises(ValueError, match="textual"):
+            StructuralFieldEvidenceV1(_source(), field, None, "fragment")
 
 
 def test_keyword_evidence_is_parent_level_and_preserves_exact_value() -> None:
@@ -116,10 +122,10 @@ def test_keyword_evidence_is_parent_level_and_preserves_exact_value() -> None:
     )
 
     assert evidence_from_wire(evidence.to_wire()) == evidence
+    empty = StructuralKeywordEvidenceV1(_source(), 0, "")
+    assert evidence_from_wire(empty.to_wire()) == empty
     with pytest.raises(ValueError, match="non-negative"):
         StructuralKeywordEvidenceV1(_source(), -1, "Flying")
-    with pytest.raises(ValueError, match="non-empty"):
-        StructuralKeywordEvidenceV1(_source(), 0, "")
 
 
 def test_rules_and_external_review_evidence_remain_distinct() -> None:
@@ -141,6 +147,9 @@ def test_rules_and_external_review_evidence_remain_distinct() -> None:
     assert rules.to_wire()["kind"] == "RULES_CITATION"
     assert external.to_wire()["kind"] == "EXTERNAL_REVIEW"
 
+    long_ruleset = RulesCitationEvidenceV1("r" * 4097, "v1", "rule", None)
+    assert long_ruleset.ruleset_id == "r" * 4097
+
 
 def test_evidence_kind_vocabulary_is_exact() -> None:
     assert {kind.value for kind in EvidenceKindV1} == {
@@ -159,6 +168,7 @@ def test_evidence_digest_ordering_is_deterministic_and_fresh() -> None:
 
     assert evidence_sort_key(first) == evidence_sort_key(first)
     assert evidence_sort_key(first) != evidence_sort_key(second)
+    assert first.source == second.source
     wire = evidence_to_wire(first)
     wire["source"]["oracle_id"] = SOURCE_CARD_ID  # type: ignore[index]
     assert evidence_to_wire(first)["source"]["oracle_id"] == ORACLE_ID  # type: ignore[index]
