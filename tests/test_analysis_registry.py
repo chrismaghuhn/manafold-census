@@ -17,11 +17,12 @@ def descriptor(
     producer_id: str,
     *,
     deterministic: bool = True,
+    derivation_method: DerivationMethodV1 = DerivationMethodV1.DETERMINISTIC_RULE,
 ) -> ProducerDescriptorV1:
     return ProducerDescriptorV1(
         producer_id=producer_id,
         producer_version="1",
-        derivation_method=DerivationMethodV1.DETERMINISTIC_RULE,
+        derivation_method=derivation_method,
         input_schema="census.structural-card.v1",
         input_fields=("oracle_text",),
         pattern_registry_digest=None,
@@ -45,6 +46,18 @@ def test_authoritative_registry_rejects_nondeterministic_active_producer() -> No
     with pytest.raises(ProducerRegistryError, match="deterministic"):
         ProducerRegistryV1.build(
             [descriptor("m3.model", deterministic=False)]
+        ).for_authoritative_run()
+
+
+def test_authoritative_registry_rejects_model_without_pinned_import_contract() -> None:
+    with pytest.raises(ProducerRegistryError, match="MODEL"):
+        ProducerRegistryV1.build(
+            [
+                descriptor(
+                    "m3.model",
+                    derivation_method=DerivationMethodV1.MODEL,
+                )
+            ]
         ).for_authoritative_run()
 
 

@@ -7,6 +7,7 @@ from typing import ClassVar
 
 from ..canonical import JSONValue
 from ..digest import domain_digest
+from ..semantic.model import DerivationMethodV1
 from ..semantic.primitives import _require_object
 from .producer import ProducerDescriptorV1
 
@@ -60,6 +61,17 @@ class ProducerRegistryV1:
             raise ProducerRegistryError(
                 "authoritative M3 registry requires deterministic producers: "
                 + ", ".join(nondeterministic)
+            )
+        model_producers = [
+            item.producer_id
+            for item in self.producers
+            if item.derivation_method is DerivationMethodV1.MODEL
+        ]
+        if model_producers:
+            raise ProducerRegistryError(
+                "authoritative M3 registry rejects MODEL producers until a "
+                "pinned proposal importer contract exists: "
+                + ", ".join(model_producers)
             )
         return self
 

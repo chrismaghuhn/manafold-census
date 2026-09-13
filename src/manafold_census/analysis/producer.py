@@ -8,7 +8,13 @@ from dataclasses import dataclass
 from enum import StrEnum
 from typing import ClassVar, Protocol, cast
 
-from ..canonical import JSONValue
+from ..canonical import (
+    FrozenJSONValue,
+    JSONValue,
+    freeze_json,
+    thaw_json,
+)
+from ..digest import domain_digest
 from ..semantic.bundle import RequirementRelationshipV1
 from ..semantic.model import (
     DerivationMethodV1,
@@ -145,34 +151,80 @@ class ProducerDescriptorV1:
 
 
 @dataclass(frozen=True, slots=True)
+class ImmutableRegistrySnapshotV1:
+    """Immutable registry bytes carried into a producer invocation."""
+
+    registry_kind: str
+    registry_schema: str
+    digest_domain: str
+    digest: str
+    wire: FrozenJSONValue
+
+    def __post_init__(self) -> None:
+        for field in ("registry_kind", "registry_schema", "digest_domain"):
+            object.__setattr__(self, field, _require_text(field, getattr(self, field)))
+        object.__setattr__(self, "digest", _require_digest("digest", self.digest))
+        expected = domain_digest(self.digest_domain, thaw_json(self.wire))
+        if self.digest != expected:
+            raise ValueError("registry snapshot digest does not match wire")
+
+    @classmethod
+    def from_wire(
+        cls,
+        registry_kind: str,
+        registry_schema: str,
+        digest_domain: str,
+        wire: object,
+    ) -> ImmutableRegistrySnapshotV1:
+        frozen = freeze_json(wire)
+        digest = domain_digest(digest_domain, thaw_json(frozen))
+        return cls(
+            registry_kind=registry_kind,
+            registry_schema=registry_schema,
+            digest_domain=digest_domain,
+            digest=digest,
+            wire=frozen,
+        )
+
+    def to_wire(self) -> JSONValue:
+        return thaw_json(self.wire)
+
+
+@dataclass(frozen=True, slots=True)
 class ProducerContextV1:
     source_lock_digest: str
     m2_requirement_schema: str
     m2_bundle_schema: str
-    producer_registry_digest: str
-    pattern_registry_digest: str | None
+    producer_registry: ImmutableRegistrySnapshotV1
+    pattern_registry: ImmutableRegistrySnapshotV1 | None
 
     def __post_init__(self) -> None:
-        for field in (
+        object.__setattr__(
+            self,
             "source_lock_digest",
-            "producer_registry_digest",
-        ):
+            _require_digest("source_lock_digest", self.source_lock_digest),
+        )
+        for field in ("m2_requirement_schema", "m2_bundle_schema"):
             object.__setattr__(
                 self,
                 field,
-                _require_digest(field, getattr(self, field)),
+                _require_text(field, getattr(self, field)),
             )
-        for field in ("m2_requirement_schema", "m2_bundle_schema"):
-            object.__setattr__(self, field, _require_text(field, getattr(self, field)))
-        if self.pattern_registry_digest is not None:
-            object.__setattr__(
-                self,
-                "pattern_registry_digest",
-                _require_digest(
-                    "pattern_registry_digest",
-                    self.pattern_registry_digest,
-                ),
-            )
+        if not isinstance(self.producer_registry, ImmutableRegistrySnapshotV1):
+            raise TypeError("producer_registry must be an immutable snapshot")
+        if self.pattern_registry is not None and not isinstance(
+            self.pattern_registry,
+            ImmutableRegistrySnapshotV1,
+        ):
+            raise TypeError("pattern_registry must be an immutable snapshot or None")
+
+    @property
+    def producer_registry_digest(self) -> str:
+        return self.producer_registry.digest
+
+    @property
+    def pattern_registry_digest(self) -> str | None:
+        return None if self.pattern_registry is None else self.pattern_registry.digest
 
 
 @dataclass(frozen=True, slots=True)
@@ -292,6 +344,14 @@ def execute_producer(
         raise ProducerExecutionError("producer failed") from error
     if not isinstance(result, ProducerResultV1):
         raise ProducerExecutionError("producer returned an invalid result")
+    descriptor = getattr(producer, "descriptor", None)
+    if not isinstance(descriptor, ProducerDescriptorV1):
+        raise ProducerContractError("producer must expose ProducerDescriptorV1")
+    if result.relationship_proposals and not descriptor.supports_relationships:
+        raise ProducerContractError(
+            "producer descriptor supports_relationships=false but emitted "
+            "relationship proposals"
+        )
     return result
 
 
@@ -329,6 +389,7 @@ __all__ = [
     "ProducerExecutionError",
     "ProducerResultStatusV1",
     "ProducerResultV1",
+    "ImmutableRegistrySnapshotV1",
     "RelationshipProposalV1",
     "execute_producer",
     "validate_producer_candidate",

@@ -9,16 +9,21 @@ from analysis_fixtures import (
 )
 
 from manafold_census.analysis.producer import (
+    ImmutableRegistrySnapshotV1,
     ProducerContextV1,
     ProducerContractError,
     ProducerDescriptorV1,
     ProducerExecutionError,
     ProducerResultStatusV1,
     ProducerResultV1,
+    RelationshipProposalV1,
     execute_producer,
     validate_producer_candidate,
 )
-from manafold_census.digest import domain_digest
+from manafold_census.semantic.bundle import (
+    RelationshipTypeV1,
+    RequirementRelationshipV1,
+)
 from manafold_census.semantic.model import DerivationMethodV1
 
 
@@ -26,16 +31,18 @@ def descriptor(
     producer_id: str,
     *,
     deterministic: bool = True,
+    derivation_method: DerivationMethodV1 = DerivationMethodV1.DETERMINISTIC_RULE,
+    supports_relationships: bool = False,
 ) -> ProducerDescriptorV1:
     return ProducerDescriptorV1(
         producer_id=producer_id,
         producer_version="1",
-        derivation_method=DerivationMethodV1.DETERMINISTIC_RULE,
+        derivation_method=derivation_method,
         input_schema="census.structural-card.v1",
         input_fields=("oracle_text",),
         pattern_registry_digest=None,
         deterministic=deterministic,
-        supports_relationships=False,
+        supports_relationships=supports_relationships,
     )
 
 
@@ -84,10 +91,75 @@ def test_producer_exception_is_not_a_no_match_result() -> None:
                 source_lock_digest=source_lock_digest(),
                 m2_requirement_schema="census.semantic-requirement.v1",
                 m2_bundle_schema="census.semantic-requirement-bundle.v1",
-                producer_registry_digest=domain_digest(
+                producer_registry=ImmutableRegistrySnapshotV1.from_wire(
+                    "producer",
+                    "census.producer-registry.v1",
                     "census.test-registry.v1",
-                    {"producer": "m3.raising"},
+                    {"schema": "census.producer-registry.v1", "producers": []},
                 ),
-                pattern_registry_digest=None,
+                pattern_registry=None,
+            ),
+        )
+
+
+def test_context_carries_immutable_registry_snapshots() -> None:
+    producer_snapshot = ImmutableRegistrySnapshotV1.from_wire(
+        "producer",
+        "census.producer-registry.v1",
+        "census.test-registry.v1",
+        {"schema": "census.producer-registry.v1", "producers": []},
+    )
+    pattern_snapshot = ImmutableRegistrySnapshotV1.from_wire(
+        "pattern",
+        "census.pattern-registry.v1",
+        "census.test-pattern-registry.v1",
+        {"schema": "census.pattern-registry.v1", "rules": []},
+    )
+    context = ProducerContextV1(
+        source_lock_digest=source_lock_digest(),
+        m2_requirement_schema="census.semantic-requirement.v1",
+        m2_bundle_schema="census.semantic-requirement-bundle.v1",
+        producer_registry=producer_snapshot,
+        pattern_registry=pattern_snapshot,
+    )
+    assert context.producer_registry is producer_snapshot
+    assert context.pattern_registry is pattern_snapshot
+    assert context.producer_registry_digest == producer_snapshot.digest
+    with pytest.raises(TypeError):
+        producer_snapshot.wire["mutated"] = True  # type: ignore[index]
+
+
+def test_relationship_proposals_require_descriptor_support() -> None:
+    proposal = bundle().requirements[0]
+    relationship = RelationshipProposalV1(
+        RequirementRelationshipV1(
+            RelationshipTypeV1.PARENT_OF,
+            proposal.requirement_id,
+            proposal.requirement_id,
+            None,
+        )
+    )
+
+    class RelationshipProducer:
+        descriptor = descriptor("m3.relationship", supports_relationships=False)
+
+        def produce(self, record, context):
+            return ProducerResultV1.emitted((proposal,), (relationship,))
+
+    with pytest.raises(ProducerContractError, match="supports_relationships"):
+        execute_producer(
+            RelationshipProducer(),
+            structural_record(),
+            ProducerContextV1(
+                source_lock_digest=source_lock_digest(),
+                m2_requirement_schema="census.semantic-requirement.v1",
+                m2_bundle_schema="census.semantic-requirement-bundle.v1",
+                producer_registry=ImmutableRegistrySnapshotV1.from_wire(
+                    "producer",
+                    "census.producer-registry.v1",
+                    "census.test-registry.v1",
+                    {"schema": "census.producer-registry.v1", "producers": []},
+                ),
+                pattern_registry=None,
             ),
         )
