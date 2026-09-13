@@ -124,7 +124,7 @@ class CreateObjectParametersV1(_Payload):
     }
 
     def __post_init__(self) -> None:
-        super().__post_init__()
+        super(CreateObjectParametersV1, self).__post_init__()
         encoded = [
             canonical_json_bytes(item.to_wire()) for item in self.characteristics
         ]
@@ -322,7 +322,7 @@ class ChooseModeParametersV1(_Payload):
     }
 
     def __post_init__(self) -> None:
-        super().__post_init__()
+        super(ChooseModeParametersV1, self).__post_init__()
         if not self.alternatives:
             raise ValueError("alternatives must be non-empty")
 
@@ -362,7 +362,7 @@ class KeywordReferenceParametersV1(_Payload):
     }
 
     def __post_init__(self) -> None:
-        super().__post_init__()
+        super(KeywordReferenceParametersV1, self).__post_init__()
         if self.expansion_state is ExpansionStateV1.EXPANDED and self.expansion is None:
             raise ValueError("expanded keyword requires expansion")
         if (
@@ -397,7 +397,7 @@ class UnresolvedParametersV1(_Payload):
     }
 
     def __post_init__(self) -> None:
-        super().__post_init__()
+        super(UnresolvedParametersV1, self).__post_init__()
         ordered = tuple(sorted(set(self.candidate_kinds), key=lambda kind: kind.value))
         if ordered != self.candidate_kinds:
             raise ValueError("candidate_kinds must be unique and sorted")

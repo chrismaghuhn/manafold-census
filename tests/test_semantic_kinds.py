@@ -239,6 +239,53 @@ def test_representative_payloads_round_trip_through_typed_dispatch() -> None:
         assert payload_from_wire(family, kind, wire) == payload
 
 
+def test_slotted_kind_payload_post_init_models_round_trip() -> None:
+    values = (
+        (
+            RequirementFamilyV1.EFFECT,
+            RequirementKindV1.CREATE_OBJECT,
+            CreateObjectParametersV1(
+                ParameterValueV1(ParameterValueTypeV1.TEXT, "object"),
+                _quantity(),
+                (),
+                None,
+            ),
+        ),
+        (
+            RequirementFamilyV1.CHOICE,
+            RequirementKindV1.CHOOSE_MODE,
+            ChooseModeParametersV1(
+                _entity(EntityRoleV1.CHOOSER),
+                _quantity(),
+                _quantity(),
+                (_descriptor(SemanticShapeV1.EFFECT),),
+            ),
+        ),
+        (
+            RequirementFamilyV1.REFERENCE,
+            RequirementKindV1.KEYWORD_REFERENCE,
+            KeywordReferenceParametersV1(
+                "Flying", 0, ExpansionStateV1.UNEXPANDED, None
+            ),
+        ),
+        (
+            RequirementFamilyV1.UNKNOWN,
+            RequirementKindV1.UNRESOLVED,
+            UnresolvedParametersV1(
+                "oracle_text",
+                SemanticShapeV1.UNKNOWN,
+                "review",
+                (RequirementKindV1.DRAW_CARDS,),
+                None,
+            ),
+        ),
+    )
+
+    for family, kind, payload in values:
+        wire = payload_to_wire(family, kind, payload)
+        assert payload_from_wire(family, kind, wire) == payload
+
+
 def test_every_payload_class_round_trips_through_typed_dispatch() -> None:
     target = _entity(EntityRoleV1.TARGET)
     descriptor = _descriptor(SemanticShapeV1.EFFECT)

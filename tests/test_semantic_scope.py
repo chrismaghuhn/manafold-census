@@ -51,6 +51,50 @@ def _absolute_import_roots(tree: ast.AST) -> list[str]:
     return roots
 
 
+def _zero_arg_post_init_super_classes(tree: ast.AST) -> list[str]:
+    failures: list[str] = []
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.ClassDef):
+            continue
+        is_slotted_dataclass = any(
+            isinstance(decorator, ast.Call)
+            and isinstance(decorator.func, ast.Name)
+            and decorator.func.id == "dataclass"
+            and any(
+                keyword.arg == "slots"
+                and isinstance(keyword.value, ast.Constant)
+                and keyword.value.value is True
+                for keyword in decorator.keywords
+            )
+            for decorator in node.decorator_list
+        )
+        if not is_slotted_dataclass:
+            continue
+        post_init = next(
+            (
+                item
+                for item in node.body
+                if isinstance(item, ast.FunctionDef) and item.name == "__post_init__"
+            ),
+            None,
+        )
+        if post_init is None:
+            continue
+        if any(
+            isinstance(call, ast.Call)
+            and isinstance(call.func, ast.Attribute)
+            and call.func.attr == "__post_init__"
+            and isinstance(call.func.value, ast.Call)
+            and isinstance(call.func.value.func, ast.Name)
+            and call.func.value.func.id == "super"
+            and not call.func.value.args
+            and not call.func.value.keywords
+            for call in ast.walk(post_init)
+        ):
+            failures.append(node.name)
+    return failures
+
+
 def test_semantic_modules_use_only_allowlisted_import_roots() -> None:
     modules = _semantic_modules()
     assert modules
@@ -61,6 +105,18 @@ def test_semantic_modules_use_only_allowlisted_import_roots() -> None:
                 f"{module.relative_to(REPOSITORY_ROOT)} imports non-M2 dependency "
                 f"root {root}"
             )
+
+
+def test_slotted_post_init_does_not_use_zero_argument_super() -> None:
+    failures = []
+    for module in _semantic_modules():
+        tree = ast.parse(module.read_text(encoding="utf-8"), filename=str(module))
+        failures.extend(
+            f"{module.relative_to(REPOSITORY_ROOT)}:{class_name}"
+            for class_name in _zero_arg_post_init_super_classes(tree)
+        )
+
+    assert failures == [], "unsafe slotted-dataclass super(): " + ", ".join(failures)
 
 
 def test_semantic_modules_do_not_define_capabilities_or_card_analysis() -> None:
