@@ -81,12 +81,24 @@ class ProducerFindingV1:
             and self.source_field is not PatternSourceFieldV1.ORACLE_TEXT
         ):
             raise ValueError("face_index requires oracle_text source_field")
-        if self.exact_fragment is not None and not isinstance(self.exact_fragment, str):
+        if self.exact_fragment is not None and (
+            not isinstance(self.exact_fragment, str) or self.exact_fragment == ""
+        ):
             raise ValueError("exact_fragment is invalid")
         if self.parser_span is not None and (
             not isinstance(self.parser_span, tuple | list) or len(self.parser_span) != 2
         ):
             raise ValueError("parser_span is invalid")
+        if self.parser_span is not None:
+            start, end = self.parser_span
+            if (
+                type(start) is not int
+                or type(end) is not int
+                or start < 0
+                or end < start
+            ):
+                raise ValueError("parser_span is invalid")
+            object.__setattr__(self, "parser_span", (start, end))
 
 
 def _require_text(field: str, value: object) -> str:

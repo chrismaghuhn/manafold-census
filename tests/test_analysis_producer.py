@@ -7,6 +7,7 @@ from analysis_fixtures import (
     accepted_requirement,
     bundle,
     effective_pattern_registry,
+    other_candidate,
     source_lock_digest,
     structural_record,
 )
@@ -35,6 +36,11 @@ from manafold_census.semantic.bundle import (
     RequirementRelationshipV1,
 )
 from manafold_census.semantic.evidence import StructuralFieldEvidenceV1
+from manafold_census.semantic.kind_payloads import (
+    DealDamageParametersV1,
+    UnresolvedParametersV1,
+)
+from manafold_census.semantic.kinds import RequirementFamilyV1, RequirementKindV1
 from manafold_census.semantic.model import (
     DerivationMethodV1,
     DerivationV1,
@@ -45,6 +51,14 @@ from manafold_census.semantic.model import (
     ResolutionV1,
     ReviewStatusV1,
     ReviewV1,
+)
+from manafold_census.semantic.primitives import (
+    EntityRefV1,
+    EntityRoleV1,
+    MultiplicityV1,
+    QuantityModeV1,
+    QuantityV1,
+    SemanticShapeV1,
 )
 
 
@@ -133,7 +147,90 @@ def test_emitted_result_carries_typed_pattern_finding() -> None:
     assert result.findings == (finding,)
 
 
-def _pattern_probe(*, producer_id: str = "m3.exact-rule", finding=None):
+@pytest.mark.parametrize("parser_span", [("foo", "bar"), (10, 3)])
+def test_malformed_finding_parser_span_is_rejected_at_construction(
+    parser_span,
+) -> None:
+    with pytest.raises(ValueError, match="parser_span"):
+        ProducerFindingV1(
+            candidate_index=0,
+            pattern_id="fixture.pattern",
+            pattern_version="1",
+            pattern_digest="d" * 64,
+            source_field=PatternSourceFieldV1.ORACLE_TEXT,
+            face_index=None,
+            exact_fragment="Draw two cards.",
+            clause_ordinal=0,
+            parser_span=parser_span,
+        )
+
+
+def test_empty_finding_exact_fragment_is_rejected_at_construction() -> None:
+    with pytest.raises(ValueError, match="exact_fragment"):
+        ProducerFindingV1(
+            candidate_index=0,
+            pattern_id="fixture.pattern",
+            pattern_version="1",
+            pattern_digest="d" * 64,
+            source_field=PatternSourceFieldV1.ORACLE_TEXT,
+            face_index=None,
+            exact_fragment="",
+            clause_ordinal=0,
+            parser_span=None,
+        )
+
+
+def _pattern_candidate(
+    rule,
+    producer_id: str,
+    *,
+    evidence_field: str = "oracle_text",
+    evidence_fragment: str | None = None,
+    provenance_method: DerivationMethodV1 = DerivationMethodV1.DETERMINISTIC_RULE,
+    provenance_id: str | None = None,
+):
+    source = bundle().requirements[0].source
+    return RequirementV1.create(
+        source=source,
+        family=rule.output_template.family,
+        kind=rule.output_template.kind,
+        parameters=rule.output_template.parameters,
+        evidence=(
+            StructuralFieldEvidenceV1(
+                source,
+                evidence_field,
+                None,
+                evidence_fragment
+                if evidence_fragment is not None
+                else rule.match_text
+                if evidence_field == "oracle_text"
+                else None,
+            ),
+        ),
+        provenance=ProvenanceV1(
+            (
+                DerivationV1(
+                    provenance_method,
+                    provenance_id or producer_id,
+                    "1",
+                ),
+            )
+        ),
+        review=ReviewV1(ReviewStatusV1.PROPOSED, None, None),
+        resolution=ResolutionV1(
+            ResolutionStateV1.COMPLETE,
+            ResolutionReasonV1.NONE,
+            (),
+        ),
+    )
+
+
+def _pattern_probe(
+    *,
+    producer_id: str = "m3.exact-rule",
+    finding=None,
+    candidate=None,
+):
     registry = effective_pattern_registry()
     rule = next(
         item for item in registry.rules if item.pattern_id == "m3.exact-clause.draw"
@@ -144,30 +241,7 @@ def _pattern_probe(*, producer_id: str = "m3.exact-rule", finding=None):
         PATTERN_REGISTRY_DIGEST_DOMAIN,
         registry.to_wire(),
     )
-    base_proposal = bundle().requirements[0]
-    proposal = RequirementV1.create(
-        source=base_proposal.source,
-        family=rule.output_template.family,
-        kind=rule.output_template.kind,
-        parameters=rule.output_template.parameters,
-        evidence=(
-            StructuralFieldEvidenceV1(
-                base_proposal.source,
-                "oracle_text",
-                None,
-                rule.match_text,
-            ),
-        ),
-        provenance=ProvenanceV1(
-            (DerivationV1(DerivationMethodV1.DETERMINISTIC_RULE, producer_id, "1"),)
-        ),
-        review=ReviewV1(ReviewStatusV1.PROPOSED, None, None),
-        resolution=ResolutionV1(
-            ResolutionStateV1.COMPLETE,
-            ResolutionReasonV1.NONE,
-            (),
-        ),
-    )
+    proposal = candidate or _pattern_candidate(rule, producer_id)
     actual_finding = finding or ProducerFindingV1(
         candidate_index=0,
         pattern_id=rule.pattern_id,
@@ -237,6 +311,114 @@ def test_pattern_finding_binding_failures_are_rejected(
     if mutation != "producer":
         producer, context, _ = _pattern_probe(finding=finding)
 
+    with pytest.raises(ProducerContractError, match=message):
+        execute_producer(producer, structural_record(), context)
+
+
+def _unresolved_pattern_candidate(rule, producer_id: str) -> RequirementV1:
+    source = bundle().requirements[0].source
+    return RequirementV1.create(
+        source=source,
+        family=RequirementFamilyV1.UNKNOWN,
+        kind=RequirementKindV1.UNRESOLVED,
+        parameters=UnresolvedParametersV1(
+            "oracle_text",
+            SemanticShapeV1.UNKNOWN,
+            "What does this text require?",
+            (),
+            None,
+        ),
+        evidence=(
+            StructuralFieldEvidenceV1(source, "oracle_text", None, rule.match_text),
+        ),
+        provenance=ProvenanceV1(
+            (DerivationV1(DerivationMethodV1.DETERMINISTIC_RULE, producer_id, "1"),)
+        ),
+        review=ReviewV1(ReviewStatusV1.PROPOSED, None, None),
+        resolution=ResolutionV1(
+            ResolutionStateV1.UNRESOLVED,
+            ResolutionReasonV1.UNSUPPORTED_SHAPE,
+            ("/parameters",),
+        ),
+    )
+
+
+def _deal_damage_pattern_candidate(rule, producer_id: str) -> RequirementV1:
+    source = bundle().requirements[0].source
+    entity = EntityRefV1(EntityRoleV1.SOURCE, MultiplicityV1.ONE, None)
+    target = EntityRefV1(EntityRoleV1.TARGET, MultiplicityV1.ONE, None)
+    return RequirementV1.create(
+        source=source,
+        family=RequirementFamilyV1.EFFECT,
+        kind=RequirementKindV1.DEAL_DAMAGE,
+        parameters=DealDamageParametersV1(
+            entity,
+            target,
+            QuantityV1(QuantityModeV1.EXACT, 1),
+        ),
+        evidence=(
+            StructuralFieldEvidenceV1(source, "oracle_text", None, rule.match_text),
+        ),
+        provenance=ProvenanceV1(
+            (DerivationV1(DerivationMethodV1.DETERMINISTIC_RULE, producer_id, "1"),)
+        ),
+        review=ReviewV1(ReviewStatusV1.PROPOSED, None, None),
+        resolution=ResolutionV1(
+            ResolutionStateV1.COMPLETE,
+            ResolutionReasonV1.NONE,
+            (),
+        ),
+    )
+
+
+@pytest.mark.parametrize(
+    ("variant", "message"),
+    [
+        ("family", "output family"),
+        ("kind", "output kind"),
+        ("parameters", "output parameters"),
+        ("evidence_policy", "pattern field evidence"),
+        ("source_scope", "pattern field evidence"),
+        ("missing_producer", "producer provenance"),
+        ("wrong_method", "producer provenance"),
+    ],
+)
+def test_pattern_candidate_bindings_fail_closed(variant: str, message: str) -> None:
+    registry = effective_pattern_registry()
+    rule = next(
+        item for item in registry.rules if item.pattern_id == "m3.exact-clause.draw"
+    )
+    if variant == "family":
+        candidate = _unresolved_pattern_candidate(rule, "m3.exact-rule")
+    elif variant == "kind":
+        candidate = _deal_damage_pattern_candidate(rule, "m3.exact-rule")
+    elif variant == "parameters":
+        candidate = other_candidate()
+    elif variant == "evidence_policy":
+        candidate = _pattern_candidate(
+            rule,
+            "m3.exact-rule",
+            evidence_fragment="Draw",
+        )
+    elif variant == "source_scope":
+        candidate = _pattern_candidate(
+            rule,
+            "m3.exact-rule",
+            evidence_field="keywords",
+        )
+    elif variant == "missing_producer":
+        candidate = _pattern_candidate(
+            rule,
+            "m3.exact-rule",
+            provenance_id="m3.other",
+        )
+    else:
+        candidate = _pattern_candidate(
+            rule,
+            "m3.exact-rule",
+            provenance_method=DerivationMethodV1.PARSER,
+        )
+    producer, context, _ = _pattern_probe(candidate=candidate)
     with pytest.raises(ProducerContractError, match=message):
         execute_producer(producer, structural_record(), context)
 
