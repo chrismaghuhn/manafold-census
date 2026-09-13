@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, cast
 
-from ..canonical import JSONValue
+from ..canonical import JSONValue, canonical_json_bytes
 from ..digest import domain_digest
 from .evidence import (
     EvidenceV1,
@@ -121,6 +121,10 @@ def _review_evidence_wire(evidence: EvidenceV1) -> dict[str, JSONValue]:
 def reviewed_claim_payload_for(requirement: RequirementV1) -> dict[str, JSONValue]:
     """Return the canonical claim projection bound by terminal review."""
 
+    evidence: list[JSONValue] = [
+        _review_evidence_wire(item) for item in requirement.evidence
+    ]
+    evidence.sort(key=canonical_json_bytes)
     return {
         "source_identity": _source_identity(requirement.source),
         "family": requirement.family.value,
@@ -128,7 +132,7 @@ def reviewed_claim_payload_for(requirement: RequirementV1) -> dict[str, JSONValu
         "parameters": payload_to_wire(
             requirement.family, requirement.kind, requirement.parameters
         ),
-        "evidence": [_review_evidence_wire(item) for item in requirement.evidence],
+        "evidence": evidence,
         "provenance": requirement.provenance.to_wire(),
         "resolution": requirement.resolution.to_wire(),
     }

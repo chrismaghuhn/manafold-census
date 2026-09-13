@@ -17,6 +17,8 @@ from .evidence import (
     StructuralFieldEvidenceV1,
     StructuralKeywordEvidenceV1,
     StructuralRecordEvidenceV1,
+    _require_digest,
+    _require_identifier_text,
     evidence_from_wire,
     evidence_sort_key,
     evidence_to_wire,
@@ -28,14 +30,13 @@ from .primitives import (
     UnknownValueV1,
     _require_enum,
     _require_object,
-    _require_text,
     _validate_json_wire,
     _WireModel,
 )
 
 REQUIREMENT_SCHEMA = "census.semantic-requirement.v1"
-_DIGEST_PATTERN = re.compile(r"^[0-9a-f]{64}$")
 _REQUIREMENT_ID_PATTERN = re.compile(r"^srq_[0-9a-f]{64}$")
+_UNKNOWN_PATH_PATTERN = re.compile(r"^/(?:kind|parameters(?:[./].*)?)$")
 _STRUCTURAL_EVIDENCE_TYPES = (
     StructuralRecordEvidenceV1,
     StructuralFaceEvidenceV1,
@@ -73,18 +74,6 @@ class ResolutionReasonV1(StrEnum):
     UNSUPPORTED_SHAPE = "UNSUPPORTED_SHAPE"
     CONFLICTING_INTERPRETATIONS = "CONFLICTING_INTERPRETATIONS"
     UNKNOWN_SEMANTICS = "UNKNOWN_SEMANTICS"
-
-
-def _require_digest(field: str, value: object) -> str:
-    if not isinstance(value, str) or _DIGEST_PATTERN.fullmatch(value) is None:
-        raise ValueError(f"{field} must be a lowercase SHA-256 digest")
-    return value
-
-
-def _require_requirement_id(value: object) -> str:
-    if not isinstance(value, str) or _REQUIREMENT_ID_PATTERN.fullmatch(value) is None:
-        raise ValueError("requirement_id must match the srq_ SHA-256 form")
-    return value
 
 
 def _wire_list(value: object, field: str) -> list[object]:
@@ -141,10 +130,10 @@ class DerivationV1:
     def __post_init__(self) -> None:
         values = (
             ("method", _require_enum("method", self.method, DerivationMethodV1)),
-            ("producer_id", _require_text("producer_id", self.producer_id)),
+            ("producer_id", _require_identifier_text("producer_id", self.producer_id)),
             (
                 "producer_version",
-                _require_text("producer_version", self.producer_version),
+                _require_identifier_text("producer_version", self.producer_version),
             ),
         )
         for name, value in values:
@@ -225,7 +214,9 @@ class ReviewV1:
         object.__setattr__(self, "status", status)
         if self.reviewed_by is not None:
             object.__setattr__(
-                self, "reviewed_by", _require_text("reviewed_by", self.reviewed_by)
+                self,
+                "reviewed_by",
+                _require_identifier_text("reviewed_by", self.reviewed_by),
             )
         if self.reviewed_claim_digest is not None:
             object.__setattr__(
@@ -271,7 +262,13 @@ class ResolutionV1:
         paths = _tuple_values(self.unknown_paths, "unknown_paths")
         if any(not isinstance(path, str) for path in paths):
             raise TypeError("unknown_paths must contain strings")
-        normalized_paths = tuple(_require_text("unknown_path", path) for path in paths)
+        normalized_paths = tuple(
+            _require_identifier_text("unknown_path", path) for path in paths
+        )
+        if any(
+            _UNKNOWN_PATH_PATTERN.fullmatch(path) is None for path in normalized_paths
+        ):
+            raise ValueError("unknown_paths must target /kind or /parameters")
         if state is ResolutionStateV1.COMPLETE:
             if reason is not ResolutionReasonV1.NONE or normalized_paths:
                 raise ValueError("COMPLETE resolution requires NONE and no paths")
@@ -403,7 +400,12 @@ class RequirementV1:
         from .identity import requirement_id_for, reviewed_claim_digest_for
 
         expected_id = requirement_id_for(self)
-        actual_id = _require_requirement_id(self.requirement_id)
+        actual_id = self.requirement_id
+        if (
+            not isinstance(actual_id, str)
+            or _REQUIREMENT_ID_PATTERN.fullmatch(actual_id) is None
+        ):
+            raise ValueError("requirement_id must match the srq_ SHA-256 form")
         if actual_id != expected_id:
             raise ValueError("requirement_id does not match the identity payload")
         if self.review.status in (ReviewStatusV1.ACCEPTED, ReviewStatusV1.REJECTED):

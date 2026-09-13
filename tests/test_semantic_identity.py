@@ -184,6 +184,25 @@ def test_identity_is_producer_neutral_and_source_lock_stable() -> None:
     assert wire_digest_for(first) != wire_digest_for(changed_lock)
 
 
+def test_review_digest_sorts_evidence_after_source_lock_stripping() -> None:
+    source_a = _source(source_lock_digest="a" * 64)
+    source_b = _source(source_lock_digest="0" * 64)
+    evidence_a = (
+        StructuralFieldEvidenceV1(source_a, "oracle_text", None, None),
+        StructuralFieldEvidenceV1(source_a, "type_line", None, None),
+    )
+    evidence_b = (
+        StructuralFieldEvidenceV1(source_b, "oracle_text", None, None),
+        StructuralFieldEvidenceV1(source_b, "type_line", None, None),
+    )
+    first = _proposal(source=source_a, evidence=evidence_a)
+    second = _proposal(source=source_b, evidence=evidence_b)
+
+    assert first.requirement_id == second.requirement_id
+    assert reviewed_claim_digest_for(first) == reviewed_claim_digest_for(second)
+    assert wire_digest_for(first) != wire_digest_for(second)
+
+
 def test_identity_changes_for_kind_and_parameter_changes() -> None:
     draw = _proposal()
     changed_quantity = _proposal(
@@ -262,6 +281,33 @@ def test_review_binding_rejects_stale_terminal_content_and_allows_reopen() -> No
     assert reopened.requirement_id == proposal.requirement_id
 
 
+def test_stale_terminal_review_rejects_evidence_and_resolution_changes() -> None:
+    proposal = _proposal()
+    accepted = _accepted(proposal)
+    added_evidence = proposal.evidence + (StructuralRecordEvidenceV1(proposal.source),)
+    changed_resolution = ResolutionV1(
+        ResolutionStateV1.PARTIAL,
+        ResolutionReasonV1.INSUFFICIENT_EVIDENCE,
+        ("/parameters.quantity",),
+    )
+
+    for evidence, resolution in (
+        (added_evidence, proposal.resolution),
+        (proposal.evidence, changed_resolution),
+    ):
+        with pytest.raises(ValueError, match="reviewed_claim_digest"):
+            RequirementV1.create(
+                source=proposal.source,
+                family=proposal.family,
+                kind=proposal.kind,
+                parameters=proposal.parameters,
+                evidence=evidence,
+                provenance=proposal.provenance,
+                review=accepted.review,
+                resolution=resolution,
+            )
+
+
 def test_review_status_separation_and_accepted_partial_claim() -> None:
     partial_resolution = ResolutionV1(
         ResolutionStateV1.PARTIAL,
@@ -309,6 +355,11 @@ def test_unresolved_requirement_round_trips_and_is_valid() -> None:
     )
 
     assert RequirementV1.from_wire(unresolved.to_wire()) == unresolved
+    accepted = _accepted(unresolved)
+    assert accepted.review.status is ReviewStatusV1.ACCEPTED
+    assert accepted.review.reviewed_claim_digest == reviewed_claim_digest_for(
+        unresolved
+    )
 
 
 def test_complete_rejects_unknown_and_free_text_only_descriptor_meaning() -> None:

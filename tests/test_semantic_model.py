@@ -121,6 +121,25 @@ def test_review_and_resolution_have_exact_wire_shapes() -> None:
     assert ResolutionV1.from_wire(resolution.to_wire()) == resolution
 
 
+def test_identifier_text_and_resolution_paths_are_not_context_bounded() -> None:
+    long_identifier = "p" * 4097
+    long_path = "/parameters." + "x" * 4097
+
+    derivation = DerivationV1(
+        DerivationMethodV1.PARSER, long_identifier, long_identifier
+    )
+    review = ReviewV1(ReviewStatusV1.ACCEPTED, long_identifier, "a" * 64)
+    resolution = ResolutionV1(
+        ResolutionStateV1.PARTIAL,
+        ResolutionReasonV1.INSUFFICIENT_EVIDENCE,
+        (long_path,),
+    )
+
+    assert derivation.producer_id == long_identifier
+    assert review.reviewed_by == long_identifier
+    assert resolution.unknown_paths == (long_path,)
+
+
 def test_requirement_constructor_and_wire_are_defensive() -> None:
     requirement = _proposal()
     wire = requirement.to_wire()
@@ -180,4 +199,24 @@ def test_resolution_state_rejects_inconsistent_paths_and_reasons() -> None:
             ("/parameters",),
         )
     with pytest.raises(ValueError, match="reason|PARTIAL"):
-        ResolutionV1(ResolutionStateV1.PARTIAL, ResolutionReasonV1.NONE, ("/x",))
+        ResolutionV1(
+            ResolutionStateV1.PARTIAL, ResolutionReasonV1.NONE, ("/parameters",)
+        )
+
+
+@pytest.mark.parametrize("path", ["/x", "/review", "/evidence", "/unrelated"])
+def test_resolution_paths_are_scoped_to_kind_or_parameters(path: str) -> None:
+    with pytest.raises(ValueError, match="kind|parameters|path"):
+        ResolutionV1(
+            ResolutionStateV1.PARTIAL,
+            ResolutionReasonV1.INSUFFICIENT_EVIDENCE,
+            (path,),
+        )
+
+    for valid_path in ("/kind", "/parameters", "/parameters.quantity.value"):
+        resolution = ResolutionV1(
+            ResolutionStateV1.PARTIAL,
+            ResolutionReasonV1.INSUFFICIENT_EVIDENCE,
+            (valid_path,),
+        )
+        assert resolution.unknown_paths == (valid_path,)
