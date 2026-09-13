@@ -1,14 +1,21 @@
 from __future__ import annotations
 
+from dataclasses import replace
+
 import pytest
 from analysis_fixtures import (
     accepted_requirement,
     bundle,
+    effective_pattern_registry,
     source_lock_digest,
     structural_record,
 )
 
-from manafold_census.analysis.patterns import PatternSourceFieldV1
+from manafold_census.analysis.patterns import (
+    PATTERN_REGISTRY_DIGEST_DOMAIN,
+    PatternSourceFieldV1,
+    pattern_rule_digest_for,
+)
 from manafold_census.analysis.producer import (
     ImmutableRegistrySnapshotV1,
     ProducerContextV1,
@@ -113,6 +120,123 @@ def test_emitted_result_carries_typed_pattern_finding() -> None:
     )
     result = ProducerResultV1.emitted((proposal,), findings=(finding,))
     assert result.findings == (finding,)
+
+
+def _pattern_probe(*, producer_id: str = "m3.exact-rule", finding=None):
+    registry = effective_pattern_registry()
+    rule = next(
+        item for item in registry.rules if item.pattern_id == "m3.exact-clause.draw"
+    )
+    snapshot = ImmutableRegistrySnapshotV1.from_wire(
+        "pattern",
+        "census.pattern-registry.v1",
+        PATTERN_REGISTRY_DIGEST_DOMAIN,
+        registry.to_wire(),
+    )
+    proposal = bundle().requirements[0]
+    actual_finding = finding or ProducerFindingV1(
+        candidate_index=0,
+        pattern_id=rule.pattern_id,
+        pattern_version=rule.pattern_version,
+        pattern_digest=pattern_rule_digest_for(rule),
+        source_field=PatternSourceFieldV1.ORACLE_TEXT,
+        face_index=None,
+        exact_fragment=rule.match_text,
+        clause_ordinal=0,
+        parser_span=None,
+    )
+    producer_descriptor = descriptor(
+        producer_id,
+        pattern_registry_digest=registry.digest(),
+    )
+
+    class ProbeProducer:
+        descriptor = producer_descriptor
+
+        def produce(self, record, context):
+            return ProducerResultV1.emitted((proposal,), findings=(actual_finding,))
+
+    return ProbeProducer(), producer_context(pattern_registry=snapshot), rule
+
+
+@pytest.mark.parametrize(
+    ("mutation", "message"),
+    [
+        ("unknown", "unknown rule"),
+        ("version", "unknown rule"),
+        ("digest", "digest"),
+        ("producer", "producer"),
+        ("source_field", "source field"),
+        ("false_exact", "fragment"),
+    ],
+)
+def test_pattern_finding_binding_failures_are_rejected(
+    mutation: str,
+    message: str,
+) -> None:
+    producer, context, rule = _pattern_probe()
+    finding = ProducerFindingV1(
+        candidate_index=0,
+        pattern_id=rule.pattern_id,
+        pattern_version=rule.pattern_version,
+        pattern_digest=pattern_rule_digest_for(rule),
+        source_field=PatternSourceFieldV1.ORACLE_TEXT,
+        face_index=None,
+        exact_fragment=rule.match_text,
+        clause_ordinal=0,
+        parser_span=None,
+    )
+    if mutation == "unknown":
+        finding = replace(finding, pattern_id="m3.unknown")
+    elif mutation == "version":
+        finding = replace(finding, pattern_version="2")
+    elif mutation == "digest":
+        finding = replace(finding, pattern_digest="f" * 64)
+    elif mutation == "producer":
+        producer, context, rule = _pattern_probe(
+            producer_id="m3.other", finding=finding
+        )
+    elif mutation == "source_field":
+        finding = replace(finding, source_field=PatternSourceFieldV1.KEYWORDS)
+    else:
+        finding = replace(finding, exact_fragment="Not present")
+    if mutation != "producer":
+        producer, context, _ = _pattern_probe(finding=finding)
+
+    with pytest.raises(ProducerContractError, match=message):
+        execute_producer(producer, structural_record(), context)
+
+
+def test_pattern_dependent_candidate_requires_finding() -> None:
+    registry = effective_pattern_registry()
+    snapshot = ImmutableRegistrySnapshotV1.from_wire(
+        "pattern",
+        "census.pattern-registry.v1",
+        PATTERN_REGISTRY_DIGEST_DOMAIN,
+        registry.to_wire(),
+    )
+    proposal = bundle().requirements[0]
+
+    class MissingFindingProducer:
+        descriptor = descriptor(
+            "m3.exact-rule", pattern_registry_digest=registry.digest()
+        )
+
+        def produce(self, record, context):
+            return ProducerResultV1.emitted((proposal,))
+
+    with pytest.raises(ProducerContractError, match="one finding"):
+        execute_producer(
+            MissingFindingProducer(),
+            structural_record(),
+            producer_context(pattern_registry=snapshot),
+        )
+
+
+def test_valid_exact_pattern_finding_is_accepted() -> None:
+    producer, context, _ = _pattern_probe()
+    result = execute_producer(producer, structural_record(), context)
+    assert result.findings[0].pattern_id == "m3.exact-clause.draw"
 
 
 def test_producer_exception_is_not_a_no_match_result() -> None:

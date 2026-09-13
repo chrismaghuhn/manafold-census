@@ -55,53 +55,6 @@ class ProducerFindingV1:
     clause_ordinal: int | None
     parser_span: tuple[int, int] | None
 
-    def __post_init__(self) -> None:
-        for field, value in (
-            ("candidate_index", self.candidate_index),
-            ("face_index", self.face_index),
-            ("clause_ordinal", self.clause_ordinal),
-        ):
-            if value is not None and (type(value) is not int or value < 0):
-                raise ValueError(f"{field} must be a non-negative integer")
-        pattern_fields = (self.pattern_id, self.pattern_version, self.pattern_digest)
-        if any(item is not None for item in pattern_fields) and not all(
-            item is not None for item in pattern_fields
-        ):
-            raise ValueError("pattern identity fields must be all present or null")
-        if self.pattern_id is not None:
-            _require_text("pattern_id", self.pattern_id)
-            _require_text("pattern_version", self.pattern_version)
-            _require_digest("pattern_digest", self.pattern_digest)
-        if self.source_field is not None:
-            object.__setattr__(
-                self,
-                "source_field",
-                _require_enum("source_field", self.source_field, PatternSourceFieldV1),
-            )
-        if (
-            self.face_index is not None
-            and self.source_field is not PatternSourceFieldV1.ORACLE_TEXT
-        ):
-            raise ValueError("face_index requires oracle_text source_field")
-        if self.exact_fragment is not None:
-            _require_text("exact_fragment", self.exact_fragment)
-            if self.source_field is not PatternSourceFieldV1.ORACLE_TEXT:
-                raise ValueError("exact_fragment requires oracle_text source_field")
-        if self.parser_span is not None:
-            if (
-                not isinstance(self.parser_span, tuple | list)
-                or len(self.parser_span) != 2
-            ):
-                raise ValueError("parser_span must contain two offsets")
-            start, end = self.parser_span
-            if (
-                any(type(value) is not int for value in (start, end))
-                or start < 0
-                or end < start
-            ):
-                raise ValueError("parser_span offsets are invalid")
-            object.__setattr__(self, "parser_span", (start, end))
-
 
 def _require_text(field: str, value: object) -> str:
     if not isinstance(value, str) or value == "":
@@ -454,6 +407,9 @@ def execute_producer(
             "producer descriptor supports_relationships=false but emitted "
             "relationship proposals"
         )
+    from .build_input import validate_producer_findings
+
+    validate_producer_findings(result, descriptor, record, context)
     return result
 
 
