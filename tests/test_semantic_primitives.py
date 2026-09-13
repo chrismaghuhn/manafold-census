@@ -44,6 +44,28 @@ def _unknown() -> UnknownValueV1:
     )
 
 
+def test_all_slotted_post_init_models_construct_and_round_trip() -> None:
+    descriptor = SemanticDescriptorV1(
+        shape=SemanticShapeV1.EFFECT,
+        label="effect context",
+        subject=None,
+        object_ref=None,
+        value=None,
+        children=(),
+    )
+    values = (
+        ZoneRefV1(ZoneNameV1.UNKNOWN, "custom zone"),
+        QuantityV1(QuantityModeV1.EXACT, 2),
+        CharacteristicRefV1(CharacteristicNameV1.OTHER, "custom characteristic"),
+        ParameterValueV1(ParameterValueTypeV1.DESCRIPTOR, descriptor),
+        descriptor,
+        DurationV1(DurationKindV1.DELAYED, descriptor),
+    )
+
+    for value in values:
+        assert type(value).from_wire(value.to_wire()) == value
+
+
 @pytest.mark.parametrize(
     ("enum_type", "expected"),
     [

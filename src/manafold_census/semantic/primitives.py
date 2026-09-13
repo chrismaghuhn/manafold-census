@@ -322,7 +322,7 @@ class ZoneRefV1(_WireModel):
     }
 
     def __post_init__(self) -> None:
-        super().__post_init__()
+        super(ZoneRefV1, self).__post_init__()
         if self.label is not None and self.zone is not ZoneNameV1.UNKNOWN:
             raise ValueError("label is allowed only for unknown zones")
 
@@ -335,7 +335,7 @@ class QuantityV1(_WireModel):
     _PARSERS: ClassVar[dict[str, _Parser]] = {"mode": _enum_parser(QuantityModeV1)}
 
     def __post_init__(self) -> None:
-        super().__post_init__()
+        super(QuantityV1, self).__post_init__()
         if self.mode is QuantityModeV1.EXACT:
             object.__setattr__(self, "value", _require_int("value", self.value))
         elif self.mode is QuantityModeV1.SYMBOLIC:
@@ -370,7 +370,7 @@ class CharacteristicRefV1(_WireModel):
     }
 
     def __post_init__(self) -> None:
-        super().__post_init__()
+        super(CharacteristicRefV1, self).__post_init__()
         if self.name is CharacteristicNameV1.OTHER and self.label is None:
             raise ValueError("other characteristics require an explicit label")
         if self.label is not None and self.name is not CharacteristicNameV1.OTHER:
@@ -388,7 +388,7 @@ class ParameterValueV1(_WireModel):
     }
 
     def __post_init__(self) -> None:
-        super().__post_init__()
+        super(ParameterValueV1, self).__post_init__()
         value = self.value
         if self.value_type is ParameterValueTypeV1.TEXT:
             _require_text("value", value)
@@ -435,7 +435,7 @@ class SemanticDescriptorV1(_WireModel):
     _WIRE_NAMES: ClassVar[dict[str, str]] = {"object_ref": "object"}
 
     def __post_init__(self) -> None:
-        super().__post_init__()
+        super(SemanticDescriptorV1, self).__post_init__()
         if not isinstance(self.children, tuple | list):
             raise TypeError("children must be a tuple or list")
         if any(not isinstance(child, SemanticDescriptorV1) for child in self.children):
@@ -462,7 +462,7 @@ class DurationV1(_WireModel):
     _PARSERS: ClassVar[dict[str, _Parser]] = {"kind": _enum_parser(DurationKindV1)}
 
     def __post_init__(self) -> None:
-        super().__post_init__()
+        super(DurationV1, self).__post_init__()
         if self.kind in (
             DurationKindV1.UNTIL_END_OF_TURN,
             DurationKindV1.THIS_TURN,
