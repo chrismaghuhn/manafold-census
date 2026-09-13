@@ -33,6 +33,12 @@ jobs:
         run: python -m manafold_census.cli corpus-check --synthetic
       - name: Check synthetic structural reproduction
         run: python -m manafold_census.cli structural-check --synthetic
+      - name: Build bounded synthetic M3
+        run: python -m manafold_census.cli m3-build --synthetic
+      - name: Check bounded synthetic M3
+        run: python -m manafold_census.cli m3-check --synthetic
+      - name: Report bounded synthetic M3
+        run: python -m manafold_census.cli m3-report --synthetic
       - name: Build wheel
         run: python -m pip wheel . --no-deps --wheel-dir "$RUNNER_TEMP/wheel"
       - name: Fresh non-editable wheel smoke
