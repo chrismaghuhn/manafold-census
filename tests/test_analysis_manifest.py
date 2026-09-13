@@ -6,12 +6,9 @@ import pytest
 from analysis_fixtures import source_ref
 
 from manafold_census.analysis.manifest import (
-    ANALYSIS_INDEX_DIGEST_DOMAIN,
-    TRACE_INDEX_DIGEST_DOMAIN,
     AnalysisManifestV1,
     AnalysisShardDescriptorV1,
     analysis_shard_for,
-    index_digest_for,
     merge_partitioned_records,
     partition_records,
     record_identity_set_digest,
@@ -83,10 +80,6 @@ def manifest_for_fixture() -> AnalysisManifestV1:
         ),
         record_shards=tuple(records),
         trace_shards=tuple(trace),
-        record_index_digest=index_digest_for(
-            tuple(records), ANALYSIS_INDEX_DIGEST_DOMAIN
-        ),
-        trace_index_digest=index_digest_for(tuple(trace), TRACE_INDEX_DIGEST_DOMAIN),
     )
 
 
@@ -119,9 +112,13 @@ def test_identity_set_digest_is_order_independent() -> None:
 
 def test_partition_merge_parity_is_not_a_worker_backend() -> None:
     records = [card_record(1), card_record(2)]
-    reference = merge_partitioned_records(partition_records(records, 1))
+    expected = [card_source_key(record.source) for record in records]
+    reference = merge_partitioned_records(partition_records(records, 1), expected)
     for count in (2, 8, 16):
-        assert merge_partitioned_records(partition_records(records, count)) == reference
+        assert (
+            merge_partitioned_records(partition_records(records, count), expected)
+            == reference
+        )
 
 
 def test_manifest_rejects_report_identity_fields_and_bad_shard_set() -> None:

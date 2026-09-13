@@ -146,11 +146,25 @@ def partition_records(
 def merge_partitioned_records(
     partitions: tuple[tuple[CardAnalysisRecordV1, ...], ...]
     | list[tuple[CardAnalysisRecordV1, ...]],
+    expected_source_keys: list[tuple[str, str, str, str]]
+    | tuple[tuple[str, str, str, str], ...],
 ) -> tuple[CardAnalysisRecordV1, ...]:
-    flattened = [record for partition in partitions for record in partition]
+    flattened: list[CardAnalysisRecordV1] = []
+    for partition in partitions:
+        keys = [card_source_key(record.source) for record in partition]
+        if keys != sorted(keys):
+            raise ValueError("partition records are out of order")
+        flattened.extend(partition)
     keys = [card_source_key(record.source) for record in flattened]
     if len(keys) != len(set(keys)):
         raise ValueError("partition merge contains duplicate source identity")
+    expected = set(expected_source_keys)
+    actual = set(keys)
+    if expected != actual:
+        raise ValueError(
+            "partition merge identity mismatch: "
+            f"missing={len(expected - actual)} extra={len(actual - expected)}"
+        )
     return tuple(sorted(flattened, key=lambda item: card_source_key(item.source)))
 
 
@@ -170,8 +184,6 @@ class AnalysisManifestV1:
     record_identity_set_digest: str
     record_shards: tuple[AnalysisShardDescriptorV1, ...]
     trace_shards: tuple[AnalysisShardDescriptorV1, ...]
-    record_index_digest: str
-    trace_index_digest: str
 
     SCHEMA: ClassVar[str] = ANALYSIS_MANIFEST_SCHEMA
     _WIRE_KEYS: ClassVar[set[str]] = {
@@ -190,8 +202,6 @@ class AnalysisManifestV1:
         "record_identity_set_digest",
         "record_shards",
         "trace_shards",
-        "record_index_digest",
-        "trace_index_digest",
     }
 
     def __post_init__(self) -> None:
@@ -214,8 +224,6 @@ class AnalysisManifestV1:
             "producer_registry_digest",
             "pattern_registry_digest",
             "record_identity_set_digest",
-            "record_index_digest",
-            "trace_index_digest",
         ):
             _require_digest(field, getattr(self, field))
         _require_text("build_profile", self.build_profile)
@@ -230,18 +238,16 @@ class AnalysisManifestV1:
             raise ValueError("trace_shards must contain ordered 0-f shards")
         if tuple(item.kind for item in trace_shards) != ("trace",) * 16:
             raise ValueError("trace_shards must use trace paths")
-        if (
-            index_digest_for(record_shards, ANALYSIS_INDEX_DIGEST_DOMAIN)
-            != self.record_index_digest
-        ):
-            raise ValueError("record_index_digest does not match descriptors")
-        if (
-            index_digest_for(trace_shards, TRACE_INDEX_DIGEST_DOMAIN)
-            != self.trace_index_digest
-        ):
-            raise ValueError("trace_index_digest does not match descriptors")
         object.__setattr__(self, "record_shards", record_shards)
         object.__setattr__(self, "trace_shards", trace_shards)
+
+    @property
+    def record_index_digest(self) -> str:
+        return index_digest_for(self.record_shards, ANALYSIS_INDEX_DIGEST_DOMAIN)
+
+    @property
+    def trace_index_digest(self) -> str:
+        return index_digest_for(self.trace_shards, TRACE_INDEX_DIGEST_DOMAIN)
 
     def to_wire(self) -> dict[str, JSONValue]:
         return {
@@ -260,8 +266,6 @@ class AnalysisManifestV1:
             "record_identity_set_digest": self.record_identity_set_digest,
             "record_shards": [item.to_wire() for item in self.record_shards],
             "trace_shards": [item.to_wire() for item in self.trace_shards],
-            "record_index_digest": self.record_index_digest,
-            "trace_index_digest": self.trace_index_digest,
         }
 
     @classmethod
@@ -299,8 +303,6 @@ class AnalysisManifestV1:
             trace_shards=tuple(
                 AnalysisShardDescriptorV1.from_wire(item) for item in trace_shards
             ),
-            record_index_digest=cast(str, value["record_index_digest"]),
-            trace_index_digest=cast(str, value["trace_index_digest"]),
         )
 
     def digest(self) -> str:
