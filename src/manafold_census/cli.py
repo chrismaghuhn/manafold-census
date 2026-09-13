@@ -4,31 +4,15 @@ from __future__ import annotations
 
 import argparse
 import filecmp
-import gzip
 import json
 import platform
-import shutil
 import sys
 import tempfile
 from collections.abc import Sequence
 from pathlib import Path
-from types import SimpleNamespace
 from typing import cast
 
-from .analysis import (
-    AnalysisManifestV1,
-    EffectivePatternRegistryV1,
-    ProducerRegistryV1,
-    build_reference_m3,
-    build_reports,
-    validate_analysis_closure,
-)
-from .analysis.producer import (
-    CandidateProducerV1,
-    ProducerDescriptorV1,
-    ProducerResultV1,
-)
-from .analysis.report import ValidatedAnalysisRunV1
+from .analysis.cli_support import m3_command
 from .canonical import JSONValue, canonical_json_bytes
 from .corpus.build import (
     build_pinned_corpus,
@@ -41,16 +25,13 @@ from .corpus.check import validate_corpus_output
 from .digest import REPRODUCTION_DOMAIN, domain_digest, measure_file, sha256_bytes
 from .models import ArtifactManifest, DatasetManifest, SourceLock, StudySpec
 from .resources import project_data_root
-from .semantic.model import DerivationMethodV1
 from .source.scryfall import discover_oracle_cards, refresh_current_source
 from .source.transfer import fetch_pinned_source
-from .structural.build import build_pinned_structural, build_structural_corpus
+from .structural.build import build_pinned_structural
 from .structural.build import (
     run_synthetic_reproduction as run_structural_synthetic_reproduction,
 )
 from .structural.check import validate_pinned_structural_output
-from .structural.model import StructuralCardRecordV1
-from .structural.synthetic import _write_synthetic_input
 from .validation import validate_document, validate_source_file
 
 
@@ -63,24 +44,6 @@ def _read_fixture_spec(filename: str) -> dict[str, object]:
     return value
 
 
-def _write_m3_synthetic_input(root: Path) -> tuple[Path, Path]:
-    source_path, lock_path = _write_synthetic_input(root)
-    records = gzip.decompress(source_path.read_bytes()).splitlines()
-    records.append(
-        b'{"id":"66666666-6666-4666-8666-666666666667","layout":"normal",'
-        b'"name":"Synthetic Extra","object":"card",'
-        b'"oracle_id":"66666666-6666-4666-8666-666666666666"}'
-    )
-    source_path.write_bytes(gzip.compress(b"\n".join(records) + b"\n", mtime=0))
-    measurement = measure_file(source_path)
-    lock = json.loads(lock_path.read_bytes())
-    lock["artifacts"][0].update(
-        sha256=measurement.sha256, byte_length=measurement.byte_length
-    )
-    lock_path.write_bytes(canonical_json_bytes(lock))
-    return source_path, lock_path
-
-
 def _file_map(directory: Path) -> dict[str, Path]:
     return {
         path.relative_to(directory).as_posix(): path
@@ -90,6 +53,8 @@ def _file_map(directory: Path) -> dict[str, Path]:
 
 
 def directory_digest(directory: str | Path) -> str:
+    """Return a stable digest of relative output names and their file bytes."""
+
     root = Path(directory)
     entries = [
         {
@@ -103,6 +68,8 @@ def directory_digest(directory: str | Path) -> str:
 
 
 def build_fixture(output_dir: str | Path) -> str:
+    """Build the synthetic source-to-artifact fixture into a fresh directory."""
+
     output_path = Path(output_dir)
     output_path.mkdir(parents=True, exist_ok=True)
     if any(output_path.iterdir()):
@@ -156,6 +123,8 @@ def build_fixture(output_dir: str | Path) -> str:
 
 
 def reproduce() -> tuple[str, str]:
+    """Run two independent fixture builds and require byte-for-byte parity."""
+
     with (
         tempfile.TemporaryDirectory(prefix="census-reproduce-a-") as temp_a,
         tempfile.TemporaryDirectory(prefix="census-reproduce-b-") as temp_b,
@@ -182,6 +151,8 @@ def reproduce() -> tuple[str, str]:
 
 
 def doctor() -> int:
+    """Check the supported Python floor without touching external systems."""
+
     version = platform.python_version()
     if sys.version_info[:2] < (3, 12):  # noqa: UP036 - doctor checks the runtime floor
         print(f"python_version={version}")
@@ -193,6 +164,8 @@ def doctor() -> int:
 
 
 def source_discover() -> int:
+    """Print the current source facts without writing any local state."""
+
     observation = discover_oracle_cards()
     print(f"bulk_type={observation.bulk_type}")
     print(f"observed_format={observation.advertised_format}")
@@ -213,6 +186,8 @@ def source_discover() -> int:
 
 
 def source_refresh(repository_root: str | Path, proposal_path: str | Path) -> int:
+    """Refresh live bytes into the cache and write a reviewable lock proposal."""
+
     root = Path(repository_root)
     proposal = Path(proposal_path)
     if not proposal.is_absolute():
@@ -234,6 +209,8 @@ def source_refresh(repository_root: str | Path, proposal_path: str | Path) -> in
 
 
 def source_fetch_pinned(repository_root: str | Path) -> int:
+    """Fetch and verify the exact source artifact in the committed lock."""
+
     root = Path(repository_root)
     lock = load_source_lock(root / "source-locks" / "scryfall-oracle-v1.json")
     artifact = fetch_pinned_source(
@@ -248,6 +225,8 @@ def source_fetch_pinned(repository_root: str | Path) -> int:
 
 
 def corpus_build(repository_root: str | Path, output_dir: str | Path) -> int:
+    """Build the pinned source into a fresh generated corpus directory."""
+
     result = build_pinned_corpus(repository_root, output_dir)
     print(f"record_count={result.index.record_count}")
     print(f"unique_oracle_id_count={result.index.unique_oracle_id_count}")
@@ -261,6 +240,8 @@ def corpus_check(
     output_dir: str | Path | None,
     synthetic: bool,
 ) -> int:
+    """Validate a generated index, or run its fully offline synthetic check."""
+
     if synthetic:
         digest_a, digest_b = run_corpus_synthetic_reproduction()
         print(f"run_a_digest={digest_a}")
@@ -276,6 +257,8 @@ def corpus_check(
 
 
 def structural_build(repository_root: str | Path, output_dir: str | Path) -> int:
+    """Build the pinned structural census without network acquisition."""
+
     result = build_pinned_structural(repository_root, output_dir)
     print(f"structural_record_count={result.index.record_count}")
     print(f"unique_oracle_id_count={result.index.unique_oracle_id_count}")
@@ -289,6 +272,8 @@ def structural_check(
     output_dir: str | Path | None,
     synthetic: bool,
 ) -> int:
+    """Validate pinned structural output or run its offline reproduction."""
+
     if synthetic:
         digest_a, digest_b = run_structural_synthetic_reproduction()
         print(f"run_a_digest={digest_a}")
@@ -300,75 +285,6 @@ def structural_check(
     digest = validate_pinned_structural_output(repository_root, output_dir)
     print(f"aggregate_structural_index_digest={digest}")
     print("structural_check=PASS")
-    return 0
-
-
-def m3_command(command: str, args: argparse.Namespace) -> int:
-    paths = (args.output, args.structural_output, args.source_lock)
-    output, structural, source_lock = map(Path, paths)
-    if not args.synthetic:
-        raise ValueError(f"m3-{command} requires --synthetic")
-    if command == "build":
-        if any(p.exists() for p in (output, structural, source_lock)):
-            raise ValueError("m3 synthetic output paths must be fresh")
-        descriptor = ProducerDescriptorV1(
-            *(
-                "m3.synthetic.no-match",
-                "1",
-                DerivationMethodV1.DETERMINISTIC_RULE,
-                StructuralCardRecordV1.SCHEMA,
-                ("layout",),
-                None,
-                True,
-                False,
-            )
-        )
-        producer = cast(
-            CandidateProducerV1,
-            SimpleNamespace(
-                descriptor=descriptor, produce=lambda *_: ProducerResultV1.no_match()
-            ),
-        )
-        with tempfile.TemporaryDirectory(prefix="census-m3-input-") as temp:
-            source, lock = _write_m3_synthetic_input(Path(temp))
-            build_structural_corpus(source, lock, structural)
-            source_lock.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copyfile(lock, source_lock)
-        pattern_path = (
-            project_data_root() / "fixtures/analysis/pattern-registry.v1.json"
-        )
-        pattern = EffectivePatternRegistryV1.from_wire(
-            json.loads(pattern_path.read_bytes())
-        )
-        build_reference_m3(
-            structural,
-            ProducerRegistryV1.build([descriptor]),
-            pattern,
-            output,
-            producer_implementations=(producer,),
-            source_lock_path=source_lock,
-        )
-        print("m3-build=PASS")
-        return 0
-    validated = validate_analysis_closure(structural, output, source_lock)
-    manifest = AnalysisManifestV1.from_wire(
-        json.loads((output / "analysis-manifest.json").read_bytes())
-    )
-    result = SimpleNamespace(
-        manifest=manifest, records=validated[0].values, traces=validated[1].values
-    )
-    if command == "check":
-        print("m3-check=PASS")
-        return 0
-    index_path = output / "report-index.json"
-    if (
-        index_path.exists()
-        and json.loads(index_path.read_bytes()).get("analysis_manifest_sha256")
-        != manifest.digest()
-    ):
-        raise ValueError("report-index analysis manifest mismatch")
-    build_reports(cast(ValidatedAnalysisRunV1, result), output)
-    print("m3-report=PASS")
     return 0
 
 

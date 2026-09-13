@@ -5,6 +5,7 @@ import subprocess
 import sys
 from pathlib import Path
 
+from manafold_census import cli
 from manafold_census.canonical import canonical_json_bytes
 
 REPOSITORY_ROOT = Path(__file__).parents[1]
@@ -44,7 +45,9 @@ def test_bounded_synthetic_m3_cli_build_check_and_report(
     )
     assert build.returncode == 0, build.stderr
     assert "m3-build=PASS" in build.stdout
-    assert (output / "analysis-manifest.json").is_file()
+    manifest_path = output / "analysis-manifest.json"
+    assert manifest_path.is_file()
+    assert json.loads(manifest_path.read_bytes())["record_count"] == 5
 
     check = _run_cli(
         "m3-check",
@@ -149,3 +152,21 @@ def test_m3_report_rejects_report_index_for_wrong_analysis_manifest(
     assert rerun.returncode != 0
     assert "m3-report=FAIL:" in rerun.stderr
     assert "report-index analysis manifest mismatch" in rerun.stderr
+
+
+def test_unrelated_cli_commands_retain_their_documentation() -> None:
+    assert cli.reproduce.__doc__ == (
+        "Run two independent fixture builds and require byte-for-byte parity."
+    )
+    assert cli.doctor.__doc__ == (
+        "Check the supported Python floor without touching external systems."
+    )
+    assert cli.source_refresh.__doc__ == (
+        "Refresh live bytes into the cache and write a reviewable lock proposal."
+    )
+    assert cli.corpus_build.__doc__ == (
+        "Build the pinned source into a fresh generated corpus directory."
+    )
+    assert cli.structural_check.__doc__ == (
+        "Validate pinned structural output or run its offline reproduction."
+    )
