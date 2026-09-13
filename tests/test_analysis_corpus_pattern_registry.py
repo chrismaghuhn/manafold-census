@@ -23,6 +23,7 @@ from manafold_census.canonical import canonical_json_bytes
 from manafold_census.resources import project_data_root
 
 PROPOSAL_RECORD_ID = "m3.corpus.pattern-proposal.draw-two-cards.v1"
+DECISION_RECORD_ID = "m3.corpus.pattern-decision.draw-two-cards.v1"
 EXPECTED_PROPOSAL_SHA256 = (
     "f963d6ae37a6895458da2ed40b606d3d5f52f2f9daea97d6033c417fbbf478cb"
 )
@@ -31,6 +32,12 @@ EXPECTED_RULE_DIGEST = (
 )
 EXPECTED_REGISTRY_DIGEST = (
     "1f7f2189aaa9e2fa12b9e76f9da57ff7c57a4cd53a553b3de60287a31cd8cbaa"
+)
+EXPECTED_DECISION_SHA256 = (
+    "89b73bb76d2a54bd847a322519a12a43b0e9736361f307771598b2225e67fd07"
+)
+EXPECTED_POST_DECISION_REGISTRY_DIGEST = (
+    "097973ee6ae59b06d868eaac8e1947dc66e519fca78432b3f79a650e2d4e21c1"
 )
 
 
@@ -44,6 +51,10 @@ def _proposal_path() -> Path:
 
 def _registry_path() -> Path:
     return _analysis_config_root() / "m3-corpus-pattern-registry.v1.json"
+
+
+def _decision_path() -> Path:
+    return _analysis_config_root() / "m3-corpus-pattern-decision.v1.json"
 
 
 def _read_json(path: Path) -> dict[str, object]:
@@ -118,6 +129,35 @@ def test_proposal_record_is_closed_and_canonical() -> None:
     )
 
 
+def test_decision_record_is_closed_canonical_and_rejects_reuse() -> None:
+    path = _decision_path()
+    document = _read_json(path)
+
+    assert set(document) == {
+        "decision",
+        "decision_reason",
+        "pattern_id",
+        "pattern_version",
+        "proposal_record_id",
+        "proposal_record_sha256",
+        "record_id",
+        "record_version",
+        "reviewer_role",
+    }
+    assert path.read_bytes() == canonical_json_bytes(document)
+    assert document["record_id"] == DECISION_RECORD_ID
+    assert document["record_version"] == 1
+    assert document["decision"] == "REJECT_FOR_REUSE"
+    assert document["reviewer_role"] == "MAINTAINER"
+    assert document["proposal_record_id"] == PROPOSAL_RECORD_ID
+    assert document["proposal_record_sha256"] == EXPECTED_PROPOSAL_SHA256
+    assert document["pattern_id"] == "m3.corpus.exact-clause.draw-two-cards"
+    assert document["pattern_version"] == "1"
+    assert "effective_registry_digest" not in document
+    assert "EXACT_FRAGMENT" in str(document["decision_reason"])
+    assert "context" in str(document["decision_reason"])
+
+
 def test_corpus_registry_is_canonical_schema_valid_and_not_fixture_authority() -> None:
     root = project_data_root()
     registry_path = _registry_path()
@@ -162,24 +202,25 @@ def test_corpus_rule_and_typed_draw_output_are_exact() -> None:
     assert rule.m2_contract_version == "census.semantic-requirement.v1"
 
 
-def test_proposal_sha_is_the_only_review_binding_and_registry_digests_are_pinned() -> (
-    None
-):
+def test_decision_sha_is_the_registry_binding_and_rule_digest_is_unchanged() -> None:
     proposal_bytes = _proposal_path().read_bytes()
     proposal_sha = hashlib.sha256(proposal_bytes).hexdigest()
+    decision_bytes = _decision_path().read_bytes()
+    decision_sha = hashlib.sha256(decision_bytes).hexdigest()
     registry = EffectivePatternRegistryV1.from_wire(_read_json(_registry_path()))
     eligibility = registry.eligibility[0]
 
     assert proposal_sha == EXPECTED_PROPOSAL_SHA256
+    assert decision_sha == EXPECTED_DECISION_SHA256
     assert registry.rules[0].pattern_id == eligibility.pattern_id
     assert eligibility.eligibility.value == "NOT_ELIGIBLE"
-    assert eligibility.review_record_id == PROPOSAL_RECORD_ID
-    assert eligibility.review_record_sha256 == proposal_sha
+    assert eligibility.review_record_id == DECISION_RECORD_ID
+    assert eligibility.review_record_sha256 == decision_sha
     assert registry.rules[0].pattern_id == "m3.corpus.exact-clause.draw-two-cards"
     from manafold_census.analysis.patterns import pattern_rule_digest_for
 
     assert pattern_rule_digest_for(registry.rules[0]) == EXPECTED_RULE_DIGEST
-    assert registry.digest() == EXPECTED_REGISTRY_DIGEST
+    assert registry.digest() == EXPECTED_POST_DECISION_REGISTRY_DIGEST
 
 
 def test_proposed_corpus_rule_is_not_activated_by_registry_configuration() -> None:
@@ -218,3 +259,19 @@ def test_review_packet_records_pending_authority_and_exact_fragment_risk() -> No
     assert "triggered" in packet
     assert "modal" in packet
     assert "replacement" in packet
+
+
+def test_decision_report_records_rejection_without_establishing_authority() -> None:
+    report = (
+        project_data_root()
+        / "docs"
+        / "reports"
+        / "2026-09-14-m3-corpus-pattern-decision.md"
+    ).read_text(encoding="utf-8")
+
+    assert "DECISION   = REJECT_FOR_REUSE" in report
+    assert "ELIGIBILITY = NOT_ELIGIBLE" in report
+    assert "CORPUS_AUTHORITY_ESTABLISHED = NO" in report
+    assert "TASK_11_RETRY_ALLOWED        = NO" in report
+    assert "proposal validity = PASS" in report
+    assert "reuse approval     = REJECTED" in report
