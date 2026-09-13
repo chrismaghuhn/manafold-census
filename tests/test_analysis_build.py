@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import shutil
 from pathlib import Path
@@ -33,6 +34,14 @@ from manafold_census.analysis.producer import (
     ProducerResultV1,
 )
 from manafold_census.analysis.registry import ProducerRegistryV1
+from manafold_census.analysis.trace import (
+    NegativeAuthorityTraceDispositionV1,
+    NegativeAuthorityTraceEventV1,
+)
+from manafold_census.analysis.validate import (
+    AnalysisClosureError,
+    validate_analysis_closure,
+)
 from manafold_census.canonical import canonical_json_bytes
 from manafold_census.digest import sha256_bytes
 from manafold_census.models import (
@@ -178,6 +187,7 @@ def _draw_candidate(
     quantity: int,
     fragment: str,
     face_index: int | None = None,
+    resolution: ResolutionV1 | None = None,
 ) -> RequirementV1:
     source = _source_ref(record, context.source_lock_digest)
     return RequirementV1.create(
@@ -205,10 +215,10 @@ def _draw_candidate(
             )
         ),
         review=ReviewV1(ReviewStatusV1.PROPOSED, None, None),
-        resolution=ResolutionV1(
-            ResolutionStateV1.COMPLETE,
-            ResolutionReasonV1.NONE,
-            (),
+        resolution=(
+            ResolutionV1(ResolutionStateV1.COMPLETE, ResolutionReasonV1.NONE, ())
+            if resolution is None
+            else resolution
         ),
     )
 
@@ -386,6 +396,22 @@ class _UnsupportedProducer:
         return ProducerResultV1.no_match()
 
 
+class _MixedUnsupportedProducer:
+    descriptor = _descriptor(
+        "m3.fixture-mixed-unsupported",
+        input_fields=("layout", "oracle_text"),
+    )
+
+    def produce(
+        self,
+        record: StructuralCardRecordV1,
+        context: ProducerContextV1,
+    ) -> ProducerResultV1:
+        if record.name == "Golden No Match":
+            return ProducerResultV1.unsupported_shape("fixture mixed unsupported")
+        return ProducerResultV1.no_match()
+
+
 class _ConflictProducer:
     descriptor = _descriptor(
         "m3.fixture-conflict",
@@ -401,6 +427,37 @@ class _ConflictProducer:
             return ProducerResultV1.no_match()
         return ProducerResultV1.emitted(
             (_draw_candidate(record, context, self.descriptor, 1, "No matching rule."),)
+        )
+
+
+class _DisputedProducer:
+    descriptor = _descriptor(
+        "m3.fixture-disputed",
+        input_fields=("oracle_text",),
+    )
+
+    def produce(
+        self,
+        record: StructuralCardRecordV1,
+        context: ProducerContextV1,
+    ) -> ProducerResultV1:
+        if record.name != "Golden No Match":
+            return ProducerResultV1.no_match()
+        return ProducerResultV1.emitted(
+            (
+                _draw_candidate(
+                    record,
+                    context,
+                    self.descriptor,
+                    1,
+                    "No matching rule.",
+                    resolution=ResolutionV1(
+                        ResolutionStateV1.PARTIAL,
+                        ResolutionReasonV1.INSUFFICIENT_EVIDENCE,
+                        ("/parameters",),
+                    ),
+                ),
+            )
         )
 
 
@@ -494,6 +551,10 @@ def _producers(
     ]
     if variant == "conflict":
         values.append(_ConflictProducer())
+    if variant == "mixed":
+        values.extend((_ConflictProducer(), _MixedUnsupportedProducer()))
+    if variant == "disputed":
+        values.extend((_ConflictProducer(), _DisputedProducer()))
     return tuple(values)
 
 
@@ -706,6 +767,18 @@ def test_valid_negative_authority_allows_no_requirements_applicable(
     assert card.outcome is AnalysisOutcomeV1.NO_REQUIREMENTS_APPLICABLE
     assert card.bundle is None
     assert card.no_requirements_basis is not None
+    authority = _negative_authority_input(structural_records, result.source_lock_digest)
+    events = [
+        event
+        for event in result.traces
+        if isinstance(event, NegativeAuthorityTraceEventV1)
+    ]
+    assert len(events) == 1
+    assert events[0].authority == authority.reference
+    assert (
+        events[0].disposition
+        is NegativeAuthorityTraceDispositionV1.NEGATIVE_AUTHORITY_APPLIED
+    )
 
 
 def test_negative_authority_conflict_is_unresolved(tmp_path: Path) -> None:
@@ -721,10 +794,140 @@ def test_negative_authority_conflict_is_unresolved(tmp_path: Path) -> None:
     assert card.bundle is not None
     requirement_id = card.bundle.requirements[0].requirement_id
     assert any(
-        event.candidate_requirement_id == requirement_id
-        and event.disposition.value == "CANDIDATE_RETAINED"
+        getattr(event, "candidate_requirement_id", None) == requirement_id
+        and getattr(event, "disposition", None).value == "CANDIDATE_RETAINED"
         for event in result.traces
     )
+    authority_events = [
+        event
+        for event in result.traces
+        if isinstance(event, NegativeAuthorityTraceEventV1)
+    ]
+    assert len(authority_events) == 1
+    assert (
+        authority_events[0].disposition
+        is NegativeAuthorityTraceDispositionV1.NEGATIVE_AUTHORITY_CONFLICT
+    )
+
+
+def test_mixed_negative_authority_and_unsupported_emits_both_trace_causes(
+    tmp_path: Path,
+) -> None:
+    result, structural_records = _build(
+        tmp_path,
+        variant="mixed",
+        with_negative_authority=True,
+    )
+    card = result.record_for(
+        card_source_key(_source_ref(structural_records[4], result.source_lock_digest))
+    )
+    assert card.outcome is AnalysisOutcomeV1.UNRESOLVED_ANALYSIS
+    assert card.bundle is not None
+    assert any(
+        isinstance(event, NegativeAuthorityTraceEventV1)
+        and event.disposition
+        is NegativeAuthorityTraceDispositionV1.NEGATIVE_AUTHORITY_CONFLICT
+        for event in result.traces
+    )
+    assert any(
+        event.card_source_key == card_source_key(card.source)
+        and getattr(event, "producer_id", None) == "m3.fixture-conflict"
+        and getattr(event, "candidate_requirement_id", None) is not None
+        for event in result.traces
+    )
+    assert any(
+        event.card_source_key == card_source_key(card.source)
+        and getattr(event, "producer_id", None) == "m3.fixture-mixed-unsupported"
+        and getattr(event, "disposition", None).value == "PRODUCER_UNSUPPORTED_SHAPE"
+        for event in result.traces
+    )
+
+
+def test_negative_authority_and_disputed_candidates_preserve_both_causes(
+    tmp_path: Path,
+) -> None:
+    result, structural_records = _build(
+        tmp_path,
+        variant="disputed",
+        with_negative_authority=True,
+    )
+    card = result.record_for(
+        card_source_key(_source_ref(structural_records[4], result.source_lock_digest))
+    )
+    assert card.outcome is AnalysisOutcomeV1.UNRESOLVED_ANALYSIS
+    assert card.bundle is None
+    assert any(
+        isinstance(event, NegativeAuthorityTraceEventV1)
+        and event.disposition
+        is NegativeAuthorityTraceDispositionV1.NEGATIVE_AUTHORITY_CONFLICT
+        for event in result.traces
+    )
+    assert {
+        getattr(event, "producer_id", None)
+        for event in result.traces
+        if getattr(event, "disposition", None).value == "DISPUTED_IDENTITY_OMITTED"
+    } == {"m3.fixture-conflict", "m3.fixture-disputed"}
+
+
+def test_persisted_negative_authority_trace_unknown_source_fails_closed(
+    tmp_path: Path,
+) -> None:
+    structural_root, source_lock_path, records = _write_structural_fixture(
+        tmp_path / "structural"
+    )
+    source_lock_digest = _source_lock().digest()
+    authority = _negative_authority_input(records, source_lock_digest)
+    result = _invoke_build(
+        structural_root,
+        source_lock_path,
+        tmp_path / "out",
+        authority=authority,
+    )
+    trace_path = result.output_dir / "trace" / "4.jsonl"
+    documents = [json.loads(line) for line in trace_path.read_bytes().splitlines()]
+    authority_document = next(
+        document for document in documents if "authority" in document
+    )
+    authority_document["card_source_key"][1] = "44444444-4444-4444-8444-444444444443"
+    trace_path.write_bytes(
+        b"".join(canonical_json_bytes(document) + b"\n" for document in documents)
+    )
+    with pytest.raises(AnalysisClosureError, match="unknown source"):
+        validate_analysis_closure(structural_root, result.output_dir, source_lock_path)
+
+
+def test_persisted_negative_authority_trace_must_match_card_outcome(
+    tmp_path: Path,
+) -> None:
+    structural_root, source_lock_path, records = _write_structural_fixture(
+        tmp_path / "structural"
+    )
+    source_lock_digest = _source_lock().digest()
+    authority = _negative_authority_input(records, source_lock_digest)
+    result = _invoke_build(
+        structural_root,
+        source_lock_path,
+        tmp_path / "out",
+        variant="conflict",
+        authority=authority,
+    )
+    trace_path = result.output_dir / "trace" / "4.jsonl"
+    documents = [json.loads(line) for line in trace_path.read_bytes().splitlines()]
+    authority_document = next(
+        document for document in documents if "authority" in document
+    )
+    authority_document["disposition"] = "NEGATIVE_AUTHORITY_APPLIED"
+    trace_path.write_bytes(
+        b"".join(canonical_json_bytes(document) + b"\n" for document in documents)
+    )
+    manifest_path = result.output_dir / "analysis-manifest.json"
+    manifest_document = json.loads(manifest_path.read_bytes())
+    descriptor = manifest_document["trace_shards"][SHARD_NAMES.index("4")]
+    descriptor["sha256"] = hashlib.sha256(trace_path.read_bytes()).hexdigest()
+    descriptor["byte_length"] = trace_path.stat().st_size
+    manifest_path.write_bytes(canonical_json_bytes(manifest_document))
+    with pytest.raises(AnalysisClosureError, match="applied trace"):
+        validate_analysis_closure(structural_root, result.output_dir, source_lock_path)
 
 
 def test_producer_exception_aborts_without_manifest(tmp_path: Path) -> None:

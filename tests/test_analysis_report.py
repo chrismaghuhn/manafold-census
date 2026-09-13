@@ -82,12 +82,61 @@ def test_report_semantic_dimensions_are_derived_from_validated_records_and_trace
         "NO_REQUIREMENTS_APPLICABLE": 0,
         "UNRESOLVED_ANALYSIS": 2,
     }
-    assert document["requirements_by_review_status"]["PROPOSED"] == 5
-    assert document["requirements_by_resolution_state"]["COMPLETE"] == 5
-    assert document["requirements_by_resolution_reason"]["NONE"] == 5
-    assert document["requirements_by_derivation"]["DETERMINISTIC_RULE"] == 6
-    assert document["requirements_by_family"]["effect"] == 5
-    assert document["requirements_by_kind"]["draw_cards"] == 5
+    assert document["requirements_by_review_status"] == {
+        "PROPOSED": 5,
+        "IN_REVIEW": 0,
+        "ACCEPTED": 0,
+        "REJECTED": 0,
+    }
+    assert document["requirements_by_resolution_state"] == {
+        "COMPLETE": 5,
+        "PARTIAL": 0,
+        "UNRESOLVED": 0,
+    }
+    assert document["requirements_by_resolution_reason"] == {
+        "NONE": 5,
+        "INSUFFICIENT_EVIDENCE": 0,
+        "AMBIGUOUS_SOURCE": 0,
+        "UNSUPPORTED_SHAPE": 0,
+        "CONFLICTING_INTERPRETATIONS": 0,
+        "UNKNOWN_SEMANTICS": 0,
+    }
+    assert document["requirements_by_derivation"] == {
+        "HUMAN_AUTHORED": 0,
+        "DETERMINISTIC_RULE": 6,
+        "PARSER": 0,
+        "HEURISTIC": 0,
+        "MODEL": 0,
+        "IMPORTED_ANNOTATION": 0,
+    }
+    assert document["requirements_by_family"] == {
+        "effect": 5,
+        "event": 0,
+        "choice": 0,
+        "cost": 0,
+        "control": 0,
+        "reference": 0,
+        "unknown": 0,
+    }
+    assert document["requirements_by_kind"] == {
+        "move_between_zones": 0,
+        "create_object": 0,
+        "select": 0,
+        "modify_characteristic": 0,
+        "apply_continuous_effect": 0,
+        "search_zone": 0,
+        "draw_cards": 5,
+        "deal_damage": 0,
+        "create_delayed_effect": 0,
+        "trigger_from_event": 0,
+        "replace_event": 0,
+        "pay_cost": 0,
+        "modify_cost": 0,
+        "choose_mode": 0,
+        "conditional_effect": 0,
+        "keyword_reference": 0,
+        "unresolved": 0,
+    }
     assert document["matched_card_count"] == 2
     assert document["matched_requirement_count"] == 2
     assert document["distinct_pattern_count"] == 1
@@ -139,6 +188,90 @@ def test_negative_authority_conflict_is_attributed_without_no_match_blame(
     assert exact["no_match_count"] == 3
 
 
+def test_mixed_negative_authority_and_unsupported_attribution_is_multi_cause_safe(
+    tmp_path: Path,
+) -> None:
+    validated_run, _ = _build(
+        tmp_path / "fixture",
+        variant="mixed",
+        with_negative_authority=True,
+    )
+    result = build_reports(validated_run, validated_run.output_dir)
+    contributions = {
+        (item["producer_id"], item["producer_version"]): item
+        for item in result.report.to_wire()["producer_contributions"]
+    }
+
+    candidate = contributions[("m3.fixture-conflict", "1")]
+    assert candidate["candidate_emitted_count"] == 1
+    assert candidate["candidate_retained_count"] == 1
+    assert candidate["conflict_count"] == 1
+    assert candidate["unresolved_card_count"] == 1
+
+    unsupported = contributions[("m3.fixture-mixed-unsupported", "1")]
+    assert unsupported["unsupported_shape_count"] == 1
+    assert unsupported["unresolved_card_count"] == 1
+
+    assert contributions[("m3.exact-rule", "1")]["unresolved_card_count"] == 0
+    assert contributions[("m3.fixture-double", "1")]["unresolved_card_count"] == 0
+
+
+def test_negative_authority_and_dispute_keep_independent_contributions(
+    tmp_path: Path,
+) -> None:
+    validated_run, _ = _build(
+        tmp_path / "fixture",
+        variant="disputed",
+        with_negative_authority=True,
+    )
+    result = build_reports(validated_run, validated_run.output_dir)
+    document = result.report.to_wire()
+    contributions = {
+        (item["producer_id"], item["producer_version"]): item
+        for item in document["producer_contributions"]
+    }
+
+    assert document["largest_unresolved_groups"] == [
+        {"group_key": "DISPUTED_IDENTITY_OMITTED", "card_count": 1},
+        {"group_key": "PRODUCER_UNSUPPORTED_SHAPE", "card_count": 1},
+    ]
+    for producer_id in ("m3.fixture-conflict", "m3.fixture-disputed"):
+        contribution = contributions[(producer_id, "1")]
+        assert contribution["candidate_emitted_count"] == 1
+        assert contribution["candidate_retained_count"] == 0
+        assert contribution["conflict_count"] == 1
+        assert contribution["unresolved_card_count"] == 1
+    assert contributions[("m3.exact-rule", "1")]["unresolved_card_count"] == 0
+
+
+def test_report_does_not_infer_authority_conflict_from_bundle_presence(
+    tmp_path: Path,
+) -> None:
+    validated_run, structural_records = _build(tmp_path / "fixture")
+    target = next(
+        record
+        for record in validated_run.records
+        if record.source.oracle_id == structural_records[0].oracle_id
+    )
+    unresolved_target = replace(
+        target,
+        outcome=AnalysisOutcomeV1.UNRESOLVED_ANALYSIS,
+    )
+    records = tuple(
+        unresolved_target
+        if record.source.oracle_id == target.source.oracle_id
+        else record
+        for record in validated_run.records
+    )
+    synthetic_run = validated_run._replace(records=records)
+    result = build_reports(synthetic_run, validated_run.output_dir)
+
+    assert all(
+        item["group_key"] != "NEGATIVE_AUTHORITY_CONFLICT"
+        for item in result.report.to_wire()["largest_unresolved_groups"]
+    )
+
+
 def test_single_card_and_outlier_patterns_are_reported_deterministically(
     tmp_path: Path,
 ) -> None:
@@ -157,8 +290,12 @@ def test_single_card_and_outlier_patterns_are_reported_deterministically(
     )
     result = build_reports(synthetic_run, validated_run.output_dir)
 
-    assert "synthetic.singleton@1" in result.report.to_wire()["single_card_patterns"]
-    assert "synthetic.singleton@1" in result.report.to_wire()["outlier_patterns"]
+    assert result.report.to_wire()["single_card_patterns"] == [
+        "synthetic.singleton@1",
+    ]
+    assert result.report.to_wire()["outlier_patterns"] == [
+        "synthetic.singleton@1",
+    ]
 
 
 def test_disputed_candidate_is_the_only_unresolved_producer_contributor(

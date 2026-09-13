@@ -28,8 +28,14 @@ from .manifest import (
     AnalysisShardDescriptorV1,
     analysis_shard_for,
 )
-from .model import CardAnalysisRecordV1, card_source_key
-from .trace import RequirementTraceEventV1, trace_sort_key
+from .model import AnalysisOutcomeV1, CardAnalysisRecordV1, card_source_key
+from .trace import (
+    NegativeAuthorityTraceDispositionV1,
+    NegativeAuthorityTraceEventV1,
+    TraceEventV1,
+    trace_event_from_wire,
+    trace_sort_key,
+)
 
 
 class AnalysisClosureError(ValueError):
@@ -199,6 +205,8 @@ def _read_jsonl_shards(
                 raise AnalysisClosureError(f"{path} is missing final LF")
             try:
                 document = json.loads(line)
+                if kind == "trace":
+                    validate_document(document, "analysis-trace.v1.schema.json")
                 value = parser(document)
             except (
                 TypeError,
@@ -210,7 +218,7 @@ def _read_jsonl_shards(
                     f"{path} contains an invalid record"
                 ) from error
             parsed_value = cast(
-                CardAnalysisRecordV1 | RequirementTraceEventV1,
+                CardAnalysisRecordV1 | TraceEventV1,
                 value,
             )
             if line != canonical_json_bytes(parsed_value.to_wire()) + b"\n":
@@ -223,7 +231,7 @@ def _read_jsonl_shards(
                         f"{path} contains a record in the wrong shard"
                     )
             else:
-                trace = cast(RequirementTraceEventV1, value)
+                trace = cast(TraceEventV1, value)
                 key = trace.card_source_key
                 if analysis_shard_for(key[1]) != shard:
                     raise AnalysisClosureError(
@@ -266,12 +274,12 @@ def inspect_record_shards(directory: str | Path) -> ShardReadResultV1:
 
 def inspect_trace_shards(directory: str | Path) -> ShardReadResultV1:
     def trace_key(value: object) -> tuple[str, ...]:
-        return trace_sort_key(cast(RequirementTraceEventV1, value))
+        return trace_sort_key(cast(TraceEventV1, value))
 
     return _read_jsonl_shards(
         directory,
         kind="trace",
-        parser=RequirementTraceEventV1.from_wire,
+        parser=trace_event_from_wire,
         sort_key=trace_key,
     )
 
@@ -303,11 +311,44 @@ def validate_analysis_closure(
     )
     validate_identity_set(expected_keys, actual_keys)
     actual_key_set = set(actual_keys)
-    trace_keys = {
-        cast(RequirementTraceEventV1, value).card_source_key for value in traces.values
+    records_by_key = {
+        card_source_key(cast(CardAnalysisRecordV1, value).source): cast(
+            CardAnalysisRecordV1, value
+        )
+        for value in records.values
     }
+    trace_keys = {cast(TraceEventV1, value).card_source_key for value in traces.values}
     if not trace_keys <= actual_key_set:
         raise AnalysisClosureError("trace contains an unknown source identity")
+    authority_events: dict[
+        tuple[str, str, str, str], NegativeAuthorityTraceEventV1
+    ] = {}
+    for value in traces.values:
+        if not isinstance(value, NegativeAuthorityTraceEventV1):
+            continue
+        key = value.card_source_key
+        if key in authority_events:
+            raise AnalysisClosureError("duplicate negative authority trace")
+        record = records_by_key[key]
+        if (
+            value.disposition
+            is NegativeAuthorityTraceDispositionV1.NEGATIVE_AUTHORITY_APPLIED
+        ):
+            if (
+                record.outcome is not AnalysisOutcomeV1.NO_REQUIREMENTS_APPLICABLE
+                or record.no_requirements_basis != value.authority
+            ):
+                raise AnalysisClosureError(
+                    "negative authority applied trace does not match record"
+                )
+        elif (
+            record.outcome is not AnalysisOutcomeV1.UNRESOLVED_ANALYSIS
+            or record.no_requirements_basis is not None
+        ):
+            raise AnalysisClosureError(
+                "negative authority conflict trace does not match record"
+            )
+        authority_events[key] = value
     expected_source_lock_digest = source_lock.digest()
     if manifest.source_lock_digest != expected_source_lock_digest:
         raise AnalysisClosureError("analysis source lock digest mismatch")

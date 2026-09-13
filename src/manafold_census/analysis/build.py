@@ -51,7 +51,13 @@ from .producer import (
 )
 from .reconcile import ReconciliationFailure, reconcile
 from .registry import PRODUCER_REGISTRY_DIGEST_DOMAIN, ProducerRegistryV1
-from .trace import RequirementTraceEventV1, TraceDispositionV1, trace_sort_key
+from .trace import (
+    NegativeAuthorityTraceDispositionV1,
+    NegativeAuthorityTraceEventV1,
+    TraceEventV1,
+    producer_trace_events,
+    trace_sort_key,
+)
 from .validate import validate_analysis_closure
 
 M3_BUILD_PROFILE = "census.m3-reference.v1"
@@ -72,7 +78,7 @@ class ReferenceBuildResultV1(NamedTuple):
     source_lock_digest: str
     manifest: AnalysisManifestV1
     records: tuple[CardAnalysisRecordV1, ...]
-    traces: tuple[RequirementTraceEventV1, ...]
+    traces: tuple[TraceEventV1, ...]
     identity_set: tuple[tuple[str, str, str, str], ...]
 
     def record_for(self, source_key: tuple[str, str, str, str]) -> CardAnalysisRecordV1:
@@ -118,73 +124,6 @@ def _bind_producers(
     )
 
 
-def _trace_events(
-    record: StructuralCardRecordV1,
-    descriptor: ProducerDescriptorV1,
-    status: ProducerResultStatusV1,
-    candidates: tuple[RequirementV1, ...],
-    findings: tuple[ProducerFindingV1, ...],
-    retained: set[str],
-    disputed: set[str],
-) -> list[RequirementTraceEventV1]:
-    source_key = (
-        card_source_key(candidates[0].source)
-        if candidates
-        else (
-            StructuralCardRecordV1.SCHEMA,
-            record.oracle_id,
-            record.source_card_id,
-            record.source_record_sha256,
-        )
-    )
-    entries: list[tuple[str | None, TraceDispositionV1, ProducerFindingV1 | None]]
-    if status is ProducerResultStatusV1.EMITTED:
-        entries = [
-            (
-                candidate.requirement_id,
-                TraceDispositionV1.CANDIDATE_RETAINED
-                if candidate.requirement_id in retained
-                else TraceDispositionV1.DISPUTED_IDENTITY_OMITTED
-                if candidate.requirement_id in disputed
-                else TraceDispositionV1.CANDIDATE_EMITTED,
-                next(
-                    (item for item in findings if item.candidate_index == ordinal),
-                    None,
-                ),
-            )
-            for ordinal, candidate in enumerate(candidates)
-        ]
-    else:
-        entries = [
-            (
-                None,
-                TraceDispositionV1.PRODUCER_NO_MATCH
-                if status is ProducerResultStatusV1.NO_MATCH
-                else TraceDispositionV1.PRODUCER_UNSUPPORTED_SHAPE,
-                None,
-            )
-        ]
-    return [
-        RequirementTraceEventV1(
-            source_key,
-            descriptor.producer_id,
-            descriptor.producer_version,
-            None if finding is None else finding.pattern_id,
-            None if finding is None else finding.pattern_version,
-            None if finding is None else finding.pattern_digest,
-            None if finding is None else finding.source_field,
-            None if finding is None else finding.face_index,
-            None if finding is None else finding.exact_fragment,
-            None if finding is None else finding.clause_ordinal,
-            None if finding is None else finding.parser_span,
-            candidate_id,
-            None,
-            disposition,
-        )
-        for candidate_id, disposition, finding in entries
-    ]
-
-
 def _descriptor(
     path: Path, relative_path: str, record_count: int
 ) -> AnalysisShardDescriptorV1:
@@ -194,7 +133,7 @@ def _descriptor(
     )
 
 
-WireValue = CardAnalysisRecordV1 | RequirementTraceEventV1
+WireValue = CardAnalysisRecordV1 | TraceEventV1
 
 
 def _write_shard(
@@ -213,7 +152,7 @@ def _write_shard(
 def _write_shards(
     root: Path,
     records: tuple[CardAnalysisRecordV1, ...],
-    traces: tuple[RequirementTraceEventV1, ...],
+    traces: tuple[TraceEventV1, ...],
 ) -> tuple[
     tuple[AnalysisShardDescriptorV1, ...],
     tuple[AnalysisShardDescriptorV1, ...],
@@ -245,7 +184,7 @@ def _write_shards(
                 trace_path,
                 f"trace/{shard}.jsonl",
                 trace_values[shard],
-                lambda value: trace_sort_key(cast(RequirementTraceEventV1, value)),
+                lambda value: trace_sort_key(cast(TraceEventV1, value)),
             )
         )
     return tuple(record_descriptors), tuple(trace_descriptors)
@@ -324,7 +263,7 @@ def build_reference_m3(
         pattern_snapshot,
     )
     records: list[CardAnalysisRecordV1] = []
-    traces: list[RequirementTraceEventV1] = []
+    traces: list[TraceEventV1] = []
     for item in structural.records:
         source = source_ref_for_record(item, structural.source_lock_digest)
         candidates: list[RequirementV1] = []
@@ -373,7 +312,7 @@ def build_reference_m3(
         }
         for descriptor, status, result_candidates, result_findings in results:
             traces.extend(
-                _trace_events(
+                producer_trace_events(
                     item,
                     descriptor,
                     status,
@@ -419,6 +358,19 @@ def build_reference_m3(
             records.append(CardAnalysisRecordV1(source, outcome, card_bundle, basis))
         except (TypeError, ValueError) as error:
             raise _failure("INVALID_ANALYSIS_RECORD", item.oracle_id) from error
+        if has_authority:
+            authority_disposition = (
+                NegativeAuthorityTraceDispositionV1.NEGATIVE_AUTHORITY_APPLIED
+                if not conflict
+                else NegativeAuthorityTraceDispositionV1.NEGATIVE_AUTHORITY_CONFLICT
+            )
+            traces.append(
+                NegativeAuthorityTraceEventV1(
+                    key,
+                    cast(NegativeReviewAuthorityRefV1, authority_reference),
+                    authority_disposition,
+                )
+            )
     ordered_records = tuple(
         sorted(records, key=lambda item: card_source_key(item.source))
     )
@@ -426,7 +378,7 @@ def build_reference_m3(
     expected_keys = tuple(card_source_key(item.source) for item in ordered_records)
     manifest: AnalysisManifestV1
     reread_records: tuple[CardAnalysisRecordV1, ...]
-    reread_traces: tuple[RequirementTraceEventV1, ...]
+    reread_traces: tuple[TraceEventV1, ...]
     try:
         with tempfile.TemporaryDirectory(
             prefix=f".{output_path.name}-", dir=str(output_path.parent)
@@ -461,7 +413,7 @@ def build_reference_m3(
                 cast(CardAnalysisRecordV1, item) for item in record_result.values
             )
             reread_traces = tuple(
-                cast(RequirementTraceEventV1, item) for item in trace_result.values
+                cast(TraceEventV1, item) for item in trace_result.values
             )
             if (
                 tuple(card_source_key(item.source) for item in reread_records)

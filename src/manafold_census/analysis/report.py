@@ -26,7 +26,11 @@ from ..semantic.model import (
 from ..validation import validate_document
 from .manifest import AnalysisManifestV1
 from .model import AnalysisOutcomeV1, CardAnalysisRecordV1
-from .trace import RequirementTraceEventV1, TraceDispositionV1
+from .trace import (
+    RequirementTraceEventV1,
+    TraceDispositionV1,
+    TraceEventV1,
+)
 
 REPORT_SCHEMA = "census.analysis-report.v1"
 REPORT_INDEX_SCHEMA = "census.analysis-report-index.v1"
@@ -36,7 +40,7 @@ _DIGEST_PATTERN = r"^[0-9a-f]{64}$"
 class ValidatedAnalysisRunV1(Protocol):
     manifest: AnalysisManifestV1
     records: tuple[CardAnalysisRecordV1, ...]
-    traces: tuple[RequirementTraceEventV1, ...]
+    traces: tuple[TraceEventV1, ...]
 
 
 @dataclass(frozen=True, slots=True)
@@ -164,7 +168,7 @@ def _multi_face_card_count(records: Sequence[CardAnalysisRecordV1]) -> int:
 
 def _largest_unresolved_groups(
     records: Sequence[CardAnalysisRecordV1],
-    traces: Sequence[RequirementTraceEventV1],
+    traces: Sequence[TraceEventV1],
 ) -> list[dict[str, JSONValue]]:
     dispositions: dict[tuple[str, str, str, str], set[str]] = defaultdict(set)
     for event in traces:
@@ -200,7 +204,7 @@ def _unresolved_group_for(
         return "DISPUTED_IDENTITY_OMITTED"
     if "PRODUCER_UNSUPPORTED_SHAPE" in card_dispositions:
         return "PRODUCER_UNSUPPORTED_SHAPE"
-    if record.bundle is not None:
+    if "NEGATIVE_AUTHORITY_CONFLICT" in card_dispositions:
         return "NEGATIVE_AUTHORITY_CONFLICT"
     if "PRODUCER_NO_MATCH" in card_dispositions:
         return "PRODUCER_NO_MATCH"
@@ -252,7 +256,11 @@ def _report_document(
         defaultdict(set)
     )
     pattern_stats: dict[tuple[str, str, str], dict[str, object]] = {}
-    trace_dispositions = Counter(event.disposition.value for event in traces)
+    trace_dispositions = Counter(
+        event.disposition.value
+        for event in traces
+        if isinstance(event, RequirementTraceEventV1)
+    )
     matched_cards: set[tuple[str, str, str, str]] = set()
     matched_requirements: set[tuple[tuple[str, str, str, str], str]] = set()
     card_dispositions: dict[tuple[str, str, str, str], set[str]] = defaultdict(set)
@@ -263,6 +271,8 @@ def _report_document(
         for record in records
     }
     for event in traces:
+        if not isinstance(event, RequirementTraceEventV1):
+            continue
         producer_key = (event.producer_id, event.producer_version)
         disposition = event.disposition
         producer_stats[producer_key]["candidate_emitted_count"] += int(
@@ -286,6 +296,10 @@ def _report_document(
             disposition is TraceDispositionV1.DISPUTED_IDENTITY_OMITTED
         )
         group = card_groups.get(event.card_source_key)
+        card_has_authority_conflict = (
+            "NEGATIVE_AUTHORITY_CONFLICT"
+            in card_dispositions.get(event.card_source_key, set())
+        )
         if (
             group == "DISPUTED_IDENTITY_OMITTED"
             and disposition is TraceDispositionV1.DISPUTED_IDENTITY_OMITTED
@@ -294,13 +308,14 @@ def _report_document(
             and disposition is TraceDispositionV1.PRODUCER_UNSUPPORTED_SHAPE
         ):
             producer_unresolved[producer_key].add(event.card_source_key)
-        if group == "NEGATIVE_AUTHORITY_CONFLICT" and disposition in {
+        if card_has_authority_conflict and disposition in {
             TraceDispositionV1.CANDIDATE_EMITTED,
             TraceDispositionV1.CANDIDATE_RETAINED,
             TraceDispositionV1.DISPUTED_IDENTITY_OMITTED,
         }:
             producer_unresolved[producer_key].add(event.card_source_key)
-            producer_stats[producer_key]["conflict_count"] += 1
+            if disposition is not TraceDispositionV1.DISPUTED_IDENTITY_OMITTED:
+                producer_stats[producer_key]["conflict_count"] += 1
         if event.pattern_id is None or event.candidate_requirement_id is None:
             continue
         matched_cards.add(event.card_source_key)

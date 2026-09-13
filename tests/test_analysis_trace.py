@@ -5,12 +5,34 @@ import copy
 import pytest
 from analysis_fixtures import trace_event
 
+from manafold_census.analysis.model import NegativeReviewAuthorityRefV1
 from manafold_census.analysis.trace import (
+    NegativeAuthorityTraceDispositionV1,
+    NegativeAuthorityTraceEventV1,
     RequirementTraceEventV1,
     TraceDispositionV1,
+    trace_event_from_wire,
     trace_sort_key,
 )
 from manafold_census.validation import validate_document
+
+
+def _authority_trace_event(
+    disposition: NegativeAuthorityTraceDispositionV1 = (
+        NegativeAuthorityTraceDispositionV1.NEGATIVE_AUTHORITY_APPLIED
+    ),
+) -> NegativeAuthorityTraceEventV1:
+    return NegativeAuthorityTraceEventV1(
+        card_source_key=trace_event().card_source_key,
+        authority=NegativeReviewAuthorityRefV1(
+            authority_id="fixture-negative-authority",
+            authority_version="1",
+            record_id="nra_" + "a" * 64,
+            record_sha256="b" * 64,
+            scope_digest="c" * 64,
+        ),
+        disposition=disposition,
+    )
 
 
 def test_trace_locator_does_not_change_requirement_identity() -> None:
@@ -41,6 +63,44 @@ def test_trace_schema_accepts_a_valid_event() -> None:
         trace_event().to_wire(),
         "analysis-trace.v1.schema.json",
     )
+
+
+@pytest.mark.parametrize(
+    "disposition",
+    list(NegativeAuthorityTraceDispositionV1),
+)
+def test_negative_authority_trace_roundtrip_and_schema(
+    disposition: NegativeAuthorityTraceDispositionV1,
+) -> None:
+    event = _authority_trace_event(disposition)
+    wire = event.to_wire()
+    validate_document(wire, "analysis-trace.v1.schema.json")
+    assert trace_event_from_wire(wire).to_wire() == wire
+
+
+def test_negative_authority_trace_rejects_malformed_identity_and_disposition() -> None:
+    malformed = _authority_trace_event().to_wire()
+    malformed["authority"]["record_sha256"] = "not-a-digest"
+    with pytest.raises(ValueError, match="record_sha256"):
+        trace_event_from_wire(malformed)
+    with pytest.raises(ValueError):
+        validate_document(malformed, "analysis-trace.v1.schema.json")
+
+    unknown = _authority_trace_event().to_wire()
+    unknown["disposition"] = "NEGATIVE_AUTHORITY_UNKNOWN"
+    with pytest.raises(ValueError, match="disposition"):
+        trace_event_from_wire(unknown)
+    with pytest.raises(ValueError):
+        validate_document(unknown, "analysis-trace.v1.schema.json")
+
+
+def test_trace_union_order_is_input_order_independent() -> None:
+    producer = trace_event()
+    authority = _authority_trace_event(
+        NegativeAuthorityTraceDispositionV1.NEGATIVE_AUTHORITY_CONFLICT
+    )
+    expected = tuple(sorted((producer, authority), key=trace_sort_key))
+    assert tuple(sorted((authority, producer), key=trace_sort_key)) == expected
 
 
 def test_trace_wire_rejects_unknown_fields_and_invalid_source_key() -> None:

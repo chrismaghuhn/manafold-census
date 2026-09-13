@@ -1,4 +1,4 @@
-"""Immutable, producer-local M3 extraction trace events."""
+"""Immutable M3 producer and authority extraction trace events."""
 
 from __future__ import annotations
 
@@ -8,8 +8,16 @@ from enum import StrEnum
 from typing import ClassVar, cast
 
 from ..canonical import JSONValue, canonical_json_bytes
+from ..semantic.model import RequirementV1
 from ..semantic.primitives import _require_enum, _require_object
+from ..structural.model import StructuralCardRecordV1
+from .model import NegativeReviewAuthorityRefV1, card_source_key
 from .patterns import PatternSourceFieldV1
+from .producer import (
+    ProducerDescriptorV1,
+    ProducerFindingV1,
+    ProducerResultStatusV1,
+)
 
 TRACE_SCHEMA = "census.analysis-trace.v1"
 _UUID_PATTERN = re.compile(
@@ -25,6 +33,11 @@ class TraceDispositionV1(StrEnum):
     PRODUCER_UNSUPPORTED_SHAPE = "PRODUCER_UNSUPPORTED_SHAPE"
     CANDIDATE_RETAINED = "CANDIDATE_RETAINED"
     DISPUTED_IDENTITY_OMITTED = "DISPUTED_IDENTITY_OMITTED"
+
+
+class NegativeAuthorityTraceDispositionV1(StrEnum):
+    NEGATIVE_AUTHORITY_APPLIED = "NEGATIVE_AUTHORITY_APPLIED"
+    NEGATIVE_AUTHORITY_CONFLICT = "NEGATIVE_AUTHORITY_CONFLICT"
 
 
 def _require_text(field: str, value: object) -> str:
@@ -274,19 +287,160 @@ class RequirementTraceEventV1:
         )
 
 
+def producer_trace_events(
+    record: StructuralCardRecordV1,
+    descriptor: ProducerDescriptorV1,
+    status: ProducerResultStatusV1,
+    candidates: tuple[RequirementV1, ...],
+    findings: tuple[ProducerFindingV1, ...],
+    retained: set[str],
+    disputed: set[str],
+) -> list[RequirementTraceEventV1]:
+    source_key = (
+        card_source_key(candidates[0].source)
+        if candidates
+        else (
+            StructuralCardRecordV1.SCHEMA,
+            record.oracle_id,
+            record.source_card_id,
+            record.source_record_sha256,
+        )
+    )
+    entries: list[tuple[str | None, TraceDispositionV1, ProducerFindingV1 | None]]
+    if status is ProducerResultStatusV1.EMITTED:
+        entries = [
+            (
+                candidate.requirement_id,
+                TraceDispositionV1.CANDIDATE_RETAINED
+                if candidate.requirement_id in retained
+                else TraceDispositionV1.DISPUTED_IDENTITY_OMITTED
+                if candidate.requirement_id in disputed
+                else TraceDispositionV1.CANDIDATE_EMITTED,
+                next(
+                    (item for item in findings if item.candidate_index == ordinal),
+                    None,
+                ),
+            )
+            for ordinal, candidate in enumerate(candidates)
+        ]
+    else:
+        entries = [
+            (
+                None,
+                TraceDispositionV1.PRODUCER_NO_MATCH
+                if status is ProducerResultStatusV1.NO_MATCH
+                else TraceDispositionV1.PRODUCER_UNSUPPORTED_SHAPE,
+                None,
+            )
+        ]
+    return [
+        RequirementTraceEventV1(
+            source_key,
+            descriptor.producer_id,
+            descriptor.producer_version,
+            None if finding is None else finding.pattern_id,
+            None if finding is None else finding.pattern_version,
+            None if finding is None else finding.pattern_digest,
+            None if finding is None else finding.source_field,
+            None if finding is None else finding.face_index,
+            None if finding is None else finding.exact_fragment,
+            None if finding is None else finding.clause_ordinal,
+            None if finding is None else finding.parser_span,
+            candidate_id,
+            None,
+            disposition,
+        )
+        for candidate_id, disposition, finding in entries
+    ]
+
+
+@dataclass(frozen=True, slots=True)
+class NegativeAuthorityTraceEventV1:
+    card_source_key: tuple[str, str, str, str]
+    authority: NegativeReviewAuthorityRefV1
+    disposition: NegativeAuthorityTraceDispositionV1
+
+    SCHEMA: ClassVar[str] = TRACE_SCHEMA
+    _WIRE_KEYS: ClassVar[set[str]] = {
+        "schema",
+        "card_source_key",
+        "authority",
+        "disposition",
+    }
+
+    def __post_init__(self) -> None:
+        object.__setattr__(
+            self, "card_source_key", _require_source_key(self.card_source_key)
+        )
+        if not isinstance(self.authority, NegativeReviewAuthorityRefV1):
+            raise TypeError("authority must be NegativeReviewAuthorityRefV1")
+        object.__setattr__(
+            self,
+            "disposition",
+            _require_enum(
+                "disposition",
+                self.disposition,
+                NegativeAuthorityTraceDispositionV1,
+            ),
+        )
+
+    def to_wire(self) -> dict[str, JSONValue]:
+        return {
+            "schema": self.SCHEMA,
+            "card_source_key": list(self.card_source_key),
+            "authority": self.authority.to_wire(),
+            "disposition": self.disposition.value,
+        }
+
+    @classmethod
+    def from_wire(cls, value: object) -> NegativeAuthorityTraceEventV1:
+        document = _require_object(value, cls._WIRE_KEYS, "negative authority trace")
+        if document["schema"] != cls.SCHEMA:
+            raise ValueError(f"schema must be {cls.SCHEMA}")
+        return cls(
+            card_source_key=_require_source_key(document["card_source_key"]),
+            authority=NegativeReviewAuthorityRefV1.from_wire(document["authority"]),
+            disposition=_require_enum(
+                "disposition",
+                document["disposition"],
+                NegativeAuthorityTraceDispositionV1,
+            ),
+        )
+
+
 def _require_span(value: object) -> list[object]:
     if not isinstance(value, list) or len(value) != 2:
         raise ValueError("parser_span must contain two offsets")
     return value
 
 
-def trace_sort_key(
-    event: RequirementTraceEventV1,
-) -> tuple[str, ...]:
+TraceEventV1 = RequirementTraceEventV1 | NegativeAuthorityTraceEventV1
+
+
+def trace_event_from_wire(value: object) -> TraceEventV1:
+    if isinstance(value, dict) and "authority" in value:
+        return NegativeAuthorityTraceEventV1.from_wire(value)
+    return RequirementTraceEventV1.from_wire(value)
+
+
+def trace_sort_key(event: TraceEventV1) -> tuple[str, ...]:
+    if isinstance(event, NegativeAuthorityTraceEventV1):
+        return (
+            *event.card_source_key,
+            "AUTHORITY",
+            event.authority.authority_id,
+            event.authority.authority_version,
+            event.authority.record_id,
+            event.authority.record_sha256,
+            event.authority.scope_digest,
+            event.disposition.value,
+            canonical_json_bytes(event.to_wire()).decode("utf-8"),
+        )
     if not isinstance(event, RequirementTraceEventV1):
-        raise TypeError("event must be RequirementTraceEventV1")
+        raise TypeError("event must be a supported trace event")
     return (
         *event.card_source_key,
+        "PRODUCER",
         event.producer_id,
         event.producer_version,
         event.pattern_id or "",
@@ -307,7 +461,12 @@ def trace_sort_key(
 
 __all__ = [
     "RequirementTraceEventV1",
+    "NegativeAuthorityTraceEventV1",
+    "NegativeAuthorityTraceDispositionV1",
     "TRACE_SCHEMA",
+    "TraceEventV1",
     "TraceDispositionV1",
+    "producer_trace_events",
+    "trace_event_from_wire",
     "trace_sort_key",
 ]
