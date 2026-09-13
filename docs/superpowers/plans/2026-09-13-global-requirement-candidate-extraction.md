@@ -337,9 +337,9 @@ Define:
 
 ~~~python
 class AnalysisOutcomeV1(StrEnum):
-    REQUIREMENTS_PRODUCED = 'REQUIREMENTS_PRODUCED'
-    NO_REQUIREMENTS_APPLICABLE = 'NO_REQUIREMENTS_APPLICABLE'
-    UNRESOLVED_ANALYSIS = 'UNRESOLVED_ANALYSIS'
+    REQUIREMENTS_PRODUCED = "REQUIREMENTS_PRODUCED"
+    NO_REQUIREMENTS_APPLICABLE = "NO_REQUIREMENTS_APPLICABLE"
+    UNRESOLVED_ANALYSIS = "UNRESOLVED_ANALYSIS"
 
 
 @dataclass(frozen=True, slots=True)
@@ -432,17 +432,15 @@ model calls.
 
 ~~~python
 def test_producer_descriptor_round_trips_and_registry_is_sorted() -> None:
-    registry = ProducerRegistryV1.build(
-        [parser_descriptor(), exact_rule_descriptor()]
-    )
+    registry = ProducerRegistryV1.build([parser_descriptor(), exact_rule_descriptor()])
     assert [item.producer_id for item in registry.producers] == [
-        'm3.exact-rule',
-        'm3.parser',
+        "m3.exact-rule",
+        "m3.parser",
     ]
 
 
 def test_authoritative_registry_rejects_nondeterministic_active_producer() -> None:
-    with pytest.raises(ProducerRegistryError, match='deterministic'):
+    with pytest.raises(ProducerRegistryError, match="deterministic"):
         ProducerRegistryV1.build(
             [nondeterministic_model_descriptor()]
         ).for_authoritative_run()
@@ -450,7 +448,7 @@ def test_authoritative_registry_rejects_nondeterministic_active_producer() -> No
 
 def test_producer_candidate_with_terminal_review_is_invalid() -> None:
     candidate = requirement_with_review(ReviewStatusV1.ACCEPTED)
-    with pytest.raises(ProducerContractError, match='PROPOSED'):
+    with pytest.raises(ProducerContractError, match="PROPOSED"):
         validate_producer_candidate(
             candidate, structural_record(), source_lock_digest()
         )
@@ -481,9 +479,9 @@ Define immutable values with strict wire conversion:
 
 ~~~python
 class ProducerResultStatusV1(StrEnum):
-    EMITTED = 'EMITTED'
-    NO_MATCH = 'NO_MATCH'
-    UNSUPPORTED_SHAPE = 'UNSUPPORTED_SHAPE'
+    EMITTED = "EMITTED"
+    NO_MATCH = "NO_MATCH"
+    UNSUPPORTED_SHAPE = "UNSUPPORTED_SHAPE"
 
 
 @dataclass(frozen=True, slots=True)
@@ -588,15 +586,15 @@ def test_effective_pattern_registry_digest_changes_when_eligibility_changes() ->
 
 def test_pattern_identity_contains_behavior_but_not_card_name() -> None:
     rule = exact_clause_rule(
-        pattern_id='m3.exact-clause.draw',
-        version='1',
+        pattern_id="m3.exact-clause.draw",
+        version="1",
     )
-    assert not hasattr(rule, 'card_name')
+    assert not hasattr(rule, "card_name")
 
 
 def test_trace_locator_does_not_change_requirement_identity() -> None:
-    first = requirement_from_fragment('draw a card', span=(0, 12))
-    second = requirement_from_fragment('draw a card', span=(15, 27))
+    first = requirement_from_fragment("draw a card", span=(0, 12))
+    second = requirement_from_fragment("draw a card", span=(15, 27))
     assert first.requirement_id == second.requirement_id
 
 
@@ -720,7 +718,7 @@ def test_same_id_different_resolution_is_omitted_not_synthesized() -> None:
     result = reconcile([complete_candidate(), partial_candidate_same_id()])
     assert result.requirements == ()
     assert result.outcome_is_unresolved is True
-    assert result.trace_dispositions == ('DISPUTED_IDENTITY_OMITTED',)
+    assert result.trace_dispositions == ("DISPUTED_IDENTITY_OMITTED",)
 
 
 def test_other_undisputed_requirements_survive_a_disputed_identity() -> None:
@@ -748,7 +746,7 @@ def test_conflicts_with_requires_explicit_producer_proposal() -> None:
 
 
 def test_terminal_producer_review_is_execution_failure() -> None:
-    with pytest.raises(ReconciliationFailure, match='PROPOSED'):
+    with pytest.raises(ReconciliationFailure, match="PROPOSED"):
         reconcile([accepted_producer_candidate()])
 ~~~
 
@@ -1103,14 +1101,8 @@ finalized analysis manifest. Never add report hashes to AnalysisManifestV1.
 
 ~~~python
 def test_report_index_binds_analysis_manifest_and_report_bytes(tmp_path) -> None:
-    report_index = build_reports(
-        validated_fixture_run(),
-        tmp_path / 'reports',
-    )
-    assert (
-        report_index.analysis_manifest_sha256
-        == validated_fixture_manifest_sha256()
-    )
+    report_index = build_reports(validated_fixture_run(), tmp_path / "reports")
+    assert report_index.analysis_manifest_sha256 == validated_fixture_manifest_sha256()
     assert report_index.report_descriptors
 
 
@@ -1122,7 +1114,7 @@ def test_analysis_manifest_does_not_change_when_report_bytes_change() -> None:
 
 
 def test_report_index_is_not_an_analysis_manifest_input() -> None:
-    assert 'report-index' not in analysis_manifest_wire_text()
+    assert "report-index" not in analysis_manifest_wire_text()
 
 
 def test_report_order_and_reuse_counts_are_integer_and_deterministic() -> None:
