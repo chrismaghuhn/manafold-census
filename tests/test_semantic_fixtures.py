@@ -125,6 +125,80 @@ def test_hypothesizzle_is_the_authorized_conflict_case_and_shahrazad_is_not() ->
     )
 
 
+def test_revision01_repairs_remain_pinned_for_living_cryptic_platinum_and_eerie() -> (
+    None
+):
+    cases, _, _ = _loaded_fixture_state()
+    by_case = {
+        case["case_id"]: RequirementBundleV1.from_wire(case["bundle"]) for case in cases
+    }
+
+    living = by_case["multiple_requirements"]
+    living_moves = [
+        item
+        for item in living.requirements
+        if item.kind is RequirementKindV1.MOVE_BETWEEN_ZONES
+    ]
+    assert {
+        (item.parameters.from_zone.zone.value, item.parameters.to_zone.zone.value)
+        for item in living_moves
+    } == {
+        ("graveyard", "exile"),
+        ("battlefield", "graveyard"),
+        ("exile", "battlefield"),
+    }
+    assert all(
+        relationship.relationship_type is RelationshipTypeV1.SEQUENCE_BEFORE
+        for relationship in living.relationships
+    )
+
+    cryptic = by_case["modal_relationships"]
+    choose = next(
+        item
+        for item in cryptic.requirements
+        if item.kind is RequirementKindV1.CHOOSE_MODE
+    )
+    select = next(
+        item for item in cryptic.requirements if item.kind is RequirementKindV1.SELECT
+    )
+    assert len(choose.parameters.alternatives) == 4
+    assert choose.parameters.minimum.value == 2
+    assert choose.parameters.maximum.value == 2
+    assert select.parameters.targeting is True
+    assert select.resolution.state.value == "PARTIAL"
+    assert all(
+        relationship.relationship_type is RelationshipTypeV1.PARENT_OF
+        for relationship in cryptic.relationships
+    )
+
+    platinum = by_case["replacement"].requirements[0]
+    assert platinum.kind is RequirementKindV1.UNRESOLVED
+    assert platinum.resolution.reason.value == "UNSUPPORTED_SHAPE"
+
+    eerie = by_case["selection_and_delayed"]
+    selection = next(
+        item for item in eerie.requirements if item.kind is RequirementKindV1.SELECT
+    )
+    delayed = next(
+        item
+        for item in eerie.requirements
+        if item.kind is RequirementKindV1.CREATE_DELAYED_EFFECT
+    )
+    assert selection.parameters.quantity.mode.value == "symbolic"
+    assert selection.parameters.quantity.value == "any number"
+    assert selection.parameters.targeting is True
+    assert set(selection.resolution.unknown_paths) == {
+        "/parameters.quantity",
+        "/parameters.restriction",
+    }
+    assert any(
+        relationship.relationship_type is RelationshipTypeV1.SEQUENCE_BEFORE
+        and relationship.from_requirement_id == selection.requirement_id
+        and relationship.to_requirement_id == delayed.requirement_id
+        for relationship in eerie.relationships
+    )
+
+
 def test_review_report_binds_exact_claim_projection_without_terminal_review() -> None:
     report = build_review_report()
     assert {case["case_id"] for case in report} == EXPECTED_CASE_IDS

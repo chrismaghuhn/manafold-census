@@ -1387,7 +1387,8 @@
             "reason": "INSUFFICIENT_EVIDENCE",
             "state": "PARTIAL",
             "unknown_paths": [
-              "/parameters.quantity"
+              "/parameters.quantity",
+              "/parameters.restriction"
             ]
           },
           "review": {
