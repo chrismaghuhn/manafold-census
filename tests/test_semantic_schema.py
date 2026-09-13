@@ -3,6 +3,7 @@ import json
 import pytest
 
 from manafold_census.resources import project_data_root
+from manafold_census.semantic.bundle import RequirementBundleV1
 from manafold_census.semantic.evidence import (
     ExternalReviewEvidenceV1,
     RulesCitationEvidenceV1,
@@ -275,13 +276,11 @@ def _requirements() -> dict[str, RequirementV1]:
     }
 
 
-def test_requirement_schema_is_present_and_is_not_the_bundle_schema() -> None:
+def test_m2_schemas_are_present() -> None:
     root = project_data_root()
     schema_path = root / "schemas" / "semantic-requirement.v1.schema.json"
     assert schema_path.is_file()
-    assert not (
-        root / "schemas" / "semantic-requirement-bundle.v1.schema.json"
-    ).exists()
+    assert (root / "schemas" / "semantic-requirement-bundle.v1.schema.json").is_file()
 
     schema = json.loads(schema_path.read_text(encoding="utf-8"))
     assert schema["$schema"] == "https://json-schema.org/draft/2020-12/schema"
@@ -290,6 +289,22 @@ def test_requirement_schema_is_present_and_is_not_the_bundle_schema() -> None:
         == "https://manafold-census.invalid/schemas/semantic-requirement.v1.schema.json"
     )
     assert schema["additionalProperties"] is False
+
+
+def test_bundle_schema_uses_an_offline_local_requirement_ref() -> None:
+    root = project_data_root()
+    schema = json.loads(
+        (root / "schemas" / "semantic-requirement-bundle.v1.schema.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert (
+        schema["properties"]["requirements"]["items"]["$ref"]
+        == "semantic-requirement.v1.schema.json"
+    )
+    requirement = _requirements()["draw_cards"]
+    bundle = RequirementBundleV1(requirement.source, (requirement,), ())
+    validate_document(bundle.to_wire(), "semantic-requirement-bundle.v1.schema.json")
 
 
 def test_every_kind_branch_matches_the_immutable_model() -> None:
