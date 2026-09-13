@@ -276,9 +276,11 @@ states.
 
 #### `NO_REQUIREMENTS_APPLICABLE`
 
-The record contains no bundle and carries a positive, versioned applicability
-basis. It is valid only when an allowlisted deterministic classifier proves
-that no M3 semantic requirement rule applies to the source facts in scope.
+The record contains no bundle and carries a reference to an explicit,
+versioned, digest-bound negative review authority. That authority must state
+that this exact source identity has no applicable Requirements for its declared
+M3 semantic scope. It is a separate authority artifact, not an ordinary
+producer, pattern rule, or classifier result.
 
 The following is not sufficient:
 
@@ -286,12 +288,14 @@ The following is not sufficient:
 all ordinary producers returned []
 ```
 
-If no producer matches but no positive no-result basis exists, the outcome is
-`UNRESOLVED_ANALYSIS`.
+If no producer matches and no explicit negative review authority is supplied,
+the outcome is `UNRESOLVED_ANALYSIS`. Deterministic negative matching does not
+have more semantic authority than deterministic positive matching.
 
-The basis is M3 extraction evidence, not a new M2 semantic assertion. It binds
-the classifier ID/version and the exact source fields it examined. Its details
-are also recorded in the trace sidecar.
+The negative authority reference is M3 extraction closure evidence, not a new
+M2 semantic assertion or an M2 terminal Requirement review. Its exact meaning
+and scope are supplied by the separately governed authority artifact and are
+also recorded in the trace sidecar.
 
 #### `UNRESOLVED_ANALYSIS`
 
@@ -376,30 +380,25 @@ The card record has no empty `requirements` array and no producer-group field.
 All requirements in the optional bundle must use exactly the record's source
 reference. M2 continues to own requirement and relationship validation.
 
-The V1 `no_requirements_basis` value has this controlled shape:
+The V1 `no_requirements_basis` value has this controlled authority-reference
+shape:
 
 ```json
 {
-  "classifier_id": "<allowlisted classifier>",
-  "classifier_version": "<immutable version>",
-  "classifier_digest": "<sha256 of the classifier rule>",
-  "evidence": [
-    {
-      "field": "<controlled M1 field>",
-      "face_index": null,
-      "observed_state": "ABSENT_OR_NULL_OR_EMPTY"
-    }
-  ],
-  "basis_digest": "<domain-separated digest of the basis without this field>"
+  "authority_id": "<negative requirement authority>",
+  "authority_version": "<immutable version>",
+  "record_id": "<exact authority record ID>",
+  "record_sha256": "<sha256 of the exact authority record>",
+  "scope_digest": "<sha256 of the declared negative-review scope>"
 }
 ```
 
-The implementation must define the controlled field and observed-state
-vocabularies before enabling a classifier. Each evidence item must be
-revalidated against the current M1 record. The classifier rule must state the
-complete domain for which its negative conclusion is valid; a generic
-"nothing matched" result is not a basis. `classifier_digest` and
-`basis_digest` are M3 extraction identity, not M2 Requirement identity.
+The implementation must validate the authority record, its source identity,
+its declared scope, and its exact digest before accepting this outcome. A
+future authority may itself be produced from a deterministic classifier, but
+the classifier must not directly emit `NO_REQUIREMENTS_APPLICABLE` in an
+ordinary M3 run. `record_sha256` and `scope_digest` bind the negative decision
+without adding any field to M2 Requirement identity.
 
 ### 6.5 Multi-face cards
 
@@ -463,6 +462,13 @@ identity pairs and sorts descriptors by `(producer_id, producer_version)`.
 
 The registry digest is the canonical digest of the sorted descriptor set. It
 is part of the M3 manifest identity.
+
+An authoritative M3 build may activate only producers whose descriptor has
+`deterministic = true`. A registry entry with `deterministic = false` is
+rejected from the active build with an execution failure; it is not silently
+skipped and it cannot contribute a fallback result. A model producer may be
+active only when it is the deterministic importer of a pinned external
+proposal artifact described in Section 17.
 
 ### 7.3 Producer result
 
@@ -550,6 +556,17 @@ must not depend on:
 The producer returns canonicalizable values. It does not choose semantic
 priority over another producer.
 
+For an authoritative M3 run, this is a hard admission rule rather than a
+descriptive flag:
+
+```text
+active producer.deterministic == true
+```
+
+The only permitted `MODEL` path is a deterministic import of an already pinned
+proposal artifact. A live or otherwise nondeterministic model adapter is not an
+authoritative producer.
+
 ## 8. Pattern reuse architecture
 
 ### 8.1 Decision
@@ -558,9 +575,10 @@ M3 uses a versioned declarative pattern registry as an input to deterministic
 pattern producers. A pattern is a reusable matching rule, not a Requirement,
 Capability, review authority, or engine operation.
 
-The pattern registry is a separate immutable artifact whose identity is bound
-to the M3 run. Pattern IDs are semantic rule identities and must never be named
-after a specific card.
+The pattern registry is a separate immutable effective snapshot whose identity
+is bound to the M3 run. The snapshot includes pattern definitions and their
+review-eligibility records. Pattern IDs are semantic rule identities and must
+never be named after a specific card.
 
 ### 8.2 Pattern rule identity
 
@@ -585,10 +603,17 @@ content digest is computed from the complete canonical rule body. The digest
 includes matcher behavior, normalization, capture names, parameter template,
 source scope, expected M2 shape, evidence policy, and producer binding.
 
-A review marker such as `REVIEWED_FOR_REUSE` may be attached through a separate
-pattern-review record, but it never changes the emitted Requirement review
-status. It means that the rule is eligible for deterministic reuse, not that
-its instances are human-reviewed.
+The effective pattern registry snapshot contains both the pattern definitions
+and the immutable `REVIEWED_FOR_REUSE` eligibility records that govern which
+rules may be active. A review record may be authored as a separate source file,
+but it must be incorporated into the effective snapshot before the snapshot
+digest is calculated. There is no execution-affecting review eligibility input
+outside that digest.
+
+`REVIEWED_FOR_REUSE` never changes the emitted Requirement review status. It
+means that the rule is eligible for deterministic reuse, not that its
+instances are human-reviewed. Changing eligibility changes the effective
+pattern registry digest and therefore changes the M3 run identity.
 
 ### 8.3 Matching progression
 
@@ -685,12 +710,27 @@ All contributing candidates must be `PROPOSED`. A terminal or in-review value
 from a normal producer is a producer contract violation and fails the run; it
 is not downgraded silently.
 
-If candidates with the same ID have incompatible resolution claims, the
-reconciler does not select one. It records the raw disagreement in the trace,
-classifies the card as `UNRESOLVED_ANALYSIS`, and retains only a valid result
-that can be constructed without inventing semantic certainty. If no such
-result exists, the card bundle is null. This is a semantic unresolved result,
-not an execution failure.
+If candidates with the same ID have different resolution values, the
+reconciler applies this exact V1 rule:
+
+```text
+same ID + same resolution
+    -> union evidence
+    -> union provenance
+    -> retain one canonical Requirement
+
+same ID + different resolution
+    -> do not synthesize a Requirement
+    -> do not choose a producer
+    -> omit the disputed identity from the retained bundle
+    -> preserve every contributing proposal in the trace
+    -> set card outcome to UNRESOLVED_ANALYSIS
+```
+
+Other undisputed Requirements from the same card may remain in the optional
+bundle. If no undisputed Requirement remains, the bundle is null. This is a
+semantic unresolved result, not an execution failure, and there is no implicit
+"more complete" or producer-priority resolution operator.
 
 ### 9.3 Different Requirement IDs
 
@@ -823,6 +863,7 @@ M3 V1 uses an inspectable directory artifact with:
 records/0.jsonl ... records/f.jsonl
 analysis-manifest.json
 trace/0.jsonl ... trace/f.jsonl
+report-index.json
 reports/*.json                         # derived artifacts
 ```
 
@@ -885,9 +926,27 @@ build_profile
 record_count
 record_identity_set_digest
 record_shards
-trace_index_digest or trace descriptors
-derived_report_index_digest, when reports are packaged
+trace_shards
 ```
+
+The analysis manifest deliberately does not bind `report-index.json`, any
+individual report, or a report-package digest. This direction is one-way:
+
+```text
+authoritative records, trace, and registries
+    -> analysis-manifest.json
+    -> analysis-manifest digest
+    -> derived reports and report-index.json
+```
+
+`report-index.json` is a derived artifact. It contains the exact
+`analysis_manifest_sha256` it summarizes and descriptors for the canonical
+report bytes. Reports may repeat that input manifest digest, but neither the
+report index nor any report is an input to `analysis-manifest.json`.
+
+If a later delivery package needs an "all files" digest, it is a separate
+packaging-layer manifest above the analysis manifest and derived reports. It
+does not define semantic analysis identity.
 
 Each record shard descriptor contains only:
 
@@ -971,6 +1030,7 @@ load and validate the complete M1 structural index and manifests
 verify the source-lock digest, structural manifest digest, and aggregate digest
 load and validate the producer registry
 load and validate the pattern registry snapshot
+reject any active producer whose descriptor has deterministic = false
 derive the expected M1 source-identity set
 
 for structural_record in canonical_oracle_id_order:
@@ -993,9 +1053,14 @@ for structural_record in canonical_oracle_id_order:
 
     if reconciliation has an execution failure:
         fail run with RECONCILIATION_FAILURE
-    if positive no-requirements proof exists and no valid candidates exist:
+    if a valid negative review authority exists, no valid candidates exist,
+       and no unresolved finding contradicts it:
         outcome = NO_REQUIREMENTS_APPLICABLE
         bundle = null
+    elif a negative review authority conflicts with a valid candidate or
+         unresolved finding:
+        outcome = UNRESOLVED_ANALYSIS
+        bundle = valid retained bundle or null
     elif reconciliation or producer findings remain semantically unresolved:
         outcome = UNRESOLVED_ANALYSIS
         bundle = valid retained bundle or null
@@ -1030,8 +1095,11 @@ write failure into `UNRESOLVED_ANALYSIS`. Those conditions abort publication.
 | Condition | Classification | Card record | Run publication |
 | --- | --- | --- | --- |
 | Producer returns no match | normal producer result | continue; not a zero proof | allowed if another outcome closes |
+| Valid explicit negative review authority with no conflicting candidate | reviewed negative closure | `NO_REQUIREMENTS_APPLICABLE` | allowed |
+| Negative review authority conflicts with a candidate/finding | semantic unresolved | `UNRESOLVED_ANALYSIS` plus trace | allowed |
 | Unsupported semantic shape | semantic unresolved | `UNRESOLVED_ANALYSIS` | allowed |
-| No-match without positive no-result proof | semantic unresolved | `UNRESOLVED_ANALYSIS` | allowed |
+| No-match without explicit negative review authority | semantic unresolved | `UNRESOLVED_ANALYSIS` | allowed |
+| Active producer is nondeterministic | execution failure | none | forbidden |
 | Producer exception | execution failure | none for failed card | forbidden |
 | Invalid Requirement wire/model | execution failure | none | forbidden |
 | Invalid evidence/source/face | execution failure | none | forbidden |
@@ -1129,6 +1197,20 @@ input manifest changes.
 
 Reports may be canonical JSON documents with their own report schema versions.
 They must not store mutable counters inside `CardAnalysisRecordV1`.
+
+The derived `report-index.json` is the single downstream index for packaged
+reports. It contains:
+
+```text
+report_index_schema
+analysis_manifest_sha256
+report descriptors (relative_path, sha256, byte_length)
+```
+
+It is written only after `analysis-manifest.json` has been finalized and is
+never referenced by that authoritative manifest. A report/package consumer can
+therefore verify the analysis input first and the derived report bytes second,
+without a hash cycle.
 
 ### 18.2 Card-analysis review summaries and required dimensions
 
@@ -1495,6 +1577,7 @@ deferrable and do not block the safe reference architecture.
 | OD-ID | Question | Recommended decision | Reason | Deadline | Safe default |
 | --- | --- | --- | --- | --- | --- |
 | OD-M3-REVIEW-001 | May reviewed pattern rules emit terminal Requirements? | **RESOLVED: no**; only a future explicit review authority may supply terminal claims | Preserves M2 human-review semantics and limits blast radius | Before any terminal-review importer | `PROPOSED` only |
+| OD-M3-NEGATIVE-001 | May an ordinary deterministic classifier emit `NO_REQUIREMENTS_APPLICABLE`? | **RESOLVED: no**; only an explicit negative review authority may supply that outcome | Prevents negative extraction results from having stronger authority than positive proposals | Before any negative-authority importer | `UNRESOLVED_ANALYSIS` |
 | OD-M3-PATTERN-001 | Which normalized matcher grammar is implemented first? | Start with exact literal/clause matchers; add parameterized/parser levels only with versioned fixtures | Exact matching is easiest to audit and reproduce | Before first producer implementation | Exact source-text reuse only |
 | OD-M3-REPORT-001 | What exact report file names are packaged? | Canonical JSON reports with a small report index bound to the analysis manifest | Keeps reports rebuildable and avoids a new tabular dependency | Before report implementation | Summary report only |
 | OD-M3-REVIEW-AUTH-001 | When is an external review-authority artifact needed? | Defer until a real review workflow requires terminal bulk import; design it separately | M3 V1 does not need automatic terminal review | Before first importer | No terminal importer |
