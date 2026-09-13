@@ -48,9 +48,9 @@
             "unknown_paths": []
           },
           "review": {
-            "reviewed_by": null,
-            "reviewed_claim_digest": null,
-            "status": "PROPOSED"
+            "reviewed_by": "github:chrismaghuhn",
+            "reviewed_claim_digest": "89fce9c23f084773260c5cfe69264a2721c55004ed245197f6d6fc1ffb729ed9",
+            "status": "ACCEPTED"
           },
           "schema": "census.semantic-requirement.v1",
           "source": {
@@ -144,9 +144,9 @@
             "unknown_paths": []
           },
           "review": {
-            "reviewed_by": null,
-            "reviewed_claim_digest": null,
-            "status": "PROPOSED"
+            "reviewed_by": "github:chrismaghuhn",
+            "reviewed_claim_digest": "bdd11868d75b08f6e4ed6b5f1f2f488fea41786d1b3538c98c1bdb5323492d13",
+            "status": "ACCEPTED"
           },
           "schema": "census.semantic-requirement.v1",
           "source": {
@@ -211,9 +211,9 @@
             "unknown_paths": []
           },
           "review": {
-            "reviewed_by": null,
-            "reviewed_claim_digest": null,
-            "status": "PROPOSED"
+            "reviewed_by": "github:chrismaghuhn",
+            "reviewed_claim_digest": "cb4ecab2d8e4bce26eb29f11ba4e028a355261a4cf200f1456428fc265675132",
+            "status": "ACCEPTED"
           },
           "schema": "census.semantic-requirement.v1",
           "source": {
@@ -278,9 +278,9 @@
             "unknown_paths": []
           },
           "review": {
-            "reviewed_by": null,
-            "reviewed_claim_digest": null,
-            "status": "PROPOSED"
+            "reviewed_by": "github:chrismaghuhn",
+            "reviewed_claim_digest": "3183187658d3e742d66dd305c49dec230aa20523199f2a5ee840b74e954c77d2",
+            "status": "ACCEPTED"
           },
           "schema": "census.semantic-requirement.v1",
           "source": {
@@ -382,9 +382,9 @@
             ]
           },
           "review": {
-            "reviewed_by": null,
-            "reviewed_claim_digest": null,
-            "status": "PROPOSED"
+            "reviewed_by": "github:chrismaghuhn",
+            "reviewed_claim_digest": "70c043c336473c9ba43b130ffc6db6a9940fa8d9372d2f5bbfc4a2d6d7090c23",
+            "status": "ACCEPTED"
           },
           "schema": "census.semantic-requirement.v1",
           "source": {
@@ -496,9 +496,9 @@
             ]
           },
           "review": {
-            "reviewed_by": null,
-            "reviewed_claim_digest": null,
-            "status": "PROPOSED"
+            "reviewed_by": "github:chrismaghuhn",
+            "reviewed_claim_digest": "79cf2580920fd77e3ff6bd5c2f9c3327e565bcea57920fe58d0c01a63a15e602",
+            "status": "ACCEPTED"
           },
           "schema": "census.semantic-requirement.v1",
           "source": {
@@ -554,9 +554,9 @@
             "unknown_paths": []
           },
           "review": {
-            "reviewed_by": null,
-            "reviewed_claim_digest": null,
-            "status": "PROPOSED"
+            "reviewed_by": "github:chrismaghuhn",
+            "reviewed_claim_digest": "9b9e1c2e286048d1260a53010ea8c78641ea3e91aae40efb3ec3f16587fe2465",
+            "status": "ACCEPTED"
           },
           "schema": "census.semantic-requirement.v1",
           "source": {
@@ -648,9 +648,9 @@
             ]
           },
           "review": {
-            "reviewed_by": null,
-            "reviewed_claim_digest": null,
-            "status": "PROPOSED"
+            "reviewed_by": "github:chrismaghuhn",
+            "reviewed_claim_digest": "120a735f08349491530d3582a9f4b807e989156dc021fc44069a04d4b13afcb8",
+            "status": "ACCEPTED"
           },
           "schema": "census.semantic-requirement.v1",
           "source": {
@@ -731,9 +731,9 @@
             ]
           },
           "review": {
-            "reviewed_by": null,
-            "reviewed_claim_digest": null,
-            "status": "PROPOSED"
+            "reviewed_by": "github:chrismaghuhn",
+            "reviewed_claim_digest": "e9a388e12b07b578d918f4bc22c6f704bd891240775c6bd8db976fbcf8998150",
+            "status": "ACCEPTED"
           },
           "schema": "census.semantic-requirement.v1",
           "source": {
@@ -835,9 +835,9 @@
             ]
           },
           "review": {
-            "reviewed_by": null,
-            "reviewed_claim_digest": null,
-            "status": "PROPOSED"
+            "reviewed_by": "github:chrismaghuhn",
+            "reviewed_claim_digest": "55ea711fdc864ab19c33da0edbcad2781d840e682f66106ea1f7a39f22038e53",
+            "status": "ACCEPTED"
           },
           "schema": "census.semantic-requirement.v1",
           "source": {
@@ -912,9 +912,9 @@
             ]
           },
           "review": {
-            "reviewed_by": null,
-            "reviewed_claim_digest": null,
-            "status": "PROPOSED"
+            "reviewed_by": "github:chrismaghuhn",
+            "reviewed_claim_digest": "343531ae54fdf383bee22c00cee988fd3d423737587856c03faeed3a145be6e3",
+            "status": "REJECTED"
           },
           "schema": "census.semantic-requirement.v1",
           "source": {
@@ -984,9 +984,9 @@
             ]
           },
           "review": {
-            "reviewed_by": null,
-            "reviewed_claim_digest": null,
-            "status": "PROPOSED"
+            "reviewed_by": "github:chrismaghuhn",
+            "reviewed_claim_digest": "68a57683a7f09b7f62f2d8be727a65af018a6154b4ac781206fd422a42487afe",
+            "status": "ACCEPTED"
           },
           "schema": "census.semantic-requirement.v1",
           "source": {
@@ -1063,9 +1063,9 @@
             "unknown_paths": []
           },
           "review": {
-            "reviewed_by": null,
-            "reviewed_claim_digest": null,
-            "status": "PROPOSED"
+            "reviewed_by": "github:chrismaghuhn",
+            "reviewed_claim_digest": "0ad47c758f2ffd05953ce7769c08e9c5c8545af7ca060b8de511d8b3c3703ba6",
+            "status": "ACCEPTED"
           },
           "schema": "census.semantic-requirement.v1",
           "source": {
@@ -1146,9 +1146,9 @@
             "unknown_paths": []
           },
           "review": {
-            "reviewed_by": null,
-            "reviewed_claim_digest": null,
-            "status": "PROPOSED"
+            "reviewed_by": "github:chrismaghuhn",
+            "reviewed_claim_digest": "72a0a6a1102e197183b18afcf6cf7d9ee9c3f620a14c5ac60ff610383b9f401c",
+            "status": "ACCEPTED"
           },
           "schema": "census.semantic-requirement.v1",
           "source": {
@@ -1221,9 +1221,9 @@
             "unknown_paths": []
           },
           "review": {
-            "reviewed_by": null,
-            "reviewed_claim_digest": null,
-            "status": "PROPOSED"
+            "reviewed_by": "github:chrismaghuhn",
+            "reviewed_claim_digest": "2546759db5c3c8cbc5da3d15df75e05daf13efe95f66253e4248e23ec84ab648",
+            "status": "ACCEPTED"
           },
           "schema": "census.semantic-requirement.v1",
           "source": {
@@ -1317,9 +1317,9 @@
             "unknown_paths": []
           },
           "review": {
-            "reviewed_by": null,
-            "reviewed_claim_digest": null,
-            "status": "PROPOSED"
+            "reviewed_by": "github:chrismaghuhn",
+            "reviewed_claim_digest": "7c20ebf268fd53f10117e046228ae63de9fe87c2f3850842546724582be45103",
+            "status": "ACCEPTED"
           },
           "schema": "census.semantic-requirement.v1",
           "source": {
@@ -1392,9 +1392,9 @@
             ]
           },
           "review": {
-            "reviewed_by": null,
-            "reviewed_claim_digest": null,
-            "status": "PROPOSED"
+            "reviewed_by": "github:chrismaghuhn",
+            "reviewed_claim_digest": "d0d271401d90a513f76bf4bb5aaeade4683b318b4fe5032524d4ab61e4b717f0",
+            "status": "ACCEPTED"
           },
           "schema": "census.semantic-requirement.v1",
           "source": {
@@ -1464,9 +1464,9 @@
             ]
           },
           "review": {
-            "reviewed_by": null,
-            "reviewed_claim_digest": null,
-            "status": "PROPOSED"
+            "reviewed_by": "github:chrismaghuhn",
+            "reviewed_claim_digest": "6d7bf1e57c60b4eec123959db1d61b1f181e3791feb6804d83d5bedc2c03876b",
+            "status": "ACCEPTED"
           },
           "schema": "census.semantic-requirement.v1",
           "source": {

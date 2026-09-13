@@ -1,13 +1,13 @@
+import copy
 import json
+from pathlib import Path
 
 import pytest
 from semantic_fixture_review_report import (
     FIXTURE_PATH,
     PinnedEvidenceBlocked,
-    build_review_report,
     load_fixture_cases,
     load_pinned_records,
-    write_review_report,
 )
 
 from manafold_census.semantic.bundle import RelationshipTypeV1, RequirementBundleV1
@@ -16,7 +16,7 @@ from manafold_census.semantic.identity import (
     reviewed_claim_payload_for,
 )
 from manafold_census.semantic.kinds import RequirementKindV1
-from manafold_census.semantic.model import ReviewStatusV1
+from manafold_census.semantic.model import RequirementV1, ReviewStatusV1
 from manafold_census.semantic.validate import (
     validate_bundle_against_structural_record,
 )
@@ -37,6 +37,14 @@ EXPECTED_CASE_IDS = {
     "outlier_partial_or_unresolved",
 }
 
+REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
+REVIEW_REPORT_PATH = (
+    REPOSITORY_ROOT / "dist" / "m2-semantic-fixture-review" / "task6a-review.json"
+)
+REVIEW_DECISIONS_PATH = (
+    REPOSITORY_ROOT / "dist" / "m2-semantic-fixture-review" / "task6b-decisions.json"
+)
+
 
 def _loaded_fixture_state():
     try:
@@ -45,6 +53,36 @@ def _loaded_fixture_state():
     except PinnedEvidenceBlocked as error:
         pytest.fail(str(error))
     return cases, records, lock_digest
+
+
+def _fixture_requirements():
+    requirements = {}
+    for case in load_fixture_cases():
+        bundle = RequirementBundleV1.from_wire(case["bundle"])
+        for requirement in bundle.requirements:
+            requirements[requirement.requirement_id] = (case, bundle, requirement)
+    return requirements
+
+
+def _review_artifacts():
+    report = json.loads(REVIEW_REPORT_PATH.read_text(encoding="utf-8"))
+    decisions_document = json.loads(REVIEW_DECISIONS_PATH.read_text(encoding="utf-8"))
+    report_by_id = {
+        item["requirement_id"]: (case, item)
+        for case in report
+        for item in case["requirements"]
+    }
+    decisions_by_id = {
+        item["requirement_id"]: item for item in decisions_document["decisions"]
+    }
+    return report, decisions_document, report_by_id, decisions_by_id
+
+
+def _require_external_decision(requirement_id, decisions_by_id):
+    decision = decisions_by_id.get(requirement_id)
+    if decision is None:
+        raise ValueError("external human decision missing")
+    return decision
 
 
 def test_fixture_wrapper_is_small_complete_and_source_free() -> None:
@@ -69,7 +107,12 @@ def test_every_proposed_bundle_is_schema_and_source_aware_valid() -> None:
         )
         assert all(
             requirement.review.status
-            in (ReviewStatusV1.PROPOSED, ReviewStatusV1.IN_REVIEW)
+            in (
+                ReviewStatusV1.PROPOSED,
+                ReviewStatusV1.IN_REVIEW,
+                ReviewStatusV1.ACCEPTED,
+                ReviewStatusV1.REJECTED,
+            )
             for requirement in bundle.requirements
         )
 
@@ -109,10 +152,18 @@ def test_hypothesizzle_is_the_authorized_conflict_case_and_shahrazad_is_not() ->
     assert [item.relationship_type for item in hypothesizzle.relationships] == [
         RelationshipTypeV1.CONFLICTS_WITH
     ]
-    assert all(
-        item.review.status is ReviewStatusV1.PROPOSED
+    trigger = next(
+        item
         for item in hypothesizzle.requirements
+        if item.kind is RequirementKindV1.TRIGGER_FROM_EVENT
     )
+    conditional = next(
+        item
+        for item in hypothesizzle.requirements
+        if item.kind is RequirementKindV1.CONDITIONAL_EFFECT
+    )
+    assert trigger.review.status is ReviewStatusV1.ACCEPTED
+    assert conditional.review.status is ReviewStatusV1.REJECTED
 
     shahrazad = by_case["outlier_partial_or_unresolved"]
     assert all(
@@ -199,8 +250,8 @@ def test_revision01_repairs_remain_pinned_for_living_cryptic_platinum_and_eerie(
     )
 
 
-def test_review_report_binds_exact_claim_projection_without_terminal_review() -> None:
-    report = build_review_report()
+def test_task6a_report_binds_exact_claim_projection_after_task6b() -> None:
+    report = json.loads(REVIEW_REPORT_PATH.read_text(encoding="utf-8"))
     assert {case["case_id"] for case in report} == EXPECTED_CASE_IDS
     for case in report:
         assert case["review_status"] == "PROPOSED"
@@ -223,9 +274,128 @@ def test_review_report_binds_exact_claim_projection_without_terminal_review() ->
                 requirement
             )
             assert item["review_status"] == "PROPOSED"
+            assert requirement.review.status in (
+                ReviewStatusV1.ACCEPTED,
+                ReviewStatusV1.REJECTED,
+            )
 
 
-def test_review_report_can_write_to_an_ignored_output_path(tmp_path) -> None:
-    path = write_review_report(tmp_path / "task6a-review.json")
-    assert path.is_file()
-    assert json.loads(path.read_text(encoding="utf-8")) == build_review_report()
+def test_task6b_applies_only_exact_external_decisions_and_preserves_claims() -> None:
+    report, decisions_document, report_by_id, decisions_by_id = _review_artifacts()
+    requirements = _fixture_requirements()
+    assert len(report_by_id) == len(decisions_by_id) == len(requirements) == 18
+    assert decisions_document["human_review_authority"]["reviewed_by"] == (
+        "github:chrismaghuhn"
+    )
+    for requirement_id, (case, bundle, requirement) in requirements.items():
+        report_case, report_item = report_by_id[requirement_id]
+        decision = decisions_by_id[requirement_id]
+        assert report_case["case_id"] == case["case_id"]
+        assert decision["requirement_id"] == report_item["requirement_id"]
+        assert decision["review_status"] == decision["decision"]
+        assert decision["correction_request"] is None
+        assert decision["reviewed_by"] == "github:chrismaghuhn"
+        assert requirement.review.status.value == decision["decision"]
+        assert requirement.review.reviewed_by == decision["reviewed_by"]
+        assert (
+            requirement.review.reviewed_claim_digest
+            == (decision["reviewed_claim_digest"])
+        )
+        assert (
+            reviewed_claim_digest_for(requirement)
+            == (report_item["candidate_reviewed_claim_digest"])
+        )
+        assert (
+            reviewed_claim_digest_for(requirement)
+            == (decision["reviewed_claim_digest"])
+        )
+        assert (
+            reviewed_claim_payload_for(requirement)
+            == report_item["reviewed_claim_payload"]
+        )
+        assert requirement.source.to_wire() == case["bundle"]["source"]
+        assert requirement.family.value == report_item["proposed_family"]
+        assert requirement.kind.value == report_item["proposed_kind"]
+        assert requirement.parameters.to_wire() == report_item["proposed_parameters"]
+        assert [item.to_wire() for item in requirement.evidence] == report_item[
+            "canonical_evidence"
+        ]
+        assert (
+            requirement.provenance.to_wire()
+            == report_item["canonical_derivation_provenance"]
+        )
+        assert requirement.resolution.to_wire() == report_item["proposed_resolution"]
+        assert [item.to_wire() for item in bundle.relationships] == report_case[
+            "proposed_relationships"
+        ]
+
+
+def test_task6b_decision_set_is_terminal_and_exact() -> None:
+    requirements = _fixture_requirements()
+    statuses = [
+        requirement.review.status for _, _, requirement in requirements.values()
+    ]
+    assert len(statuses) == 18
+    assert statuses.count(ReviewStatusV1.ACCEPTED) == 17
+    assert statuses.count(ReviewStatusV1.REJECTED) == 1
+    assert ReviewStatusV1.PROPOSED not in statuses
+    assert ReviewStatusV1.IN_REVIEW not in statuses
+
+
+def test_task6b_preserves_accepted_partial_and_unresolved_claims() -> None:
+    requirements = [item[2] for item in _fixture_requirements().values()]
+    assert any(
+        item.review.status is ReviewStatusV1.ACCEPTED
+        and item.resolution.state.value == "PARTIAL"
+        for item in requirements
+    )
+    assert any(
+        item.review.status is ReviewStatusV1.ACCEPTED
+        and item.resolution.state.value == "UNRESOLVED"
+        and item.resolution.reason.value == "UNSUPPORTED_SHAPE"
+        for item in requirements
+    )
+
+
+def test_task6b_requires_external_decision_for_terminal_review() -> None:
+    requirements = _fixture_requirements()
+    decisions = _review_artifacts()[3].copy()
+    requirement_id = next(iter(requirements))
+    decisions.pop(requirement_id)
+    with pytest.raises(ValueError, match="external human decision missing"):
+        _require_external_decision(requirement_id, decisions)
+
+
+@pytest.mark.parametrize("changed_dimension", ["evidence", "provenance", "resolution"])
+def test_task6b_rejects_stale_terminal_review_binding(changed_dimension: str) -> None:
+    requirements = _fixture_requirements()
+    requirement = next(iter(requirements.values()))[2]
+    decision = _review_artifacts()[3][requirement.requirement_id]
+    proposal_wire = copy.deepcopy(requirement.to_wire())
+    proposal_wire["review"] = {
+        "reviewed_by": None,
+        "reviewed_claim_digest": None,
+        "status": "PROPOSED",
+    }
+    if changed_dimension == "evidence":
+        proposal_wire["evidence"][0]["fragment"] += "!"
+    elif changed_dimension == "provenance":
+        proposal_wire["provenance"]["derivations"][0]["producer_version"] = "2"
+    else:
+        proposal_wire["resolution"] = {
+            "reason": "INSUFFICIENT_EVIDENCE",
+            "state": "PARTIAL",
+            "unknown_paths": ["/parameters.quantity"],
+        }
+    mutated_proposal = RequirementV1.from_wire(proposal_wire)
+    assert (
+        reviewed_claim_digest_for(mutated_proposal)
+        != (decision["reviewed_claim_digest"])
+    )
+    proposal_wire["review"] = {
+        "reviewed_by": decision["reviewed_by"],
+        "reviewed_claim_digest": decision["reviewed_claim_digest"],
+        "status": decision["decision"],
+    }
+    with pytest.raises(ValueError, match="reviewed_claim_digest"):
+        RequirementV1.from_wire(proposal_wire)
