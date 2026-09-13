@@ -1,0 +1,103 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://manafold-census.invalid/schemas/analysis-manifest.v1.schema.json",
+  "title": "Manafold Census M3 Analysis Manifest V1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "analysis_schema",
+    "source_lock_digest",
+    "structural_record_schema",
+    "structural_index_manifest_sha256",
+    "structural_index_aggregate_digest",
+    "m2_requirement_schema",
+    "m2_bundle_schema",
+    "producer_registry_digest",
+    "pattern_registry_digest",
+    "build_profile",
+    "record_count",
+    "record_identity_set_digest",
+    "record_shards",
+    "trace_shards",
+    "record_index_digest",
+    "trace_index_digest"
+  ],
+  "properties": {
+    "schema": {"const": "census.analysis-manifest.v1"},
+    "analysis_schema": {"const": "census.card-analysis.v1"},
+    "source_lock_digest": {"$ref": "#/$defs/digest"},
+    "structural_record_schema": {"const": "census.structural-card.v1"},
+    "structural_index_manifest_sha256": {"$ref": "#/$defs/digest"},
+    "structural_index_aggregate_digest": {"$ref": "#/$defs/digest"},
+    "m2_requirement_schema": {"const": "census.semantic-requirement.v1"},
+    "m2_bundle_schema": {
+      "const": "census.semantic-requirement-bundle.v1"
+    },
+    "producer_registry_digest": {"$ref": "#/$defs/digest"},
+    "pattern_registry_digest": {"$ref": "#/$defs/digest"},
+    "build_profile": {"type": "string", "minLength": 1},
+    "record_count": {"$ref": "#/$defs/count"},
+    "record_identity_set_digest": {"$ref": "#/$defs/digest"},
+    "record_shards": {
+      "type": "array",
+      "minItems": 16,
+      "maxItems": 16,
+      "items": {"$ref": "#/$defs/record_shard"}
+    },
+    "trace_shards": {
+      "type": "array",
+      "minItems": 16,
+      "maxItems": 16,
+      "items": {"$ref": "#/$defs/trace_shard"}
+    },
+    "record_index_digest": {"$ref": "#/$defs/digest"},
+    "trace_index_digest": {"$ref": "#/$defs/digest"}
+  },
+  "$defs": {
+    "digest": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "count": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 9223372036854775807
+    },
+    "descriptor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["relative_path", "sha256", "byte_length", "record_count"],
+      "properties": {
+        "relative_path": {"type": "string"},
+        "sha256": {"$ref": "#/$defs/digest"},
+        "byte_length": {"$ref": "#/$defs/count"},
+        "record_count": {"$ref": "#/$defs/count"}
+      }
+    },
+    "record_shard": {
+      "allOf": [
+        {"$ref": "#/$defs/descriptor"},
+        {
+          "properties": {
+            "relative_path": {
+              "pattern": "^records/[0-9a-f]\\.jsonl$"
+            }
+          }
+        }
+      ]
+    },
+    "trace_shard": {
+      "allOf": [
+        {"$ref": "#/$defs/descriptor"},
+        {
+          "properties": {
+            "relative_path": {
+              "pattern": "^trace/[0-9a-f]\\.jsonl$"
+            }
+          }
+        }
+      ]
+    }
+  }
+}
