@@ -2063,6 +2063,72 @@
         }
       }
     },
+    "complete_entity": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/entity"
+        },
+        {
+          "properties": {
+            "role": {
+              "enum": [
+                "source",
+                "target",
+                "chosen",
+                "affected",
+                "created",
+                "event_subject",
+                "controller",
+                "owner",
+                "payer",
+                "chooser"
+              ]
+            },
+            "multiplicity": {
+              "enum": ["one", "many", "each"]
+            }
+          }
+        }
+      ]
+    },
+    "complete_zone": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/zone"
+        },
+        {
+          "properties": {
+            "zone": {
+              "enum": [
+                "library",
+                "hand",
+                "battlefield",
+                "graveyard",
+                "exile",
+                "stack",
+                "command",
+                "outside_game"
+              ]
+            },
+            "label": {
+              "const": null
+            }
+          }
+        }
+      ]
+    },
+    "complete_subject_kind": {
+      "type": "string",
+      "enum": ["object", "player", "card", "zone", "ability"]
+    },
+    "complete_modification_operation": {
+      "type": "string",
+      "enum": ["set", "add", "subtract", "grant", "remove", "change"]
+    },
+    "complete_cost_operation": {
+      "type": "string",
+      "enum": ["increase", "decrease", "alternative"]
+    },
     "complete_descriptor": {
       "type": "object",
       "additionalProperties": false,
@@ -2087,7 +2153,7 @@
               "type": "null"
             },
             {
-              "$ref": "#/$defs/entity"
+              "$ref": "#/$defs/complete_entity"
             }
           ]
         },
@@ -2097,7 +2163,7 @@
               "type": "null"
             },
             {
-              "$ref": "#/$defs/entity"
+              "$ref": "#/$defs/complete_entity"
             }
           ]
         },
@@ -2284,6 +2350,15 @@
     "complete_move_between_zones": {
       "$ref": "#/$defs/move_between_zones",
       "properties": {
+        "subject": {
+          "$ref": "#/$defs/complete_entity"
+        },
+        "from_zone": {
+          "$ref": "#/$defs/complete_zone"
+        },
+        "to_zone": {
+          "$ref": "#/$defs/complete_zone"
+        },
         "quantity": {
           "$ref": "#/$defs/complete_quantity"
         },
@@ -2328,6 +2403,12 @@
     "complete_select": {
       "$ref": "#/$defs/select",
       "properties": {
+        "chooser": {
+          "$ref": "#/$defs/complete_entity"
+        },
+        "subject_kind": {
+          "$ref": "#/$defs/complete_subject_kind"
+        },
         "quantity": {
           "$ref": "#/$defs/complete_quantity"
         },
@@ -2339,6 +2420,12 @@
     "complete_modify_characteristic": {
       "$ref": "#/$defs/modify_characteristic",
       "properties": {
+        "subject": {
+          "$ref": "#/$defs/complete_entity"
+        },
+        "operation": {
+          "$ref": "#/$defs/complete_modification_operation"
+        },
         "value": {
           "$ref": "#/$defs/complete_parameter_value"
         }
@@ -2347,6 +2434,9 @@
     "complete_apply_continuous_effect": {
       "$ref": "#/$defs/apply_continuous_effect",
       "properties": {
+        "subject": {
+          "$ref": "#/$defs/complete_entity"
+        },
         "duration": {
           "$ref": "#/$defs/complete_duration"
         },
@@ -2358,14 +2448,33 @@
     "complete_search_zone": {
       "$ref": "#/$defs/search_zone",
       "properties": {
+        "searcher": {
+          "$ref": "#/$defs/complete_entity"
+        },
+        "zone": {
+          "$ref": "#/$defs/complete_zone"
+        },
         "selection": {
           "$ref": "#/$defs/complete_descriptor"
+        },
+        "destination": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/complete_zone"
+            }
+          ]
         }
       }
     },
     "complete_draw_cards": {
       "$ref": "#/$defs/draw_cards",
       "properties": {
+        "drawer": {
+          "$ref": "#/$defs/complete_entity"
+        },
         "quantity": {
           "$ref": "#/$defs/complete_quantity"
         }
@@ -2374,6 +2483,12 @@
     "complete_deal_damage": {
       "$ref": "#/$defs/deal_damage",
       "properties": {
+        "source": {
+          "$ref": "#/$defs/complete_entity"
+        },
+        "recipient": {
+          "$ref": "#/$defs/complete_entity"
+        },
         "amount": {
           "$ref": "#/$defs/complete_quantity"
         }
@@ -2395,6 +2510,9 @@
       "properties": {
         "event": {
           "$ref": "#/$defs/complete_descriptor"
+        },
+        "controller": {
+          "$ref": "#/$defs/complete_entity"
         },
         "condition": {
           "anyOf": [
@@ -2422,6 +2540,9 @@
     "complete_pay_cost": {
       "$ref": "#/$defs/pay_cost",
       "properties": {
+        "payer": {
+          "$ref": "#/$defs/complete_entity"
+        },
         "cost": {
           "$ref": "#/$defs/complete_descriptor"
         }
@@ -2430,14 +2551,23 @@
     "complete_modify_cost": {
       "$ref": "#/$defs/modify_cost",
       "properties": {
+        "subject": {
+          "$ref": "#/$defs/complete_entity"
+        },
         "cost": {
           "$ref": "#/$defs/complete_descriptor"
+        },
+        "operation": {
+          "$ref": "#/$defs/complete_cost_operation"
         }
       }
     },
     "complete_choose_mode": {
       "$ref": "#/$defs/choose_mode",
       "properties": {
+        "chooser": {
+          "$ref": "#/$defs/complete_entity"
+        },
         "minimum": {
           "$ref": "#/$defs/complete_quantity"
         },
@@ -2475,6 +2605,9 @@
     "complete_keyword_reference": {
       "$ref": "#/$defs/keyword_reference",
       "properties": {
+        "expansion_state": {
+          "const": "expanded"
+        },
         "expansion": {
           "anyOf": [
             {

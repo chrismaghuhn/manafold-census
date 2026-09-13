@@ -467,6 +467,27 @@ def test_unresolved_payload_preserves_explicit_unknown_reason() -> None:
     )
 
 
+def test_unresolved_question_uses_unicode_codepoint_limit() -> None:
+    for question in ("x" * 4096, "😀" * 4096):
+        payload = UnresolvedParametersV1(
+            observed_field="oracle_text",
+            observed_shape=SemanticShapeV1.UNKNOWN,
+            question=question,
+            candidate_kinds=(),
+            fragment=None,
+        )
+        assert payload.question == question
+
+    with pytest.raises(ValueError, match="4096"):
+        UnresolvedParametersV1(
+            observed_field="oracle_text",
+            observed_shape=SemanticShapeV1.UNKNOWN,
+            question="😀" * 4097,
+            candidate_kinds=(),
+            fragment=None,
+        )
+
+
 def test_payload_dispatch_rejects_unknown_kind_and_extra_properties() -> None:
     with pytest.raises(ValueError, match="kind"):
         payload_from_wire(

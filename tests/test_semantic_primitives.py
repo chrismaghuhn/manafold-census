@@ -287,9 +287,26 @@ def test_unknown_wire_properties_fail_closed() -> None:
         UnknownValueV1.from_wire(wire)
 
 
-def test_textual_context_is_bounded_by_utf8_bytes() -> None:
-    with pytest.raises(ValueError, match="4096"):
-        UnknownValueV1(UnknownReasonV1.UNKNOWN_SEMANTICS, "x" * 4097)
+def test_bounded_text_uses_unicode_codepoints_and_valid_utf8() -> None:
+    def values(text: str) -> tuple[object, ...]:
+        return (
+            UnknownValueV1(UnknownReasonV1.UNKNOWN_SEMANTICS, text),
+            ZoneRefV1(ZoneNameV1.UNKNOWN, text),
+            CharacteristicRefV1(CharacteristicNameV1.OTHER, text),
+            QuantityV1(QuantityModeV1.SYMBOLIC, text),
+            ParameterValueV1(ParameterValueTypeV1.TEXT, text),
+            SemanticDescriptorV1(SemanticShapeV1.EFFECT, text, None, None, None, ()),
+        )
+
+    for text in ("x" * 4096, "😀" * 4096):
+        assert values(text)
+
+    for text in ("x" * 4097, "😀" * 4097):
+        with pytest.raises(ValueError, match="4096"):
+            values(text)
+
+    with pytest.raises(ValueError, match="UTF-8"):
+        UnknownValueV1(UnknownReasonV1.UNKNOWN_SEMANTICS, "\ud800")
 
 
 def test_from_wire_rejects_python_tuples_for_json_arrays() -> None:

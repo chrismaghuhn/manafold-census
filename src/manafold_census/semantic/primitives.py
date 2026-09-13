@@ -199,11 +199,11 @@ def _require_text(field: str, value: object, *, allow_empty: bool = False) -> st
     if not allow_empty and value == "":
         raise ValueError(f"{field} must be non-empty")
     try:
-        encoded = value.encode("utf-8")
+        value.encode("utf-8")
     except UnicodeEncodeError as error:
         raise ValueError(f"{field} must be valid UTF-8") from error
-    if len(encoded) > _MAX_CONTEXT_BYTES:
-        raise ValueError(f"{field} exceeds {_MAX_CONTEXT_BYTES} UTF-8 bytes")
+    if len(value) > _MAX_CONTEXT_BYTES:
+        raise ValueError(f"{field} exceeds {_MAX_CONTEXT_BYTES} Unicode code points")
     return value
 
 

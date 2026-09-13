@@ -301,7 +301,9 @@ class ResolutionV1:
 
 
 def _semantic_flags(value: object) -> tuple[bool, bool]:
-    unknown = isinstance(value, UnknownValueV1)
+    unknown = isinstance(value, UnknownValueV1) or (
+        isinstance(value, StrEnum) and value.value == "unknown"
+    )
     escape = False
     if isinstance(value, SemanticDescriptorV1):
         escape = value.shape.value == "unknown" or (
@@ -333,7 +335,13 @@ def _validate_resolution(
 ) -> None:
     has_unknown, has_escape = _semantic_flags(parameters)
     if resolution.state is ResolutionStateV1.COMPLETE:
-        if kind is RequirementKindV1.UNRESOLVED or has_unknown or has_escape:
+        if (
+            kind is RequirementKindV1.UNRESOLVED
+            or has_unknown
+            or has_escape
+            or kind is RequirementKindV1.KEYWORD_REFERENCE
+            and parameters.to_wire()["expansion_state"] != "expanded"
+        ):
             raise ValueError("COMPLETE resolution contains unresolved meaning")
     elif resolution.state is ResolutionStateV1.PARTIAL:
         if kind is RequirementKindV1.UNRESOLVED or not (
@@ -485,16 +493,3 @@ class RequirementV1:
             ReviewV1.from_wire(document["review"]),
             ResolutionV1.from_wire(document["resolution"]),
         )
-
-
-__all__ = [
-    "DerivationMethodV1",
-    "DerivationV1",
-    "ProvenanceV1",
-    "RequirementV1",
-    "ResolutionReasonV1",
-    "ResolutionStateV1",
-    "ResolutionV1",
-    "ReviewStatusV1",
-    "ReviewV1",
-]

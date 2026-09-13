@@ -250,6 +250,11 @@ def _requirements() -> dict[str, RequirementV1]:
             KeywordReferenceParametersV1(
                 "Flying", 0, ExpansionStateV1.UNEXPANDED, None
             ),
+            resolution=ResolutionV1(
+                ResolutionStateV1.PARTIAL,
+                ResolutionReasonV1.UNKNOWN_SEMANTICS,
+                ("/parameters.expansion_state",),
+            ),
         ),
         "unresolved": _proposal(
             RequirementFamilyV1.UNKNOWN,
@@ -418,6 +423,92 @@ def test_schema_rejects_label_only_complete_descriptor() -> None:
         "unknown_paths": [],
     }
 
+    with pytest.raises(SchemaValidationError):
+        validate_document(wire, "semantic-requirement.v1.schema.json")
+
+
+def test_schema_rejects_complete_semantic_unknown_sentinels() -> None:
+    cases: list[dict[str, object]] = []
+
+    wire = _requirements()["draw_cards"].to_wire()
+    wire["parameters"]["drawer"]["role"] = "unknown"  # type: ignore[index]
+    cases.append(wire)
+
+    wire = _requirements()["draw_cards"].to_wire()
+    wire["parameters"]["drawer"]["multiplicity"] = "unknown"  # type: ignore[index]
+    cases.append(wire)
+
+    wire = _requirements()["move_between_zones"].to_wire()
+    wire["parameters"]["from_zone"] = {"zone": "unknown", "label": "custom"}  # type: ignore[index]
+    cases.append(wire)
+
+    wire = _requirements()["select"].to_wire()
+    wire["parameters"]["subject_kind"] = "unknown"  # type: ignore[index]
+    cases.append(wire)
+
+    wire = _requirements()["modify_characteristic"].to_wire()
+    wire["parameters"]["operation"] = "unknown"  # type: ignore[index]
+    cases.append(wire)
+
+    wire = _requirements()["modify_cost"].to_wire()
+    wire["parameters"]["operation"] = "unknown"  # type: ignore[index]
+    cases.append(wire)
+
+    wire = _requirements()["keyword_reference"].to_wire()
+    wire["resolution"] = {
+        "state": "COMPLETE",
+        "reason": "NONE",
+        "unknown_paths": [],
+    }
+    cases.append(wire)
+    wire = _requirements()["keyword_reference"].to_wire()
+    wire["parameters"]["expansion_state"] = "unknown"  # type: ignore[index]
+    wire["resolution"] = {
+        "state": "COMPLETE",
+        "reason": "NONE",
+        "unknown_paths": [],
+    }
+    cases.append(wire)
+
+    for wire in cases:
+        with pytest.raises(SchemaValidationError):
+            validate_document(wire, "semantic-requirement.v1.schema.json")
+
+
+def test_schema_accepts_only_complete_expanded_keyword_reference() -> None:
+    expanded = _proposal(
+        RequirementFamilyV1.REFERENCE,
+        RequirementKindV1.KEYWORD_REFERENCE,
+        KeywordReferenceParametersV1(
+            "Flying", 0, ExpansionStateV1.EXPANDED, _descriptor()
+        ),
+    )
+    validate_document(expanded.to_wire(), "semantic-requirement.v1.schema.json")
+
+    wire = expanded.to_wire()
+    wire["parameters"]["expansion"] = {  # type: ignore[index]
+        "shape": "effect",
+        "label": "only prose",
+        "subject": None,
+        "object": None,
+        "value": None,
+        "children": [],
+    }
+    with pytest.raises(SchemaValidationError):
+        validate_document(wire, "semantic-requirement.v1.schema.json")
+
+    wire = expanded.to_wire()
+    wire["parameters"]["expansion"] = None  # type: ignore[index]
+    with pytest.raises(SchemaValidationError):
+        validate_document(wire, "semantic-requirement.v1.schema.json")
+
+
+def test_schema_bounded_text_uses_unicode_codepoints() -> None:
+    wire = _requirements()["pay_cost"].to_wire()
+    wire["parameters"]["cost"]["label"] = "😀" * 4096  # type: ignore[index]
+    validate_document(wire, "semantic-requirement.v1.schema.json")
+
+    wire["parameters"]["cost"]["label"] = "😀" * 4097  # type: ignore[index]
     with pytest.raises(SchemaValidationError):
         validate_document(wire, "semantic-requirement.v1.schema.json")
 

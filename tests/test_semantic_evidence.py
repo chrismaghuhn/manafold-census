@@ -108,6 +108,9 @@ def test_structural_field_evidence_enforces_parent_and_face_field_vocabulary() -
         StructuralFieldEvidenceV1(_source(), "oracle_text", -1, None)
     with pytest.raises(ValueError, match="4096"):
         StructuralFieldEvidenceV1(_source(), "oracle_text", None, "x" * 4097)
+    StructuralFieldEvidenceV1(_source(), "oracle_text", None, "😀" * 4096)
+    with pytest.raises(ValueError, match="4096"):
+        StructuralFieldEvidenceV1(_source(), "oracle_text", None, "😀" * 4097)
 
     for field in ("colors", "keywords", "faces", "all_parts"):
         with pytest.raises(ValueError, match="textual"):
