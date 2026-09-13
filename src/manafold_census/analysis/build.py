@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import hashlib
-import json
 import os
 import tempfile
 from collections.abc import Callable, Sequence
@@ -11,7 +10,6 @@ from pathlib import Path
 from typing import NamedTuple, cast
 
 from ..canonical import canonical_json_bytes
-from ..corpus.build import load_source_lock
 from ..semantic.bundle import RequirementBundleV1
 from ..semantic.evidence import SourceRecordRefV1
 from ..semantic.model import RequirementV1
@@ -19,6 +17,10 @@ from ..structural.model import StructuralCardRecordV1
 from .authority import (
     NegativeRequirementAuthorityRecordV1,
     load_negative_requirement_authority,
+)
+from .build_input import (
+    load_reference_build_input,
+    source_ref_for_record,
 )
 from .manifest import (
     SHARD_NAMES,
@@ -41,6 +43,7 @@ from .producer import (
     ProducerContractError,
     ProducerDescriptorV1,
     ProducerExecutionError,
+    ProducerFindingV1,
     ProducerResultStatusV1,
     RelationshipProposalV1,
     execute_producer,
@@ -49,16 +52,21 @@ from .producer import (
 from .reconcile import ReconciliationFailure, reconcile
 from .registry import PRODUCER_REGISTRY_DIGEST_DOMAIN, ProducerRegistryV1
 from .trace import RequirementTraceEventV1, TraceDispositionV1, trace_sort_key
-from .validate import _read_m1_authority, validate_analysis_closure
+from .validate import validate_analysis_closure
 
-# fmt: off
 M3_BUILD_PROFILE = "census.m3-reference.v1"
+
+
 class AnalysisBuildError(RuntimeError):
     """Raised when an authoritative M3 build must fail closed."""
+
+
 class NegativeAuthorityInputV1(NamedTuple):
     path: str | Path
     reference: NegativeReviewAuthorityRefV1
     source: SourceRecordRefV1
+
+
 class ReferenceBuildResultV1(NamedTuple):
     output_dir: Path
     source_lock_digest: str
@@ -66,56 +74,19 @@ class ReferenceBuildResultV1(NamedTuple):
     records: tuple[CardAnalysisRecordV1, ...]
     traces: tuple[RequirementTraceEventV1, ...]
     identity_set: tuple[tuple[str, str, str, str], ...]
+
     def record_for(self, source_key: tuple[str, str, str, str]) -> CardAnalysisRecordV1:
         return next(
             record
             for record in self.records
             if card_source_key(record.source) == source_key
         )
-class _StructuralInputV1(NamedTuple):
-    root: Path
-    source_lock_path: Path
-    source_lock_digest: str
-    records: tuple[StructuralCardRecordV1, ...]
-    structural_index_aggregate_digest: str
-    manifest_sha256: str
+
+
 def _failure(code: str, detail: str = "") -> AnalysisBuildError:
     return AnalysisBuildError(code if not detail else f"{code}: {detail}")
-def _load_structural_input(
-    structural_index: str | Path,
-    source_lock_path: str | Path | None,
-) -> _StructuralInputV1:
-    root = Path(structural_index)
-    try:
-        manifest, _, manifest_sha256 = _read_m1_authority(root)
-        records = tuple(
-            sorted(
-                (
-                    StructuralCardRecordV1.from_wire(json.loads(line))
-                    for shard in SHARD_NAMES
-                    for line in (root / "records" / f"{shard}.jsonl")
-                    .read_bytes()
-                    .splitlines()
-                ),
-                key=lambda item: item.oracle_id,
-            )
-        )
-        lock_path = (
-            Path(source_lock_path)
-            if source_lock_path is not None
-            else root / "source-lock.json"
-        )
-        source_lock = load_source_lock(lock_path)
-        return _StructuralInputV1(
-            root=root,
-            source_lock_path=lock_path,
-            source_lock_digest=source_lock.digest(),
-            records=records,
-            structural_index_aggregate_digest=manifest.aggregate_digest,
-            manifest_sha256=manifest_sha256,
-        )
-    except Exception as error:
-        raise _failure("INVALID_M1_INPUT", str(error)) from error
+
+
 def _bind_producers(
     registry: ProducerRegistryV1,
     implementations: Sequence[CandidateProducerV1],
@@ -145,21 +116,14 @@ def _bind_producers(
     return active, tuple(
         by_key[(item.producer_id, item.producer_version)] for item in active.producers
     )
-def _source_for_record(
-    record: StructuralCardRecordV1, source_lock_digest: str
-) -> SourceRecordRefV1:
-    return SourceRecordRefV1(
-        record_schema=StructuralCardRecordV1.SCHEMA,
-        source_lock_digest=source_lock_digest,
-        oracle_id=record.oracle_id,
-        source_card_id=record.source_card_id,
-        source_record_sha256=record.source_record_sha256,
-    )
+
+
 def _trace_events(
     record: StructuralCardRecordV1,
     descriptor: ProducerDescriptorV1,
     status: ProducerResultStatusV1,
     candidates: tuple[RequirementV1, ...],
+    findings: tuple[ProducerFindingV1, ...],
     retained: set[str],
     disputed: set[str],
 ) -> list[RequirementTraceEventV1]:
@@ -173,7 +137,7 @@ def _trace_events(
             record.source_record_sha256,
         )
     )
-    entries: list[tuple[str | None, TraceDispositionV1]]
+    entries: list[tuple[str | None, TraceDispositionV1, ProducerFindingV1 | None]]
     if status is ProducerResultStatusV1.EMITTED:
         entries = [
             (
@@ -183,8 +147,12 @@ def _trace_events(
                 else TraceDispositionV1.DISPUTED_IDENTITY_OMITTED
                 if candidate.requirement_id in disputed
                 else TraceDispositionV1.CANDIDATE_EMITTED,
+                next(
+                    (item for item in findings if item.candidate_index == ordinal),
+                    None,
+                ),
             )
-            for candidate in candidates
+            for ordinal, candidate in enumerate(candidates)
         ]
     else:
         entries = [
@@ -193,6 +161,7 @@ def _trace_events(
                 TraceDispositionV1.PRODUCER_NO_MATCH
                 if status is ProducerResultStatusV1.NO_MATCH
                 else TraceDispositionV1.PRODUCER_UNSUPPORTED_SHAPE,
+                None,
             )
         ]
     return [
@@ -200,20 +169,22 @@ def _trace_events(
             source_key,
             descriptor.producer_id,
             descriptor.producer_version,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
+            None if finding is None else finding.pattern_id,
+            None if finding is None else finding.pattern_version,
+            None if finding is None else finding.pattern_digest,
+            None if finding is None else finding.source_field,
+            None if finding is None else finding.face_index,
+            None if finding is None else finding.exact_fragment,
+            None if finding is None else finding.clause_ordinal,
+            None if finding is None else finding.parser_span,
             candidate_id,
             None,
             disposition,
         )
-        for candidate_id, disposition in entries
+        for candidate_id, disposition, finding in entries
     ]
+
+
 def _descriptor(
     path: Path, relative_path: str, record_count: int
 ) -> AnalysisShardDescriptorV1:
@@ -221,7 +192,11 @@ def _descriptor(
     return AnalysisShardDescriptorV1(
         relative_path, hashlib.sha256(raw).hexdigest(), len(raw), record_count
     )
+
+
 WireValue = CardAnalysisRecordV1 | RequirementTraceEventV1
+
+
 def _write_shard(
     path: Path,
     relative_path: str,
@@ -233,6 +208,8 @@ def _write_shard(
         b"".join(canonical_json_bytes(item.to_wire()) + b"\n" for item in values)
     )
     return _descriptor(path, relative_path, len(values))
+
+
 def _write_shards(
     root: Path,
     records: tuple[CardAnalysisRecordV1, ...],
@@ -272,6 +249,8 @@ def _write_shards(
             )
         )
     return tuple(record_descriptors), tuple(trace_descriptors)
+
+
 def build_reference_m3(
     structural_index: str | Path,
     producer_registry: ProducerRegistryV1,
@@ -287,7 +266,10 @@ def build_reference_m3(
     if output_path.exists():
         raise _failure("PUBLICATION_FAILURE", "output directory already exists")
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    structural = _load_structural_input(structural_index, source_lock_path)
+    try:
+        structural = load_reference_build_input(structural_index, source_lock_path)
+    except Exception as error:
+        raise _failure("INVALID_M1_INPUT", str(error)) from error
     registry, producers = _bind_producers(producer_registry, producer_implementations)
     if not isinstance(pattern_registry, EffectivePatternRegistryV1):
         raise _failure("PATTERN_ADMISSION", "registry has the wrong type")
@@ -321,7 +303,7 @@ def build_reference_m3(
             raise _failure("INVALID_NEGATIVE_AUTHORITY", "source lock mismatch")
         authority_key = card_source_key(negative_authority.source)
         m1_keys = {
-            card_source_key(_source_for_record(item, structural.source_lock_digest))
+            card_source_key(source_ref_for_record(item, structural.source_lock_digest))
             for item in structural.records
         }
         if authority_key not in m1_keys:
@@ -344,7 +326,7 @@ def build_reference_m3(
     records: list[CardAnalysisRecordV1] = []
     traces: list[RequirementTraceEventV1] = []
     for item in structural.records:
-        source = _source_for_record(item, structural.source_lock_digest)
+        source = source_ref_for_record(item, structural.source_lock_digest)
         candidates: list[RequirementV1] = []
         relationships: list[RelationshipProposalV1] = []
         results: list[
@@ -352,6 +334,7 @@ def build_reference_m3(
                 ProducerDescriptorV1,
                 ProducerResultStatusV1,
                 tuple[RequirementV1, ...],
+                tuple[ProducerFindingV1, ...],
             ]
         ] = []
         unresolved = False
@@ -377,7 +360,9 @@ def build_reference_m3(
             candidates.extend(result.candidates)
             relationships.extend(result.relationship_proposals)
             unresolved |= result.status is ProducerResultStatusV1.UNSUPPORTED_SHAPE
-            results.append((descriptor, result.status, result.candidates))
+            results.append(
+                (descriptor, result.status, result.candidates, result.findings)
+            )
         try:
             merged = reconcile(candidates, relationships)
         except ReconciliationFailure as error:
@@ -386,10 +371,16 @@ def build_reference_m3(
         disputed = {
             candidate.requirement_id for candidate in merged.disputed_candidates
         }
-        for descriptor, status, result_candidates in results:
+        for descriptor, status, result_candidates, result_findings in results:
             traces.extend(
                 _trace_events(
-                    item, descriptor, status, result_candidates, retained, disputed
+                    item,
+                    descriptor,
+                    status,
+                    result_candidates,
+                    result_findings,
+                    retained,
+                    disputed,
                 )
             )
         bundle = None
@@ -490,6 +481,8 @@ def build_reference_m3(
         reread_traces,
         tuple(card_source_key(item.source) for item in reread_records),
     )
+
+
 __all__ = [
     "AnalysisBuildError",
     "M3_BUILD_PROFILE",

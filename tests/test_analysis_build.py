@@ -18,19 +18,29 @@ from manafold_census.analysis.build import (
 from manafold_census.analysis.manifest import SHARD_NAMES, card_source_key
 from manafold_census.analysis.model import (
     AnalysisOutcomeV1,
-    CardAnalysisRecordV1,
     NegativeReviewAuthorityRefV1,
 )
-from manafold_census.analysis.patterns import EffectivePatternRegistryV1
+from manafold_census.analysis.patterns import (
+    EffectivePatternRegistryV1,
+    PatternSourceFieldV1,
+    pattern_rule_digest_for,
+)
 from manafold_census.analysis.producer import (
     CandidateProducerV1,
     ProducerContextV1,
     ProducerDescriptorV1,
+    ProducerFindingV1,
     ProducerResultV1,
 )
 from manafold_census.analysis.registry import ProducerRegistryV1
 from manafold_census.canonical import canonical_json_bytes
-from manafold_census.models import SourceLock
+from manafold_census.digest import sha256_bytes
+from manafold_census.models import (
+    ArtifactManifest,
+    DatasetManifest,
+    SourceLock,
+    StudySpec,
+)
 from manafold_census.semantic.evidence import (
     SourceRecordRefV1,
     StructuralFieldEvidenceV1,
@@ -54,6 +64,16 @@ from manafold_census.semantic.primitives import (
     MultiplicityV1,
     QuantityModeV1,
     QuantityV1,
+)
+from manafold_census.structural.build import (
+    SHARD_COUNT,
+    STRUCTURAL_ARTIFACT_ID,
+    STRUCTURAL_ARTIFACT_KIND,
+    STRUCTURAL_DATASET_ID,
+    STRUCTURAL_DATASET_VERSION,
+    STRUCTURAL_NORMALIZATION_PROFILE,
+    STRUCTURAL_OPERATION,
+    STRUCTURAL_STUDY_ID,
 )
 from manafold_census.structural.index import (
     inspect_structural_index,
@@ -103,6 +123,34 @@ def _write_structural_fixture(
     (root / "structural-index-manifest.json").write_bytes(
         canonical_json_bytes(manifest.to_wire())
     )
+    source_lock = _source_lock()
+    dataset = DatasetManifest(
+        STRUCTURAL_DATASET_ID,
+        STRUCTURAL_DATASET_VERSION,
+        source_lock.digest(),
+        STRUCTURAL_NORMALIZATION_PROFILE,
+        summary.record_count,
+    )
+    study = StudySpec(
+        STRUCTURAL_STUDY_ID,
+        (STRUCTURAL_DATASET_ID,),
+        STRUCTURAL_OPERATION,
+        {"shard_count": SHARD_COUNT, "source_lock_digest": source_lock.digest()},
+    )
+    manifest_bytes = canonical_json_bytes(manifest.to_wire())
+    artifact = ArtifactManifest(
+        STRUCTURAL_ARTIFACT_ID,
+        STRUCTURAL_ARTIFACT_KIND,
+        study.digest(),
+        sha256_bytes(manifest_bytes),
+        len(manifest_bytes),
+    )
+    for name, document in (
+        ("dataset-manifest.json", dataset.to_wire()),
+        ("study-spec.json", study.to_wire()),
+        ("artifact-manifest.json", artifact.to_wire()),
+    ):
+        (root / name).write_bytes(canonical_json_bytes(document))
     return root, source_lock_path, records
 
 
@@ -241,7 +289,22 @@ class _ExactPatternProducer:
                 (),
             ),
         )
-        return ProducerResultV1.emitted((candidate,))
+        return ProducerResultV1.emitted(
+            (candidate,),
+            findings=(
+                ProducerFindingV1(
+                    candidate_index=0,
+                    pattern_id=rule.pattern_id,
+                    pattern_version=rule.pattern_version,
+                    pattern_digest=pattern_rule_digest_for(rule),
+                    source_field=PatternSourceFieldV1.ORACLE_TEXT,
+                    face_index=None,
+                    exact_fragment=rule.match_text,
+                    clause_ordinal=0,
+                    parser_span=None,
+                ),
+            ),
+        )
 
 
 class _DoubleDrawProducer:
@@ -434,6 +497,28 @@ def _producers(
     return tuple(values)
 
 
+def _invoke_build(
+    structural_root: Path,
+    source_lock_path: Path,
+    output_path: Path,
+    *,
+    variant: str = "base",
+    authority: NegativeAuthorityInputV1 | None = None,
+):
+    pattern_registry = _pattern_registry()
+    producers = _producers(pattern_registry, variant)
+    registry = ProducerRegistryV1.build([producer.descriptor for producer in producers])
+    return build_reference_m3(
+        structural_root,
+        registry,
+        pattern_registry,
+        output_path,
+        negative_authority=authority,
+        producer_implementations=producers,
+        source_lock_path=source_lock_path,
+    )
+
+
 def _negative_authority_input(
     records: tuple[StructuralCardRecordV1, ...],
     source_lock_digest: str,
@@ -469,37 +554,19 @@ def _build(
         tmp_path / "structural"
     )
     source_lock_digest = _source_lock().digest()
-    pattern_registry = _pattern_registry()
-    producers = _producers(pattern_registry, variant)
-    registry = ProducerRegistryV1.build([producer.descriptor for producer in producers])
     authority = (
         _negative_authority_input(records, source_lock_digest)
         if with_negative_authority
         else None
     )
-    result = build_reference_m3(
+    result = _invoke_build(
         structural_root,
-        registry,
-        pattern_registry,
+        source_lock_path,
         tmp_path / "out",
-        negative_authority=authority,
-        producer_implementations=producers,
-        source_lock_path=source_lock_path,
+        variant=variant,
+        authority=authority,
     )
     return result, records
-
-
-def _by_name(
-    records: tuple[CardAnalysisRecordV1, ...], name: str
-) -> CardAnalysisRecordV1:
-    return next(record for record in records if record.source.oracle_id == name)
-
-
-def _record_for_name(result, name: str, structural_records):
-    source = next(record for record in structural_records if record.name == name)
-    return result.record_for(
-        card_source_key(_source_ref(source, result.source_lock_digest))
-    )
 
 
 def _relative_bytes(root: Path) -> dict[str, bytes]:
@@ -508,6 +575,74 @@ def _relative_bytes(root: Path) -> dict[str, bytes]:
         for path in root.rglob("*")
         if path.is_file()
     }
+
+
+def test_valid_wrong_source_lock_is_rejected_before_publication(tmp_path: Path) -> None:
+    structural_root, source_lock_path, _ = _write_structural_fixture(
+        tmp_path / "structural"
+    )
+    wrong_lock_path = tmp_path / "wrong-source-lock.json"
+    wrong_lock = json.loads(source_lock_path.read_bytes())
+    wrong_lock["artifacts"][0]["sha256"] = "0" * 64
+    wrong_lock_path.write_bytes(canonical_json_bytes(wrong_lock))
+
+    with pytest.raises(AnalysisBuildError, match="INVALID_M1_INPUT"):
+        _invoke_build(structural_root, wrong_lock_path, tmp_path / "out")
+    assert not (tmp_path / "out" / "analysis-manifest.json").exists()
+
+
+@pytest.mark.parametrize("manifest_name", ["dataset", "study", "artifact"])
+def test_m1_lifecycle_binding_failures_are_rejected(
+    tmp_path: Path,
+    manifest_name: str,
+) -> None:
+    structural_root, source_lock_path, _ = _write_structural_fixture(
+        tmp_path / "structural"
+    )
+    path = (
+        structural_root
+        / {
+            "dataset": "dataset-manifest.json",
+            "study": "study-spec.json",
+            "artifact": "artifact-manifest.json",
+        }[manifest_name]
+    )
+    document = json.loads(path.read_bytes())
+    if manifest_name == "dataset":
+        document["source_lock_digest"] = "f" * 64
+    elif manifest_name == "study":
+        document["parameters"]["source_lock_digest"] = "f" * 64
+    else:
+        document["content_sha256"] = "f" * 64
+    path.write_bytes(canonical_json_bytes(document))
+
+    with pytest.raises(AnalysisBuildError, match="INVALID_M1_INPUT"):
+        _invoke_build(structural_root, source_lock_path, tmp_path / "out")
+    assert not (tmp_path / "out" / "analysis-manifest.json").exists()
+
+
+def test_exact_pattern_match_trace_preserves_pattern_provenance(
+    tmp_path: Path,
+) -> None:
+    result, structural_records = _build(tmp_path)
+    exact_source = _source_ref(structural_records[0], result.source_lock_digest)
+    event = next(
+        item
+        for item in result.traces
+        if item.card_source_key == card_source_key(exact_source)
+        and item.producer_id == "m3.exact-rule"
+        and item.candidate_requirement_id is not None
+    )
+    rule = next(
+        item
+        for item in _pattern_registry().rules
+        if item.pattern_id == "m3.exact-clause.draw"
+    )
+    assert event.pattern_id == rule.pattern_id
+    assert event.pattern_version == rule.pattern_version
+    assert event.pattern_digest == pattern_rule_digest_for(rule)
+    assert event.source_field is PatternSourceFieldV1.ORACLE_TEXT
+    assert event.exact_fragment == "Draw two cards."
 
 
 def test_reference_build_emits_one_record_per_synthetic_m1_card(tmp_path: Path) -> None:

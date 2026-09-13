@@ -8,12 +8,14 @@ from analysis_fixtures import (
     structural_record,
 )
 
+from manafold_census.analysis.patterns import PatternSourceFieldV1
 from manafold_census.analysis.producer import (
     ImmutableRegistrySnapshotV1,
     ProducerContextV1,
     ProducerContractError,
     ProducerDescriptorV1,
     ProducerExecutionError,
+    ProducerFindingV1,
     ProducerResultStatusV1,
     ProducerResultV1,
     RelationshipProposalV1,
@@ -94,6 +96,23 @@ def test_emitted_result_requires_a_proposed_requirement() -> None:
     result = ProducerResultV1.emitted((proposal,))
     assert result.status is ProducerResultStatusV1.EMITTED
     assert result.candidates == (proposal,)
+
+
+def test_emitted_result_carries_typed_pattern_finding() -> None:
+    proposal = bundle().requirements[0]
+    finding = ProducerFindingV1(
+        candidate_index=0,
+        pattern_id="fixture.pattern",
+        pattern_version="1",
+        pattern_digest="d" * 64,
+        source_field=PatternSourceFieldV1.ORACLE_TEXT,
+        face_index=None,
+        exact_fragment="Draw two cards.",
+        clause_ordinal=0,
+        parser_span=None,
+    )
+    result = ProducerResultV1.emitted((proposal,), findings=(finding,))
+    assert result.findings == (finding,)
 
 
 def test_producer_exception_is_not_a_no_match_result() -> None:

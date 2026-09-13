@@ -24,6 +24,7 @@ from ..semantic.model import (
 from ..semantic.primitives import _require_enum, _require_object
 from ..semantic.validate import validate_requirement_against_structural_record
 from ..structural.model import StructuralCardRecordV1
+from .patterns import PatternSourceFieldV1
 
 _DIGEST_PATTERN = re.compile(r"^[0-9a-f]{64}$")
 
@@ -40,6 +41,66 @@ class ProducerResultStatusV1(StrEnum):
     EMITTED = "EMITTED"
     NO_MATCH = "NO_MATCH"
     UNSUPPORTED_SHAPE = "UNSUPPORTED_SHAPE"
+
+
+@dataclass(frozen=True, slots=True)
+class ProducerFindingV1:
+    candidate_index: int | None
+    pattern_id: str | None
+    pattern_version: str | None
+    pattern_digest: str | None
+    source_field: PatternSourceFieldV1 | None
+    face_index: int | None
+    exact_fragment: str | None
+    clause_ordinal: int | None
+    parser_span: tuple[int, int] | None
+
+    def __post_init__(self) -> None:
+        for field, value in (
+            ("candidate_index", self.candidate_index),
+            ("face_index", self.face_index),
+            ("clause_ordinal", self.clause_ordinal),
+        ):
+            if value is not None and (type(value) is not int or value < 0):
+                raise ValueError(f"{field} must be a non-negative integer")
+        pattern_fields = (self.pattern_id, self.pattern_version, self.pattern_digest)
+        if any(item is not None for item in pattern_fields) and not all(
+            item is not None for item in pattern_fields
+        ):
+            raise ValueError("pattern identity fields must be all present or null")
+        if self.pattern_id is not None:
+            _require_text("pattern_id", self.pattern_id)
+            _require_text("pattern_version", self.pattern_version)
+            _require_digest("pattern_digest", self.pattern_digest)
+        if self.source_field is not None:
+            object.__setattr__(
+                self,
+                "source_field",
+                _require_enum("source_field", self.source_field, PatternSourceFieldV1),
+            )
+        if (
+            self.face_index is not None
+            and self.source_field is not PatternSourceFieldV1.ORACLE_TEXT
+        ):
+            raise ValueError("face_index requires oracle_text source_field")
+        if self.exact_fragment is not None:
+            _require_text("exact_fragment", self.exact_fragment)
+            if self.source_field is not PatternSourceFieldV1.ORACLE_TEXT:
+                raise ValueError("exact_fragment requires oracle_text source_field")
+        if self.parser_span is not None:
+            if (
+                not isinstance(self.parser_span, tuple | list)
+                or len(self.parser_span) != 2
+            ):
+                raise ValueError("parser_span must contain two offsets")
+            start, end = self.parser_span
+            if (
+                any(type(value) is not int for value in (start, end))
+                or start < 0
+                or end < start
+            ):
+                raise ValueError("parser_span offsets are invalid")
+            object.__setattr__(self, "parser_span", (start, end))
 
 
 def _require_text(field: str, value: object) -> str:
@@ -253,6 +314,7 @@ class ProducerResultV1:
     relationship_proposals: tuple[RelationshipProposalV1, ...]
     unresolved_reason: str | None
     negative_authority: None = None
+    findings: tuple[ProducerFindingV1, ...] = ()
 
     def __post_init__(self) -> None:
         status = _require_enum("status", self.status, ProducerResultStatusV1)
@@ -281,16 +343,34 @@ class ProducerResultV1:
             raise ProducerContractError(
                 "normal producers cannot emit negative authority"
             )
+        if not isinstance(self.findings, tuple | list):
+            raise TypeError("findings must be a tuple or list")
+        findings = tuple(self.findings)
+        if any(not isinstance(item, ProducerFindingV1) for item in findings):
+            raise TypeError("findings must contain ProducerFindingV1 values")
+        object.__setattr__(self, "findings", findings)
         if status is ProducerResultStatusV1.EMITTED:
             if not candidates:
                 raise ProducerContractError("EMITTED requires a candidate")
             if self.unresolved_reason is not None:
                 raise ProducerContractError("EMITTED cannot be unresolved")
+            indexes = [item.candidate_index for item in findings]
+            if any(index is None or index >= len(candidates) for index in indexes):
+                raise ProducerContractError("finding candidate_index is out of range")
+            if len(indexes) != len(set(indexes)):
+                raise ProducerContractError(
+                    "findings contain duplicate candidate_index"
+                )
         elif status is ProducerResultStatusV1.NO_MATCH:
-            if candidates or relationships or self.unresolved_reason is not None:
+            if (
+                candidates
+                or relationships
+                or findings
+                or self.unresolved_reason is not None
+            ):
                 raise ProducerContractError("NO_MATCH must contain no proposals")
         elif status is ProducerResultStatusV1.UNSUPPORTED_SHAPE:
-            if candidates or relationships:
+            if candidates or relationships or findings:
                 raise ProducerContractError(
                     "UNSUPPORTED_SHAPE must contain no proposals"
                 )
@@ -304,12 +384,14 @@ class ProducerResultV1:
         cls,
         candidates: Sequence[RequirementV1],
         relationship_proposals: Sequence[RelationshipProposalV1] = (),
+        findings: Sequence[ProducerFindingV1] = (),
     ) -> ProducerResultV1:
         return cls(
             ProducerResultStatusV1.EMITTED,
             tuple(candidates),
             tuple(relationship_proposals),
             None,
+            findings=tuple(findings),
         )
 
     @classmethod
@@ -407,6 +489,7 @@ __all__ = [
     "ProducerContractError",
     "ProducerDescriptorV1",
     "ProducerExecutionError",
+    "ProducerFindingV1",
     "ProducerResultStatusV1",
     "ProducerResultV1",
     "ImmutableRegistrySnapshotV1",
