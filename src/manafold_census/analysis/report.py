@@ -11,6 +11,11 @@ from pathlib import Path
 from typing import ClassVar, Protocol, cast
 
 from ..canonical import JSONValue, canonical_json_bytes
+from ..digest import sha256_bytes
+from ..semantic.evidence import (
+    StructuralFaceEvidenceV1,
+    StructuralFieldEvidenceV1,
+)
 from ..semantic.kinds import RequirementFamilyV1, RequirementKindV1
 from ..semantic.model import (
     DerivationMethodV1,
@@ -36,12 +41,18 @@ class ValidatedAnalysisRunV1(Protocol):
 
 @dataclass(frozen=True, slots=True)
 class ReuseSummaryV1:
+    distinct_pattern_count: int
+    matched_card_count: int
+    matched_requirement_count: int
     pattern_count: int
     total_match_count: int
     reused_match_count: int
 
     def to_wire(self) -> dict[str, JSONValue]:
         return {
+            "distinct_pattern_count": self.distinct_pattern_count,
+            "matched_card_count": self.matched_card_count,
+            "matched_requirement_count": self.matched_requirement_count,
             "pattern_count": self.pattern_count,
             "total_match_count": self.total_match_count,
             "reused_match_count": self.reused_match_count,
@@ -81,7 +92,7 @@ class ReportIndexV1:
 
     def to_wire(self) -> dict[str, JSONValue]:
         return {
-            "schema": self.SCHEMA,
+            "report_index_schema": self.SCHEMA,
             "analysis_manifest_sha256": self.analysis_manifest_sha256,
             "report_descriptors": [
                 descriptor.to_wire() for descriptor in self.report_descriptors
@@ -119,6 +130,90 @@ def _enum_counts(
 
 def _pattern_key(pattern_id: str, pattern_version: str) -> str:
     return f"{pattern_id}@{pattern_version}"
+
+
+def _requirement_is_face_sourced(requirement: object) -> bool:
+    from ..semantic.model import RequirementV1
+
+    if not isinstance(requirement, RequirementV1):
+        return False
+    return any(
+        isinstance(evidence, StructuralFaceEvidenceV1)
+        or isinstance(evidence, StructuralFieldEvidenceV1)
+        and evidence.face_index is not None
+        for evidence in requirement.evidence
+    )
+
+
+def _face_source_counts(requirements: Sequence[object]) -> dict[str, JSONValue]:
+    return {
+        "PARENT": sum(not _requirement_is_face_sourced(item) for item in requirements),
+        "FACE": sum(_requirement_is_face_sourced(item) for item in requirements),
+    }
+
+
+def _multi_face_card_count(records: Sequence[CardAnalysisRecordV1]) -> int:
+    return sum(
+        record.bundle is not None
+        and any(
+            _requirement_is_face_sourced(item) for item in record.bundle.requirements
+        )
+        for record in records
+    )
+
+
+def _largest_unresolved_groups(
+    records: Sequence[CardAnalysisRecordV1],
+    traces: Sequence[RequirementTraceEventV1],
+) -> list[dict[str, JSONValue]]:
+    dispositions: dict[tuple[str, str, str, str], set[str]] = defaultdict(set)
+    for event in traces:
+        dispositions[event.card_source_key].add(event.disposition.value)
+    groups: Counter[str] = Counter()
+    for record in records:
+        if record.outcome is not AnalysisOutcomeV1.UNRESOLVED_ANALYSIS:
+            continue
+        key = (
+            "DISPUTED_IDENTITY_OMITTED"
+            if "DISPUTED_IDENTITY_OMITTED"
+            in dispositions.get(
+                (
+                    record.source.record_schema,
+                    record.source.oracle_id,
+                    record.source.source_card_id,
+                    record.source.source_record_sha256,
+                ),
+                set(),
+            )
+            else "PRODUCER_UNSUPPORTED_SHAPE"
+            if "PRODUCER_UNSUPPORTED_SHAPE"
+            in dispositions.get(
+                (
+                    record.source.record_schema,
+                    record.source.oracle_id,
+                    record.source.source_card_id,
+                    record.source.source_record_sha256,
+                ),
+                set(),
+            )
+            else "PRODUCER_NO_MATCH"
+            if "PRODUCER_NO_MATCH"
+            in dispositions.get(
+                (
+                    record.source.record_schema,
+                    record.source.oracle_id,
+                    record.source.source_card_id,
+                    record.source.source_record_sha256,
+                ),
+                set(),
+            )
+            else "UNRESOLVED_ANALYSIS"
+        )
+        groups[key] += 1
+    return [
+        {"group_key": key, "card_count": count}
+        for key, count in sorted(groups.items(), key=lambda item: (-item[1], item[0]))
+    ]
 
 
 def _report_document(
@@ -176,14 +271,18 @@ def _report_document(
     )
     pattern_stats: dict[tuple[str, str, str], dict[str, object]] = {}
     trace_dispositions = Counter(event.disposition.value for event in traces)
-    face_sources = Counter(
-        "FACE" if event.face_index is not None else "PARENT" for event in traces
-    )
+    matched_cards: set[tuple[str, str, str, str]] = set()
+    matched_requirements: set[tuple[tuple[str, str, str, str], str]] = set()
     for event in traces:
         producer_key = (event.producer_id, event.producer_version)
         disposition = event.disposition
         producer_stats[producer_key]["candidate_emitted_count"] += int(
-            disposition is TraceDispositionV1.CANDIDATE_EMITTED
+            disposition
+            in (
+                TraceDispositionV1.CANDIDATE_EMITTED,
+                TraceDispositionV1.CANDIDATE_RETAINED,
+                TraceDispositionV1.DISPUTED_IDENTITY_OMITTED,
+            )
         )
         producer_stats[producer_key]["candidate_retained_count"] += int(
             disposition is TraceDispositionV1.CANDIDATE_RETAINED
@@ -204,6 +303,10 @@ def _report_document(
             producer_unresolved[producer_key].add(event.card_source_key)
         if event.pattern_id is None or event.candidate_requirement_id is None:
             continue
+        matched_cards.add(event.card_source_key)
+        matched_requirements.add(
+            (event.card_source_key, event.candidate_requirement_id)
+        )
         pattern_key = (
             event.pattern_id,
             event.pattern_version or "",
@@ -266,6 +369,9 @@ def _report_document(
             }
         )
     reuse_summary = ReuseSummaryV1(
+        distinct_pattern_count=len(pattern_counts),
+        matched_card_count=len(matched_cards),
+        matched_requirement_count=len(matched_requirements),
         pattern_count=len(pattern_counts),
         total_match_count=total_match_count,
         reused_match_count=reused_match_count,
@@ -290,10 +396,14 @@ def _report_document(
             disposition.value: trace_dispositions[disposition.value]
             for disposition in TraceDispositionV1
         },
-        "face_source_counts": {
-            "PARENT": face_sources["PARENT"],
-            "FACE": face_sources["FACE"],
-        },
+        "face_source_counts": _face_source_counts(requirements),
+        "multi_face_card_count": _multi_face_card_count(records),
+        "largest_unresolved_groups": cast(
+            JSONValue, _largest_unresolved_groups(records, traces)
+        ),
+        "distinct_pattern_count": len(pattern_counts),
+        "matched_card_count": len(matched_cards),
+        "matched_requirement_count": len(matched_requirements),
         "pattern_counts": cast(JSONValue, pattern_counts),
         "single_card_patterns": cast(JSONValue, single_card_patterns),
         "outlier_patterns": cast(JSONValue, outlier_patterns),
@@ -310,21 +420,30 @@ def build_reports(
     if not isinstance(validated_run.manifest, AnalysisManifestV1):
         raise TypeError("validated_run must contain AnalysisManifestV1")
     output_path = Path(output_dir)
-    if output_path.exists() and any(output_path.iterdir()):
-        raise ValueError("report output directory must be empty")
-    output_path.mkdir(parents=True, exist_ok=True)
+    manifest_path = output_path / "analysis-manifest.json"
+    if not manifest_path.is_file():
+        raise ValueError("report output root must contain analysis-manifest.json")
+    if (output_path / "report-index.json").exists():
+        raise ValueError("report-index.json already exists")
+    reports_path = output_path / "reports"
+    if reports_path.exists() and any(reports_path.iterdir()):
+        raise ValueError("reports directory must be empty")
+    reports_path.mkdir(parents=True, exist_ok=True)
+    manifest_sha256 = sha256_bytes(manifest_path.read_bytes())
+    if manifest_sha256 != validated_run.manifest.digest():
+        raise ValueError("validated manifest bytes do not match manifest model")
     document, pattern_counts, reuse_summary = _report_document(validated_run)
     validate_document(document, "analysis-report.v1.schema.json")
     report = AnalysisReportV1(document, pattern_counts, reuse_summary)
-    report_path = output_path / "analysis-report.json"
+    report_path = reports_path / "analysis-report.json"
     report_bytes = canonical_json_bytes(report.to_wire())
     report_path.write_bytes(report_bytes)
     descriptor = ReportDescriptorV1(
-        "analysis-report.json",
+        "reports/analysis-report.json",
         hashlib.sha256(report_bytes).hexdigest(),
         len(report_bytes),
     )
-    report_index = ReportIndexV1(validated_run.manifest.digest(), (descriptor,))
+    report_index = ReportIndexV1(manifest_sha256, (descriptor,))
     validate_document(report_index.to_wire(), "analysis-report.v1.schema.json")
     (output_path / "report-index.json").write_bytes(
         canonical_json_bytes(report_index.to_wire())

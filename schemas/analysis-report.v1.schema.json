@@ -25,7 +25,7 @@
       "properties": {
         "relative_path": {
           "type": "string",
-          "pattern": "^[^/]+\\.json$"
+          "pattern": "^reports/[^/]+\\.json$"
         },
         "sha256": {"$ref": "#/$defs/digest"},
         "byte_length": {"type": "integer", "minimum": 0}
@@ -78,8 +78,18 @@
     "reuse_summary": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["pattern_count", "total_match_count", "reused_match_count"],
+      "required": [
+        "distinct_pattern_count",
+        "matched_card_count",
+        "matched_requirement_count",
+        "pattern_count",
+        "total_match_count",
+        "reused_match_count"
+      ],
       "properties": {
+        "distinct_pattern_count": {"type": "integer", "minimum": 0},
+        "matched_card_count": {"type": "integer", "minimum": 0},
+        "matched_requirement_count": {"type": "integer", "minimum": 0},
         "pattern_count": {"type": "integer", "minimum": 0},
         "total_match_count": {"type": "integer", "minimum": 0},
         "reused_match_count": {"type": "integer", "minimum": 0}
@@ -104,6 +114,11 @@
         "producer_contributions",
         "trace_dispositions",
         "face_source_counts",
+        "multi_face_card_count",
+        "largest_unresolved_groups",
+        "distinct_pattern_count",
+        "matched_card_count",
+        "matched_requirement_count",
         "pattern_counts",
         "single_card_patterns",
         "outlier_patterns",
@@ -128,6 +143,22 @@
         },
         "trace_dispositions": {"$ref": "#/$defs/count_map"},
         "face_source_counts": {"$ref": "#/$defs/count_map"},
+        "multi_face_card_count": {"type": "integer", "minimum": 0},
+        "largest_unresolved_groups": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["group_key", "card_count"],
+            "properties": {
+              "group_key": {"type": "string", "minLength": 1},
+              "card_count": {"type": "integer", "minimum": 0}
+            }
+          }
+        },
+        "distinct_pattern_count": {"type": "integer", "minimum": 0},
+        "matched_card_count": {"type": "integer", "minimum": 0},
+        "matched_requirement_count": {"type": "integer", "minimum": 0},
         "pattern_counts": {
           "type": "array",
           "items": {"$ref": "#/$defs/pattern_count"}
@@ -146,9 +177,13 @@
     "report_index": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["schema", "analysis_manifest_sha256", "report_descriptors"],
+      "required": [
+        "report_index_schema",
+        "analysis_manifest_sha256",
+        "report_descriptors"
+      ],
       "properties": {
-        "schema": {"const": "census.analysis-report-index.v1"},
+        "report_index_schema": {"const": "census.analysis-report-index.v1"},
         "analysis_manifest_sha256": {"$ref": "#/$defs/digest"},
         "report_descriptors": {
           "type": "array",
