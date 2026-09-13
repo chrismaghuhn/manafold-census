@@ -10,11 +10,12 @@ from semantic_fixture_review_report import (
     write_review_report,
 )
 
-from manafold_census.semantic.bundle import RequirementBundleV1
+from manafold_census.semantic.bundle import RelationshipTypeV1, RequirementBundleV1
 from manafold_census.semantic.identity import (
     reviewed_claim_digest_for,
     reviewed_claim_payload_for,
 )
+from manafold_census.semantic.kinds import RequirementKindV1
 from manafold_census.semantic.model import ReviewStatusV1
 from manafold_census.semantic.validate import (
     validate_bundle_against_structural_record,
@@ -90,6 +91,37 @@ def test_fixture_matrix_contains_partial_unresolved_and_conflicting_proposals() 
         relationship.relationship_type.value == "CONFLICTS_WITH"
         for bundle in bundles
         for relationship in bundle.relationships
+    )
+
+
+def test_hypothesizzle_is_the_authorized_conflict_case_and_shahrazad_is_not() -> None:
+    cases, _, _ = _loaded_fixture_state()
+    by_case = {
+        case["case_id"]: RequirementBundleV1.from_wire(case["bundle"]) for case in cases
+    }
+    hypothesizzle = by_case["trigger_condition"]
+    assert hypothesizzle.source.oracle_id == "e4e6cb61-f673-4f36-b95c-c84a68459503"
+    assert {item.kind for item in hypothesizzle.requirements} == {
+        RequirementKindV1.TRIGGER_FROM_EVENT,
+        RequirementKindV1.CONDITIONAL_EFFECT,
+    }
+    assert len({item.requirement_id for item in hypothesizzle.requirements}) == 2
+    assert [item.relationship_type for item in hypothesizzle.relationships] == [
+        RelationshipTypeV1.CONFLICTS_WITH
+    ]
+    assert all(
+        item.review.status is ReviewStatusV1.PROPOSED
+        for item in hypothesizzle.requirements
+    )
+
+    shahrazad = by_case["outlier_partial_or_unresolved"]
+    assert all(
+        item.resolution.reason.value != "CONFLICTING_INTERPRETATIONS"
+        for item in shahrazad.requirements
+    )
+    assert all(
+        item.relationship_type is not RelationshipTypeV1.CONFLICTS_WITH
+        for item in shahrazad.relationships
     )
 
 

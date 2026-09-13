@@ -77,9 +77,15 @@
     "bundle": {
       "relationships": [
         {
-          "from": "srq_52d93cf5981653eaa84698674f309e03b1100bfdf83d0297767880df0a6a50a2",
+          "from": "srq_6d21bb86e2e5d2c4ce9358fe5a9a75f99cdb989a85a82f398bbeb602455d5309",
           "ordinal": 0,
           "to": "srq_6ae28fb3495c719f48ae35d9b7baaa2aafb47cc946c1aaa422c0878112ea214c",
+          "type": "SEQUENCE_BEFORE"
+        },
+        {
+          "from": "srq_6ae28fb3495c719f48ae35d9b7baaa2aafb47cc946c1aaa422c0878112ea214c",
+          "ordinal": 1,
+          "to": "srq_0cdc489da1511970dd772633f2e2f2575680c259048ec1819b70f434303ea492",
           "type": "SEQUENCE_BEFORE"
         }
       ],
@@ -89,7 +95,7 @@
             {
               "face_index": null,
               "field": "oracle_text",
-              "fragment": "exiles",
+              "fragment": "onto the battlefield",
               "kind": "STRUCTURAL_FIELD",
               "source": {
                 "oracle_id": "9e6a3df4-67a3-452e-a6ef-f04dbadb21ef",
@@ -106,7 +112,7 @@
             "cause": null,
             "from_zone": {
               "label": null,
-              "zone": "graveyard"
+              "zone": "exile"
             },
             "quantity": {
               "mode": "all",
@@ -131,7 +137,7 @@
               }
             ]
           },
-          "requirement_id": "srq_52d93cf5981653eaa84698674f309e03b1100bfdf83d0297767880df0a6a50a2",
+          "requirement_id": "srq_0cdc489da1511970dd772633f2e2f2575680c259048ec1819b70f434303ea492",
           "resolution": {
             "reason": "NONE",
             "state": "COMPLETE",
@@ -217,6 +223,73 @@
             "source_lock_digest": "4767dccbb518b4009c235bb1ce531f509c0923ba0ebe190936c2dc2d14e2d4bd",
             "source_record_sha256": "b0a1d9b5a00ce8d7f54e8bd8cbca1b84bf7b317690af9209f15bfb6162bdbf6b"
           }
+        },
+        {
+          "evidence": [
+            {
+              "face_index": null,
+              "field": "oracle_text",
+              "fragment": "exiles",
+              "kind": "STRUCTURAL_FIELD",
+              "source": {
+                "oracle_id": "9e6a3df4-67a3-452e-a6ef-f04dbadb21ef",
+                "record_schema": "census.structural-card.v1",
+                "source_card_id": "4ac29c46-f8ee-42ba-a98c-d785ba65485e",
+                "source_lock_digest": "4767dccbb518b4009c235bb1ce531f509c0923ba0ebe190936c2dc2d14e2d4bd",
+                "source_record_sha256": "b0a1d9b5a00ce8d7f54e8bd8cbca1b84bf7b317690af9209f15bfb6162bdbf6b"
+              }
+            }
+          ],
+          "family": "effect",
+          "kind": "move_between_zones",
+          "parameters": {
+            "cause": null,
+            "from_zone": {
+              "label": null,
+              "zone": "graveyard"
+            },
+            "quantity": {
+              "mode": "all",
+              "value": null
+            },
+            "subject": {
+              "multiplicity": "one",
+              "ordinal": null,
+              "role": "affected"
+            },
+            "to_zone": {
+              "label": null,
+              "zone": "exile"
+            }
+          },
+          "provenance": {
+            "derivations": [
+              {
+                "method": "PARSER",
+                "producer_id": "task6a-proposal",
+                "producer_version": "1"
+              }
+            ]
+          },
+          "requirement_id": "srq_6d21bb86e2e5d2c4ce9358fe5a9a75f99cdb989a85a82f398bbeb602455d5309",
+          "resolution": {
+            "reason": "NONE",
+            "state": "COMPLETE",
+            "unknown_paths": []
+          },
+          "review": {
+            "reviewed_by": null,
+            "reviewed_claim_digest": null,
+            "status": "PROPOSED"
+          },
+          "schema": "census.semantic-requirement.v1",
+          "source": {
+            "oracle_id": "9e6a3df4-67a3-452e-a6ef-f04dbadb21ef",
+            "record_schema": "census.structural-card.v1",
+            "source_card_id": "4ac29c46-f8ee-42ba-a98c-d785ba65485e",
+            "source_lock_digest": "4767dccbb518b4009c235bb1ce531f509c0923ba0ebe190936c2dc2d14e2d4bd",
+            "source_record_sha256": "b0a1d9b5a00ce8d7f54e8bd8cbca1b84bf7b317690af9209f15bfb6162bdbf6b"
+          }
         }
       ],
       "schema": "census.semantic-requirement-bundle.v1",
@@ -234,20 +307,14 @@
     "bundle": {
       "relationships": [
         {
-          "from": "srq_27697e0415170920d844328d292f57baf71e1d01a89fecb634a55083bceefb63",
-          "ordinal": null,
-          "to": "srq_d26f6a23b02c4ae26d0a3830029bc7268235d7644e409ea4ff30c9ea9463b0cf",
-          "type": "ALTERNATIVE_OF"
-        },
-        {
-          "from": "srq_f2a379b588253a00e759c74942b4cf1ee23cb56c942eab275ac34c1db95c0a42",
-          "ordinal": 1,
-          "to": "srq_27697e0415170920d844328d292f57baf71e1d01a89fecb634a55083bceefb63",
+          "from": "srq_a5d796748f391b30c0454c86d619b8667c517513b94034613c3b3b82b6fe011a",
+          "ordinal": 0,
+          "to": "srq_65f4f666862a2980d40122e0c99fdc55866aeec9fd17b7b04ee3e5cd20e313f1",
           "type": "PARENT_OF"
         },
         {
-          "from": "srq_f2a379b588253a00e759c74942b4cf1ee23cb56c942eab275ac34c1db95c0a42",
-          "ordinal": 0,
+          "from": "srq_a5d796748f391b30c0454c86d619b8667c517513b94034613c3b3b82b6fe011a",
+          "ordinal": 1,
           "to": "srq_d26f6a23b02c4ae26d0a3830029bc7268235d7644e409ea4ff30c9ea9463b0cf",
           "type": "PARENT_OF"
         }
@@ -294,7 +361,7 @@
               "value": null
             },
             "subject_kind": "object",
-            "targeting": null
+            "targeting": true
           },
           "provenance": {
             "derivations": [
@@ -305,11 +372,128 @@
               }
             ]
           },
-          "requirement_id": "srq_27697e0415170920d844328d292f57baf71e1d01a89fecb634a55083bceefb63",
+          "requirement_id": "srq_65f4f666862a2980d40122e0c99fdc55866aeec9fd17b7b04ee3e5cd20e313f1",
           "resolution": {
-            "reason": "NONE",
-            "state": "COMPLETE",
-            "unknown_paths": []
+            "reason": "INSUFFICIENT_EVIDENCE",
+            "state": "PARTIAL",
+            "unknown_paths": [
+              "/parameters.restriction",
+              "/parameters.targeting"
+            ]
+          },
+          "review": {
+            "reviewed_by": null,
+            "reviewed_claim_digest": null,
+            "status": "PROPOSED"
+          },
+          "schema": "census.semantic-requirement.v1",
+          "source": {
+            "oracle_id": "a3e51a35-09df-4189-b131-08a21e6a557d",
+            "record_schema": "census.structural-card.v1",
+            "source_card_id": "30f6fca9-003b-4f6b-9d6e-1e88adda4155",
+            "source_lock_digest": "4767dccbb518b4009c235bb1ce531f509c0923ba0ebe190936c2dc2d14e2d4bd",
+            "source_record_sha256": "f2b0360d4b8952286a31487e4c1636eabd44ab1e9413faac9dca1f02f28d0f24"
+          }
+        },
+        {
+          "evidence": [
+            {
+              "face_index": null,
+              "field": "oracle_text",
+              "fragment": "Choose two",
+              "kind": "STRUCTURAL_FIELD",
+              "source": {
+                "oracle_id": "a3e51a35-09df-4189-b131-08a21e6a557d",
+                "record_schema": "census.structural-card.v1",
+                "source_card_id": "30f6fca9-003b-4f6b-9d6e-1e88adda4155",
+                "source_lock_digest": "4767dccbb518b4009c235bb1ce531f509c0923ba0ebe190936c2dc2d14e2d4bd",
+                "source_record_sha256": "f2b0360d4b8952286a31487e4c1636eabd44ab1e9413faac9dca1f02f28d0f24"
+              }
+            }
+          ],
+          "family": "choice",
+          "kind": "choose_mode",
+          "parameters": {
+            "alternatives": [
+              {
+                "children": [],
+                "label": null,
+                "object": null,
+                "shape": "event",
+                "subject": {
+                  "multiplicity": "one",
+                  "ordinal": null,
+                  "role": "source"
+                },
+                "value": null
+              },
+              {
+                "children": [],
+                "label": null,
+                "object": null,
+                "shape": "effect",
+                "subject": {
+                  "multiplicity": "one",
+                  "ordinal": null,
+                  "role": "source"
+                },
+                "value": null
+              },
+              {
+                "children": [],
+                "label": null,
+                "object": null,
+                "shape": "restriction",
+                "subject": {
+                  "multiplicity": "one",
+                  "ordinal": null,
+                  "role": "source"
+                },
+                "value": null
+              },
+              {
+                "children": [],
+                "label": null,
+                "object": null,
+                "shape": "alternative",
+                "subject": {
+                  "multiplicity": "one",
+                  "ordinal": null,
+                  "role": "source"
+                },
+                "value": null
+              }
+            ],
+            "chooser": {
+              "multiplicity": "one",
+              "ordinal": null,
+              "role": "chooser"
+            },
+            "maximum": {
+              "mode": "exact",
+              "value": 2
+            },
+            "minimum": {
+              "mode": "exact",
+              "value": 2
+            }
+          },
+          "provenance": {
+            "derivations": [
+              {
+                "method": "PARSER",
+                "producer_id": "task6a-proposal",
+                "producer_version": "1"
+              }
+            ]
+          },
+          "requirement_id": "srq_a5d796748f391b30c0454c86d619b8667c517513b94034613c3b3b82b6fe011a",
+          "resolution": {
+            "reason": "INSUFFICIENT_EVIDENCE",
+            "state": "PARTIAL",
+            "unknown_paths": [
+              "/parameters.alternatives"
+            ]
           },
           "review": {
             "reviewed_by": null,
@@ -364,94 +548,6 @@
             ]
           },
           "requirement_id": "srq_d26f6a23b02c4ae26d0a3830029bc7268235d7644e409ea4ff30c9ea9463b0cf",
-          "resolution": {
-            "reason": "NONE",
-            "state": "COMPLETE",
-            "unknown_paths": []
-          },
-          "review": {
-            "reviewed_by": null,
-            "reviewed_claim_digest": null,
-            "status": "PROPOSED"
-          },
-          "schema": "census.semantic-requirement.v1",
-          "source": {
-            "oracle_id": "a3e51a35-09df-4189-b131-08a21e6a557d",
-            "record_schema": "census.structural-card.v1",
-            "source_card_id": "30f6fca9-003b-4f6b-9d6e-1e88adda4155",
-            "source_lock_digest": "4767dccbb518b4009c235bb1ce531f509c0923ba0ebe190936c2dc2d14e2d4bd",
-            "source_record_sha256": "f2b0360d4b8952286a31487e4c1636eabd44ab1e9413faac9dca1f02f28d0f24"
-          }
-        },
-        {
-          "evidence": [
-            {
-              "face_index": null,
-              "field": "oracle_text",
-              "fragment": "Choose two",
-              "kind": "STRUCTURAL_FIELD",
-              "source": {
-                "oracle_id": "a3e51a35-09df-4189-b131-08a21e6a557d",
-                "record_schema": "census.structural-card.v1",
-                "source_card_id": "30f6fca9-003b-4f6b-9d6e-1e88adda4155",
-                "source_lock_digest": "4767dccbb518b4009c235bb1ce531f509c0923ba0ebe190936c2dc2d14e2d4bd",
-                "source_record_sha256": "f2b0360d4b8952286a31487e4c1636eabd44ab1e9413faac9dca1f02f28d0f24"
-              }
-            }
-          ],
-          "family": "choice",
-          "kind": "choose_mode",
-          "parameters": {
-            "alternatives": [
-              {
-                "children": [],
-                "label": null,
-                "object": null,
-                "shape": "alternative",
-                "subject": {
-                  "multiplicity": "one",
-                  "ordinal": null,
-                  "role": "source"
-                },
-                "value": null
-              },
-              {
-                "children": [],
-                "label": null,
-                "object": null,
-                "shape": "alternative",
-                "subject": {
-                  "multiplicity": "one",
-                  "ordinal": null,
-                  "role": "source"
-                },
-                "value": null
-              }
-            ],
-            "chooser": {
-              "multiplicity": "one",
-              "ordinal": null,
-              "role": "chooser"
-            },
-            "maximum": {
-              "mode": "exact",
-              "value": 2
-            },
-            "minimum": {
-              "mode": "exact",
-              "value": 2
-            }
-          },
-          "provenance": {
-            "derivations": [
-              {
-                "method": "PARSER",
-                "producer_id": "task6a-proposal",
-                "producer_version": "1"
-              }
-            ]
-          },
-          "requirement_id": "srq_f2a379b588253a00e759c74942b4cf1ee23cb56c942eab275ac34c1db95c0a42",
           "resolution": {
             "reason": "NONE",
             "state": "COMPLETE",
@@ -662,21 +758,28 @@
   },
   {
     "bundle": {
-      "relationships": [],
+      "relationships": [
+        {
+          "from": "srq_971824f34d0b018acd6c6d333b8c11df714baff05ee68f953b05a8312b79c0a9",
+          "ordinal": null,
+          "to": "srq_ca9c6ffbab13555b2aadb7a876dca93b03d56833e67378f90a1f16c3b7ec0bdf",
+          "type": "CONFLICTS_WITH"
+        }
+      ],
       "requirements": [
         {
           "evidence": [
             {
               "face_index": null,
               "field": "oracle_text",
-              "fragment": "Whenever",
+              "fragment": "When you do",
               "kind": "STRUCTURAL_FIELD",
               "source": {
-                "oracle_id": "310f141c-7f37-4729-aed6-dd9c09db448d",
+                "oracle_id": "e4e6cb61-f673-4f36-b95c-c84a68459503",
                 "record_schema": "census.structural-card.v1",
-                "source_card_id": "b5275d76-2947-4219-be21-614c7421614a",
+                "source_card_id": "d5690329-feb8-49c0-8f59-ee13782e8d3b",
                 "source_lock_digest": "4767dccbb518b4009c235bb1ce531f509c0923ba0ebe190936c2dc2d14e2d4bd",
-                "source_record_sha256": "b9778328f328b87b56ee019fd5933b4ab293c80a6500814dca29d48686085f73"
+                "source_record_sha256": "dce4f60bc359f850def4bee1fbc5540acfc670b67a5aea6a43d2a81450caf120"
               }
             }
           ],
@@ -691,7 +794,7 @@
               "subject": {
                 "multiplicity": "one",
                 "ordinal": null,
-                "role": "source"
+                "role": "event_subject"
               },
               "value": null
             },
@@ -708,7 +811,7 @@
               "subject": {
                 "multiplicity": "one",
                 "ordinal": null,
-                "role": "source"
+                "role": "event_subject"
               },
               "value": null
             }
@@ -722,11 +825,14 @@
               }
             ]
           },
-          "requirement_id": "srq_6139ab7fc5bc9c619897592bb3eae0c201d8e8beec8f2a5e24add541fd36ff68",
+          "requirement_id": "srq_971824f34d0b018acd6c6d333b8c11df714baff05ee68f953b05a8312b79c0a9",
           "resolution": {
-            "reason": "NONE",
-            "state": "COMPLETE",
-            "unknown_paths": []
+            "reason": "INSUFFICIENT_EVIDENCE",
+            "state": "PARTIAL",
+            "unknown_paths": [
+              "/parameters.event",
+              "/parameters.condition"
+            ]
           },
           "review": {
             "reviewed_by": null,
@@ -735,21 +841,98 @@
           },
           "schema": "census.semantic-requirement.v1",
           "source": {
-            "oracle_id": "310f141c-7f37-4729-aed6-dd9c09db448d",
+            "oracle_id": "e4e6cb61-f673-4f36-b95c-c84a68459503",
             "record_schema": "census.structural-card.v1",
-            "source_card_id": "b5275d76-2947-4219-be21-614c7421614a",
+            "source_card_id": "d5690329-feb8-49c0-8f59-ee13782e8d3b",
             "source_lock_digest": "4767dccbb518b4009c235bb1ce531f509c0923ba0ebe190936c2dc2d14e2d4bd",
-            "source_record_sha256": "b9778328f328b87b56ee019fd5933b4ab293c80a6500814dca29d48686085f73"
+            "source_record_sha256": "dce4f60bc359f850def4bee1fbc5540acfc670b67a5aea6a43d2a81450caf120"
+          }
+        },
+        {
+          "evidence": [
+            {
+              "face_index": null,
+              "field": "oracle_text",
+              "fragment": "When you do",
+              "kind": "STRUCTURAL_FIELD",
+              "source": {
+                "oracle_id": "e4e6cb61-f673-4f36-b95c-c84a68459503",
+                "record_schema": "census.structural-card.v1",
+                "source_card_id": "d5690329-feb8-49c0-8f59-ee13782e8d3b",
+                "source_lock_digest": "4767dccbb518b4009c235bb1ce531f509c0923ba0ebe190936c2dc2d14e2d4bd",
+                "source_record_sha256": "dce4f60bc359f850def4bee1fbc5540acfc670b67a5aea6a43d2a81450caf120"
+              }
+            }
+          ],
+          "family": "control",
+          "kind": "conditional_effect",
+          "parameters": {
+            "condition": {
+              "children": [],
+              "label": null,
+              "object": null,
+              "shape": "condition",
+              "subject": {
+                "multiplicity": "one",
+                "ordinal": null,
+                "role": "event_subject"
+              },
+              "value": null
+            },
+            "else_effect": null,
+            "then_effect": {
+              "children": [],
+              "label": null,
+              "object": null,
+              "shape": "effect",
+              "subject": {
+                "multiplicity": "one",
+                "ordinal": null,
+                "role": "event_subject"
+              },
+              "value": null
+            }
+          },
+          "provenance": {
+            "derivations": [
+              {
+                "method": "PARSER",
+                "producer_id": "task6a-proposal",
+                "producer_version": "1"
+              }
+            ]
+          },
+          "requirement_id": "srq_ca9c6ffbab13555b2aadb7a876dca93b03d56833e67378f90a1f16c3b7ec0bdf",
+          "resolution": {
+            "reason": "INSUFFICIENT_EVIDENCE",
+            "state": "PARTIAL",
+            "unknown_paths": [
+              "/parameters.condition",
+              "/parameters.then_effect"
+            ]
+          },
+          "review": {
+            "reviewed_by": null,
+            "reviewed_claim_digest": null,
+            "status": "PROPOSED"
+          },
+          "schema": "census.semantic-requirement.v1",
+          "source": {
+            "oracle_id": "e4e6cb61-f673-4f36-b95c-c84a68459503",
+            "record_schema": "census.structural-card.v1",
+            "source_card_id": "d5690329-feb8-49c0-8f59-ee13782e8d3b",
+            "source_lock_digest": "4767dccbb518b4009c235bb1ce531f509c0923ba0ebe190936c2dc2d14e2d4bd",
+            "source_record_sha256": "dce4f60bc359f850def4bee1fbc5540acfc670b67a5aea6a43d2a81450caf120"
           }
         }
       ],
       "schema": "census.semantic-requirement-bundle.v1",
       "source": {
-        "oracle_id": "310f141c-7f37-4729-aed6-dd9c09db448d",
+        "oracle_id": "e4e6cb61-f673-4f36-b95c-c84a68459503",
         "record_schema": "census.structural-card.v1",
-        "source_card_id": "b5275d76-2947-4219-be21-614c7421614a",
+        "source_card_id": "d5690329-feb8-49c0-8f59-ee13782e8d3b",
         "source_lock_digest": "4767dccbb518b4009c235bb1ce531f509c0923ba0ebe190936c2dc2d14e2d4bd",
-        "source_record_sha256": "b9778328f328b87b56ee019fd5933b4ab293c80a6500814dca29d48686085f73"
+        "source_record_sha256": "dce4f60bc359f850def4bee1fbc5540acfc670b67a5aea6a43d2a81450caf120"
       }
     },
     "case_id": "trigger_condition"
@@ -774,33 +957,14 @@
               }
             }
           ],
-          "family": "event",
-          "kind": "replace_event",
+          "family": "unknown",
+          "kind": "unresolved",
           "parameters": {
-            "event": {
-              "children": [],
-              "label": null,
-              "object": null,
-              "shape": "event",
-              "subject": {
-                "multiplicity": "one",
-                "ordinal": null,
-                "role": "source"
-              },
-              "value": null
-            },
-            "replacement": {
-              "children": [],
-              "label": null,
-              "object": null,
-              "shape": "replacement",
-              "subject": {
-                "multiplicity": "one",
-                "ordinal": null,
-                "role": "source"
-              },
-              "value": null
-            }
+            "candidate_kinds": [],
+            "fragment": "can't change",
+            "observed_field": "oracle_text",
+            "observed_shape": "restriction",
+            "question": "life total prohibition is not represented by a v1 kind"
           },
           "provenance": {
             "derivations": [
@@ -811,11 +975,13 @@
               }
             ]
           },
-          "requirement_id": "srq_5f7cc17da290dcfd5b715f53617c6b7e236facad80c3eeeffc531656158a8c95",
+          "requirement_id": "srq_8b94a64a311a61870d8f5c9489c0bc8c4097cc2e3502873dd1f0ee9cbe186178",
           "resolution": {
-            "reason": "NONE",
-            "state": "COMPLETE",
-            "unknown_paths": []
+            "reason": "UNSUPPORTED_SHAPE",
+            "state": "UNRESOLVED",
+            "unknown_paths": [
+              "/parameters"
+            ]
           },
           "review": {
             "reviewed_by": null,
@@ -1084,85 +1250,13 @@
     "bundle": {
       "relationships": [
         {
-          "from": "srq_3802b99daeb321b8b3ef47e8c8e5f719e4d4d6b4e215e5bbe32905a4026f4fb3",
+          "from": "srq_e64b7895113ef51834b514cfd637ac2bf7932d5d56415af2cff7611fe33fb074",
           "ordinal": 0,
           "to": "srq_76614410e16cafe784628267b9074813a1531f464453e751ca1fcf07823eda26",
           "type": "SEQUENCE_BEFORE"
         }
       ],
       "requirements": [
-        {
-          "evidence": [
-            {
-              "face_index": null,
-              "field": "oracle_text",
-              "fragment": "target creatures",
-              "kind": "STRUCTURAL_FIELD",
-              "source": {
-                "oracle_id": "0634091a-a74c-4cea-b6d1-7324a725554a",
-                "record_schema": "census.structural-card.v1",
-                "source_card_id": "4ba9f15f-00d2-4797-9228-91b320e85705",
-                "source_lock_digest": "4767dccbb518b4009c235bb1ce531f509c0923ba0ebe190936c2dc2d14e2d4bd",
-                "source_record_sha256": "1f9388a4eed5b9a2061be01c049fc04908aacd384e7346cbe5a893cb591fa42a"
-              }
-            }
-          ],
-          "family": "choice",
-          "kind": "select",
-          "parameters": {
-            "chooser": {
-              "multiplicity": "one",
-              "ordinal": null,
-              "role": "chooser"
-            },
-            "quantity": {
-              "mode": "all",
-              "value": null
-            },
-            "restriction": {
-              "children": [],
-              "label": null,
-              "object": null,
-              "shape": "restriction",
-              "subject": {
-                "multiplicity": "one",
-                "ordinal": null,
-                "role": "source"
-              },
-              "value": null
-            },
-            "subject_kind": "object",
-            "targeting": null
-          },
-          "provenance": {
-            "derivations": [
-              {
-                "method": "PARSER",
-                "producer_id": "task6a-proposal",
-                "producer_version": "1"
-              }
-            ]
-          },
-          "requirement_id": "srq_3802b99daeb321b8b3ef47e8c8e5f719e4d4d6b4e215e5bbe32905a4026f4fb3",
-          "resolution": {
-            "reason": "NONE",
-            "state": "COMPLETE",
-            "unknown_paths": []
-          },
-          "review": {
-            "reviewed_by": null,
-            "reviewed_claim_digest": null,
-            "status": "PROPOSED"
-          },
-          "schema": "census.semantic-requirement.v1",
-          "source": {
-            "oracle_id": "0634091a-a74c-4cea-b6d1-7324a725554a",
-            "record_schema": "census.structural-card.v1",
-            "source_card_id": "4ba9f15f-00d2-4797-9228-91b320e85705",
-            "source_lock_digest": "4767dccbb518b4009c235bb1ce531f509c0923ba0ebe190936c2dc2d14e2d4bd",
-            "source_record_sha256": "1f9388a4eed5b9a2061be01c049fc04908aacd384e7346cbe5a893cb591fa42a"
-          }
-        },
         {
           "evidence": [
             {
@@ -1235,6 +1329,80 @@
             "source_lock_digest": "4767dccbb518b4009c235bb1ce531f509c0923ba0ebe190936c2dc2d14e2d4bd",
             "source_record_sha256": "1f9388a4eed5b9a2061be01c049fc04908aacd384e7346cbe5a893cb591fa42a"
           }
+        },
+        {
+          "evidence": [
+            {
+              "face_index": null,
+              "field": "oracle_text",
+              "fragment": "target creatures",
+              "kind": "STRUCTURAL_FIELD",
+              "source": {
+                "oracle_id": "0634091a-a74c-4cea-b6d1-7324a725554a",
+                "record_schema": "census.structural-card.v1",
+                "source_card_id": "4ba9f15f-00d2-4797-9228-91b320e85705",
+                "source_lock_digest": "4767dccbb518b4009c235bb1ce531f509c0923ba0ebe190936c2dc2d14e2d4bd",
+                "source_record_sha256": "1f9388a4eed5b9a2061be01c049fc04908aacd384e7346cbe5a893cb591fa42a"
+              }
+            }
+          ],
+          "family": "choice",
+          "kind": "select",
+          "parameters": {
+            "chooser": {
+              "multiplicity": "one",
+              "ordinal": null,
+              "role": "chooser"
+            },
+            "quantity": {
+              "mode": "symbolic",
+              "value": "any number"
+            },
+            "restriction": {
+              "children": [],
+              "label": null,
+              "object": null,
+              "shape": "restriction",
+              "subject": {
+                "multiplicity": "one",
+                "ordinal": null,
+                "role": "source"
+              },
+              "value": null
+            },
+            "subject_kind": "object",
+            "targeting": true
+          },
+          "provenance": {
+            "derivations": [
+              {
+                "method": "PARSER",
+                "producer_id": "task6a-proposal",
+                "producer_version": "1"
+              }
+            ]
+          },
+          "requirement_id": "srq_e64b7895113ef51834b514cfd637ac2bf7932d5d56415af2cff7611fe33fb074",
+          "resolution": {
+            "reason": "INSUFFICIENT_EVIDENCE",
+            "state": "PARTIAL",
+            "unknown_paths": [
+              "/parameters.quantity"
+            ]
+          },
+          "review": {
+            "reviewed_by": null,
+            "reviewed_claim_digest": null,
+            "status": "PROPOSED"
+          },
+          "schema": "census.semantic-requirement.v1",
+          "source": {
+            "oracle_id": "0634091a-a74c-4cea-b6d1-7324a725554a",
+            "record_schema": "census.structural-card.v1",
+            "source_card_id": "4ba9f15f-00d2-4797-9228-91b320e85705",
+            "source_lock_digest": "4767dccbb518b4009c235bb1ce531f509c0923ba0ebe190936c2dc2d14e2d4bd",
+            "source_record_sha256": "1f9388a4eed5b9a2061be01c049fc04908aacd384e7346cbe5a893cb591fa42a"
+          }
         }
       ],
       "schema": "census.semantic-requirement-bundle.v1",
@@ -1250,14 +1418,7 @@
   },
   {
     "bundle": {
-      "relationships": [
-        {
-          "from": "srq_77486b8c2505375540de201dce2e39b03755c40cfb23315707ab799b5b8a5564",
-          "ordinal": null,
-          "to": "srq_a2dd10f4aff6b6a02aafb6cdd5ef8c5096164f25da472cac64de07703c970359",
-          "type": "CONFLICTS_WITH"
-        }
-      ],
+      "relationships": [],
       "requirements": [
         {
           "evidence": [
@@ -1296,62 +1457,6 @@
           "requirement_id": "srq_77486b8c2505375540de201dce2e39b03755c40cfb23315707ab799b5b8a5564",
           "resolution": {
             "reason": "UNSUPPORTED_SHAPE",
-            "state": "UNRESOLVED",
-            "unknown_paths": [
-              "/parameters"
-            ]
-          },
-          "review": {
-            "reviewed_by": null,
-            "reviewed_claim_digest": null,
-            "status": "PROPOSED"
-          },
-          "schema": "census.semantic-requirement.v1",
-          "source": {
-            "oracle_id": "fc04f621-338b-4d4c-bf57-5e5a00d990f0",
-            "record_schema": "census.structural-card.v1",
-            "source_card_id": "0014def3-4063-4929-ac51-76aef1bb2a68",
-            "source_lock_digest": "4767dccbb518b4009c235bb1ce531f509c0923ba0ebe190936c2dc2d14e2d4bd",
-            "source_record_sha256": "42bfd65dbda4bafc12403460ba52a10088ddfa80c585ab31327a1b1b59c90ebe"
-          }
-        },
-        {
-          "evidence": [
-            {
-              "face_index": null,
-              "field": "oracle_text",
-              "fragment": "subgame",
-              "kind": "STRUCTURAL_FIELD",
-              "source": {
-                "oracle_id": "fc04f621-338b-4d4c-bf57-5e5a00d990f0",
-                "record_schema": "census.structural-card.v1",
-                "source_card_id": "0014def3-4063-4929-ac51-76aef1bb2a68",
-                "source_lock_digest": "4767dccbb518b4009c235bb1ce531f509c0923ba0ebe190936c2dc2d14e2d4bd",
-                "source_record_sha256": "42bfd65dbda4bafc12403460ba52a10088ddfa80c585ab31327a1b1b59c90ebe"
-              }
-            }
-          ],
-          "family": "unknown",
-          "kind": "unresolved",
-          "parameters": {
-            "candidate_kinds": [],
-            "fragment": "subgame",
-            "observed_field": "oracle_text",
-            "observed_shape": "unknown",
-            "question": "nested game semantics remain ambiguous"
-          },
-          "provenance": {
-            "derivations": [
-              {
-                "method": "PARSER",
-                "producer_id": "task6a-proposal",
-                "producer_version": "1"
-              }
-            ]
-          },
-          "requirement_id": "srq_a2dd10f4aff6b6a02aafb6cdd5ef8c5096164f25da472cac64de07703c970359",
-          "resolution": {
-            "reason": "CONFLICTING_INTERPRETATIONS",
             "state": "UNRESOLVED",
             "unknown_paths": [
               "/parameters"
