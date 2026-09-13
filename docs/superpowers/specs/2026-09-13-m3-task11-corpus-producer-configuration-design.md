@@ -34,6 +34,16 @@ conflict, unsupported, and invalid producers in that file are also test-only.
 review identities, not corpus review authority. It MUST NOT silently become the
 global effective registry.
 
+The authoritative corpus registry namespace is not under `fixtures/`:
+
+```text
+config/analysis/m3-corpus-pattern-registry.v1.json
+```
+
+`fixtures/analysis/*` remains synthetic/test material only. A future corpus
+registry may be copied from a reviewed proposal only through an explicit
+maintainer decision; it is never promoted by a test or coding agent.
+
 Decision:
 
 ```text
@@ -271,6 +281,25 @@ If future governance requires machine-readable review workflow records, a new
 authority schema may be proposed separately. It is not needed for this first
 unblock design and is not authorized here.
 
+### Acyclic review-digest flow
+
+The maintainer decision record MUST NOT contain the effective registry digest.
+The dependency order is strictly:
+
+```text
+maintainer decision record
+    ↓ SHA-256(decision record)
+PatternEligibilityV1.review_record_sha256
+    ↓
+effective PatternRegistryV1 snapshot
+    ↓ effective registry digest
+downstream campaign configuration and evidence report
+```
+
+The registry digest is recorded only after the decision record is frozen. It is
+never written back into that decision record, so the two digests cannot form a
+hash cycle.
+
 ## 5. Minimum viable corpus semantic scope
 
 The first corpus configuration should enable exactly one already-understood
@@ -290,11 +319,20 @@ match_text       = "Draw two cards."
 evidence_policy  = EXACT_FRAGMENT
 family           = effect
 kind             = draw_cards
-quantity         = EXACT 2
+parameters.drawer.role         = source
+parameters.drawer.multiplicity = one
+parameters.drawer.ordinal      = null
+parameters.quantity.mode       = exact
+parameters.quantity.value      = 2
 producer_id      = m3.registry-exact-pattern
 producer_version = 1
-review_status    = REVIEWED_FOR_REUSE only after maintainer review
+eligibility      = NOT_ELIGIBLE until explicit maintainer review
+requirement_review_status = PROPOSED always
 ```
+
+The complete `DrawCardsParametersV1` payload above is part of the proposed
+rule's typed output template. It is not inferred from the synthetic fixture at
+runtime.
 
 This is a proposal, not a corpus approval. Known limitations are explicit:
 
@@ -421,12 +459,14 @@ STOP:
 
 ```text
 FILES:
-  CREATE fixtures/analysis/m3-corpus-pattern-registry.v1.json
+  CREATE config/analysis/m3-corpus-pattern-registry.v1.json
   CREATE docs/reports/2026-09-13-m3-corpus-pattern-review.md
   CREATE tests/test_analysis_corpus_pattern_registry.py
 
 CONTENT:
   one proposed exact rule with a corpus-specific review identity
+  initial eligibility = NOT_ELIGIBLE
+  full typed DrawCardsParametersV1 output template
   explicit false-positive/false-negative analysis
   effective registry digest and producer binding
 
@@ -441,14 +481,16 @@ STOP:
 
 ```text
 FILES:
-  MODIFY fixtures/analysis/m3-corpus-pattern-registry.v1.json
+  MODIFY config/analysis/m3-corpus-pattern-registry.v1.json
   MODIFY tests/test_analysis_corpus_pattern_registry.py
   CREATE docs/reports/2026-09-13-m3-corpus-pattern-approval.md
 
 GATES:
   exact review packet identity/digest matches eligibility record
+  decision-record SHA is computed before the registry digest
+  decision record does not contain the resulting registry digest
   effective registry digest is recorded
-  no fixture review identity is reused
+  config/analysis namespace is used; no fixture review identity is reused
   producer remains PROPOSED-only
   Task-10 conformance rerun is PASS
 
@@ -465,6 +507,8 @@ FILES:
 
 CONTENT:
   exact SourceLock/M1/producer/pattern/build-profile identities
+  config/analysis/m3-corpus-pattern-registry.v1.json path and digest
+  downstream registry digest recording; no write-back into the decision record
   exact repository HEAD
   no negative authority
   semantic scope = one approved exact rule

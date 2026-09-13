@@ -13,6 +13,7 @@ TASK_11_RETRY_ALLOWED = NO
 CURRENT_BLOCKER = no authorized corpus-scale producer configuration
 RECOMMENDED_ARCHITECTURE = registry-driven exact-pattern producer
 PROPOSED_MINIMUM_SEMANTIC_SCOPE = one reviewed exact fragment rule
+CORPUS_REGISTRY_NAMESPACE = config/analysis/m3-corpus-pattern-registry.v1.json
 REVIEW_AUTHORITY_REQUIRED = YES
 NEW_SCHEMA_REQUIRED = NO for the first configuration
 PRODUCTION_CODE_REQUIRED = YES
@@ -24,6 +25,26 @@ The existing `m3.synthetic.no-match` adapter is bounded synthetic infrastructure
 not corpus semantic coverage. The exact pattern producer is currently test-only,
 and the existing pattern registry uses fixture review identities. Neither is
 silently promoted to corpus authority.
+
+The corpus registry will live under `config/analysis/`, while
+`fixtures/analysis/*` remains synthetic/test material. Review identity is
+acyclic: maintainer decision record -> decision-record SHA ->
+`PatternEligibilityV1.review_record_sha256` -> effective registry digest ->
+downstream campaign configuration. The decision record never contains the
+resulting effective registry digest.
+
+The proposed `draw_cards` output is complete and explicit:
+
+```text
+drawer.role         = source
+drawer.multiplicity = one
+drawer.ordinal      = null
+quantity.mode       = exact
+quantity.value      = 2
+```
+
+The rule remains `NOT_ELIGIBLE` until explicit maintainer review and always
+emits Requirements with `review_status = PROPOSED`.
 
 The proposed first configuration enables only one new, corpus-reviewed exact
 fragment rule for `"Draw two cards."`. It emits typed `PROPOSED` Requirements;
