@@ -7,7 +7,9 @@ from pathlib import Path
 
 from test_analysis_build import _build
 
+from manafold_census.analysis.model import AnalysisOutcomeV1, card_source_key
 from manafold_census.analysis.report import build_reports
+from manafold_census.analysis.trace import TraceDispositionV1
 
 
 def test_report_index_binds_analysis_manifest_and_report_bytes(tmp_path: Path) -> None:
@@ -157,3 +159,70 @@ def test_single_card_and_outlier_patterns_are_reported_deterministically(
 
     assert "synthetic.singleton@1" in result.report.to_wire()["single_card_patterns"]
     assert "synthetic.singleton@1" in result.report.to_wire()["outlier_patterns"]
+
+
+def test_disputed_candidate_is_the_only_unresolved_producer_contributor(
+    tmp_path: Path,
+) -> None:
+    validated_run, structural_records = _build(tmp_path / "fixture")
+    disputed_source = next(
+        record for record in structural_records if record.name == "Golden Exact"
+    )
+    disputed_key = card_source_key(
+        next(
+            record.source
+            for record in validated_run.records
+            if record.source.oracle_id == disputed_source.oracle_id
+        )
+    )
+    disputed_record = next(
+        record
+        for record in validated_run.records
+        if record.source.oracle_id == disputed_source.oracle_id
+    )
+    disputed_record = replace(
+        disputed_record,
+        outcome=AnalysisOutcomeV1.UNRESOLVED_ANALYSIS,
+        bundle=None,
+        no_requirements_basis=None,
+    )
+    records = tuple(
+        disputed_record
+        if record.source.oracle_id == disputed_source.oracle_id
+        else record
+        for record in validated_run.records
+    )
+    target_event = next(
+        event
+        for event in validated_run.traces
+        if event.card_source_key == disputed_key
+        and event.producer_id == "m3.exact-rule"
+        and event.candidate_requirement_id is not None
+    )
+    traces = tuple(
+        replace(
+            event,
+            disposition=TraceDispositionV1.DISPUTED_IDENTITY_OMITTED,
+        )
+        if event is target_event
+        else event
+        for event in validated_run.traces
+    )
+    disputed_run = validated_run._replace(records=records, traces=traces)
+    result = build_reports(disputed_run, validated_run.output_dir)
+    document = result.report.to_wire()
+    contributions = {
+        (item["producer_id"], item["producer_version"]): item
+        for item in document["producer_contributions"]
+    }
+
+    exact = contributions[("m3.exact-rule", "1")]
+    assert exact["candidate_emitted_count"] == 2
+    assert exact["candidate_retained_count"] == 1
+    assert exact["conflict_count"] == 1
+    assert exact["unresolved_card_count"] == 1
+    assert contributions[("m3.fixture-double", "1")]["unresolved_card_count"] == 0
+    assert any(
+        item == {"group_key": "DISPUTED_IDENTITY_OMITTED", "card_count": 1}
+        for item in document["largest_unresolved_groups"]
+    )
