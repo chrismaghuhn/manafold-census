@@ -141,3 +141,89 @@ def accepted_requirement() -> RequirementV1:
         ),
         resolution=proposal.resolution,
     )
+
+
+def exact_pattern_rule(*, reviewed_for_reuse: bool = True):
+    from manafold_census.analysis.patterns import (
+        EvidencePolicyV1,
+        MatcherKindV1,
+        NormalizationProfileV1,
+        PatternEligibilityStateV1,
+        PatternEligibilityV1,
+        PatternOutputTemplateV1,
+        PatternRuleV1,
+        PatternSourceFieldV1,
+        PatternSourceScopeV1,
+    )
+
+    rule = PatternRuleV1(
+        pattern_id="m3.exact-clause.draw",
+        pattern_version="1",
+        matcher_kind=MatcherKindV1.EXACT_FRAGMENT,
+        source_scope=PatternSourceScopeV1(
+            PatternSourceFieldV1.ORACLE_TEXT,
+            None,
+        ),
+        normalization_profile=NormalizationProfileV1.NONE,
+        match_text="Draw two cards.",
+        output_template=PatternOutputTemplateV1(
+            RequirementFamilyV1.EFFECT,
+            RequirementKindV1.DRAW_CARDS,
+            DrawCardsParametersV1(
+                _entity(),
+                QuantityV1(QuantityModeV1.EXACT, 2),
+            ),
+        ),
+        evidence_policy=EvidencePolicyV1.EXACT_FRAGMENT,
+        producer_id="m3.exact-rule",
+        producer_version="1",
+        m2_contract_version="census.semantic-requirement.v1",
+    )
+    eligibility = PatternEligibilityV1(
+        pattern_id=rule.pattern_id,
+        pattern_version=rule.pattern_version,
+        eligibility=(
+            PatternEligibilityStateV1.REVIEWED_FOR_REUSE
+            if reviewed_for_reuse
+            else PatternEligibilityStateV1.NOT_ELIGIBLE
+        ),
+        review_record_id="fixture-pattern-review",
+        review_record_sha256="d" * 64,
+    )
+    return rule, eligibility
+
+
+def effective_pattern_registry(*, reviewed_for_reuse: bool = True):
+    from manafold_census.analysis.patterns import EffectivePatternRegistryV1
+
+    rule, eligibility = exact_pattern_rule(reviewed_for_reuse=reviewed_for_reuse)
+    return EffectivePatternRegistryV1.build((rule,), (eligibility,))
+
+
+def trace_event(*, span: tuple[int, int] = (0, 15)):
+    from manafold_census.analysis.trace import (
+        RequirementTraceEventV1,
+        TraceDispositionV1,
+    )
+
+    return RequirementTraceEventV1(
+        card_source_key=(
+            "census.structural-card.v1",
+            ORACLE_ID,
+            SOURCE_CARD_ID,
+            SOURCE_RECORD_SHA256,
+        ),
+        producer_id="m3.exact-rule",
+        producer_version="1",
+        pattern_id="m3.exact-clause.draw",
+        pattern_version="1",
+        pattern_digest="e" * 64,
+        source_field="oracle_text",
+        face_index=None,
+        exact_fragment="Draw two cards.",
+        clause_ordinal=0,
+        parser_span=span,
+        candidate_requirement_id=bundle().requirements[0].requirement_id,
+        local_candidate_key="fixture-candidate",
+        disposition=TraceDispositionV1.CANDIDATE_EMITTED,
+    )
