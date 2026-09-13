@@ -250,31 +250,37 @@ class UnknownValueV1:
     reason: UnknownReasonV1
     hint: str | None
 
+
 @dataclass(frozen=True, slots=True)
 class EntityRefV1:
     role: EntityRoleV1
     multiplicity: MultiplicityV1
     ordinal: int | None
 
+
 @dataclass(frozen=True, slots=True)
 class ZoneRefV1:
     zone: ZoneNameV1
     label: str | None
+
 
 @dataclass(frozen=True, slots=True)
 class QuantityV1:
     mode: QuantityModeV1
     value: int | str | UnknownValueV1 | None
 
+
 @dataclass(frozen=True, slots=True)
 class DurationV1:
     kind: DurationKindV1
     value: SemanticDescriptorV1 | UnknownValueV1 | None
 
+
 @dataclass(frozen=True, slots=True)
 class CharacteristicRefV1:
     name: CharacteristicNameV1
     label: str | None
+
 
 @dataclass(frozen=True, slots=True)
 class ParameterValueV1:
@@ -416,11 +422,13 @@ class StructuralRecordEvidenceV1:
     kind: Literal["STRUCTURAL_RECORD"]
     source: SourceRecordRefV1
 
+
 @dataclass(frozen=True, slots=True)
 class StructuralFaceEvidenceV1:
     kind: Literal["STRUCTURAL_FACE"]
     source: SourceRecordRefV1
     face_index: int
+
 
 @dataclass(frozen=True, slots=True)
 class StructuralFieldEvidenceV1:
@@ -430,12 +438,14 @@ class StructuralFieldEvidenceV1:
     face_index: int | None
     fragment: str | None
 
+
 @dataclass(frozen=True, slots=True)
 class StructuralKeywordEvidenceV1:
     kind: Literal["STRUCTURAL_KEYWORD"]
     source: SourceRecordRefV1
     keyword_index: int
     keyword_value: str
+
 
 @dataclass(frozen=True, slots=True)
 class RulesCitationEvidenceV1:
@@ -444,6 +454,7 @@ class RulesCitationEvidenceV1:
     ruleset_version: str
     rule_id: str
     rules_artifact_sha256: str | None
+
 
 @dataclass(frozen=True, slots=True)
 class ExternalReviewEvidenceV1:

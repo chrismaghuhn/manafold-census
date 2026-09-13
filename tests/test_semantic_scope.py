@@ -6,33 +6,19 @@ from pathlib import Path
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 SEMANTIC_ROOT = REPOSITORY_ROOT / "src" / "manafold_census" / "semantic"
 
-FORBIDDEN_IMPORT_COMPONENTS = {
-    "anthropic",
-    "asyncpg",
-    "database",
-    "engine",
-    "httpx",
-    "json",
-    "langchain",
-    "litellm",
-    "llama_index",
-    "openai",
-    "psycopg",
-    "pymongo",
-    "pathlib",
-    "requests",
-    "rust",
-    "sqlalchemy",
-    "sqlite3",
-    "subprocess",
-    "transformers",
-    "urllib",
-    "gzip",
-    "os",
+ALLOWED_IMPORT_ROOTS = {
+    "__future__",
+    "collections",
+    "dataclasses",
+    "enum",
+    "re",
+    "types",
+    "typing",
+    "uuid",
 }
 FORBIDDEN_DECLARATIONS = re.compile(
     r"\b(?:Capability(?:Family)?|capability_id|CardAnalysisRecord|"
-    r"engine_support|coverage_percentage)\b",
+    r"engine_support|coverage)\b",
     re.IGNORECASE,
 )
 FORBIDDEN_EXECUTION_NAMES = re.compile(
@@ -51,28 +37,29 @@ def _semantic_modules() -> list[Path]:
     return sorted(SEMANTIC_ROOT.glob("*.py"))
 
 
-def _import_targets(tree: ast.AST) -> list[str]:
-    targets: list[str] = []
+def _absolute_import_roots(tree: ast.AST) -> list[str]:
+    roots: list[str] = []
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):
-            targets.extend(alias.name for alias in node.names)
-        elif isinstance(node, ast.ImportFrom):
-            if node.module is not None:
-                targets.append(node.module)
-            targets.extend(alias.name for alias in node.names)
-    return targets
+            roots.extend(alias.name.split(".")[0] for alias in node.names)
+        elif (
+            isinstance(node, ast.ImportFrom)
+            and node.level == 0
+            and node.module is not None
+        ):
+            roots.append(node.module.split(".")[0])
+    return roots
 
 
-def test_semantic_modules_have_no_engine_network_database_or_llm_imports() -> None:
+def test_semantic_modules_use_only_allowlisted_import_roots() -> None:
     modules = _semantic_modules()
     assert modules
     for module in modules:
         tree = ast.parse(module.read_text(encoding="utf-8"), filename=str(module))
-        for target in _import_targets(tree):
-            components = set(target.lower().split("."))
-            assert components.isdisjoint(FORBIDDEN_IMPORT_COMPONENTS), (
-                f"{module.relative_to(REPOSITORY_ROOT)} imports forbidden dependency "
-                f"{target}"
+        for root in _absolute_import_roots(tree):
+            assert root in ALLOWED_IMPORT_ROOTS, (
+                f"{module.relative_to(REPOSITORY_ROOT)} imports non-M2 dependency "
+                f"root {root}"
             )
 
 

@@ -160,9 +160,9 @@ class SelectParametersV1(_Payload):
         "quantity": _instance_parser(QuantityV1),
         "restriction": _instance_parser(SemanticDescriptorV1),
         "targeting": _optional_parser(
-            lambda value: value
-            if type(value) is bool
-            else _require_bool("targeting", value)
+            lambda value: (
+                value if type(value) is bool else _require_bool("targeting", value)
+            )
         ),
     }
 
@@ -215,9 +215,9 @@ class SearchZoneParametersV1(_Payload):
         "selection": _instance_parser(SemanticDescriptorV1),
         "destination": _optional_parser(_instance_parser(ZoneRefV1)),
         "reveal": _optional_parser(
-            lambda value: value
-            if type(value) is bool
-            else _require_bool("reveal", value)
+            lambda value: (
+                value if type(value) is bool else _require_bool("reveal", value)
+            )
         ),
     }
 
