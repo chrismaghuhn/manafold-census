@@ -171,49 +171,40 @@ def _largest_unresolved_groups(
         dispositions[event.card_source_key].add(event.disposition.value)
     groups: Counter[str] = Counter()
     for record in records:
-        if record.outcome is not AnalysisOutcomeV1.UNRESOLVED_ANALYSIS:
-            continue
-        key = (
-            "DISPUTED_IDENTITY_OMITTED"
-            if "DISPUTED_IDENTITY_OMITTED"
-            in dispositions.get(
-                (
-                    record.source.record_schema,
-                    record.source.oracle_id,
-                    record.source.source_card_id,
-                    record.source.source_record_sha256,
-                ),
-                set(),
-            )
-            else "PRODUCER_UNSUPPORTED_SHAPE"
-            if "PRODUCER_UNSUPPORTED_SHAPE"
-            in dispositions.get(
-                (
-                    record.source.record_schema,
-                    record.source.oracle_id,
-                    record.source.source_card_id,
-                    record.source.source_record_sha256,
-                ),
-                set(),
-            )
-            else "PRODUCER_NO_MATCH"
-            if "PRODUCER_NO_MATCH"
-            in dispositions.get(
-                (
-                    record.source.record_schema,
-                    record.source.oracle_id,
-                    record.source.source_card_id,
-                    record.source.source_record_sha256,
-                ),
-                set(),
-            )
-            else "UNRESOLVED_ANALYSIS"
-        )
-        groups[key] += 1
+        key = _unresolved_group_for(record, dispositions)
+        if key is not None:
+            groups[key] += 1
     return [
         {"group_key": key, "card_count": count}
         for key, count in sorted(groups.items(), key=lambda item: (-item[1], item[0]))
     ]
+
+
+def _record_source_key(record: CardAnalysisRecordV1) -> tuple[str, str, str, str]:
+    return (
+        record.source.record_schema,
+        record.source.oracle_id,
+        record.source.source_card_id,
+        record.source.source_record_sha256,
+    )
+
+
+def _unresolved_group_for(
+    record: CardAnalysisRecordV1,
+    dispositions: dict[tuple[str, str, str, str], set[str]],
+) -> str | None:
+    if record.outcome is not AnalysisOutcomeV1.UNRESOLVED_ANALYSIS:
+        return None
+    card_dispositions = dispositions.get(_record_source_key(record), set())
+    if "DISPUTED_IDENTITY_OMITTED" in card_dispositions:
+        return "DISPUTED_IDENTITY_OMITTED"
+    if "PRODUCER_UNSUPPORTED_SHAPE" in card_dispositions:
+        return "PRODUCER_UNSUPPORTED_SHAPE"
+    if record.bundle is not None:
+        return "NEGATIVE_AUTHORITY_CONFLICT"
+    if "PRODUCER_NO_MATCH" in card_dispositions:
+        return "PRODUCER_NO_MATCH"
+    return "UNRESOLVED_ANALYSIS"
 
 
 def _report_document(
@@ -256,15 +247,6 @@ def _report_document(
         [requirement.kind.value for requirement in requirements],
         RequirementKindV1,
     )
-    source_outcomes = {
-        (
-            record.source.record_schema,
-            record.source.oracle_id,
-            record.source.source_card_id,
-            record.source.source_record_sha256,
-        ): record.outcome
-        for record in records
-    }
     producer_stats: dict[tuple[str, str], Counter[str]] = defaultdict(Counter)
     producer_unresolved: dict[tuple[str, str], set[tuple[str, str, str, str]]] = (
         defaultdict(set)
@@ -273,6 +255,13 @@ def _report_document(
     trace_dispositions = Counter(event.disposition.value for event in traces)
     matched_cards: set[tuple[str, str, str, str]] = set()
     matched_requirements: set[tuple[tuple[str, str, str, str], str]] = set()
+    card_dispositions: dict[tuple[str, str, str, str], set[str]] = defaultdict(set)
+    for event in traces:
+        card_dispositions[event.card_source_key].add(event.disposition.value)
+    card_groups = {
+        _record_source_key(record): _unresolved_group_for(record, card_dispositions)
+        for record in records
+    }
     for event in traces:
         producer_key = (event.producer_id, event.producer_version)
         disposition = event.disposition
@@ -296,11 +285,22 @@ def _report_document(
         producer_stats[producer_key]["conflict_count"] += int(
             disposition is TraceDispositionV1.DISPUTED_IDENTITY_OMITTED
         )
+        group = card_groups.get(event.card_source_key)
         if (
-            source_outcomes.get(event.card_source_key)
-            is AnalysisOutcomeV1.UNRESOLVED_ANALYSIS
+            group == "DISPUTED_IDENTITY_OMITTED"
+            and disposition is TraceDispositionV1.DISPUTED_IDENTITY_OMITTED
+        ) or (
+            group == "PRODUCER_UNSUPPORTED_SHAPE"
+            and disposition is TraceDispositionV1.PRODUCER_UNSUPPORTED_SHAPE
         ):
             producer_unresolved[producer_key].add(event.card_source_key)
+        if group == "NEGATIVE_AUTHORITY_CONFLICT" and disposition in {
+            TraceDispositionV1.CANDIDATE_EMITTED,
+            TraceDispositionV1.CANDIDATE_RETAINED,
+            TraceDispositionV1.DISPUTED_IDENTITY_OMITTED,
+        }:
+            producer_unresolved[producer_key].add(event.card_source_key)
+            producer_stats[producer_key]["conflict_count"] += 1
         if event.pattern_id is None or event.candidate_requirement_id is None:
             continue
         matched_cards.add(event.card_source_key)
