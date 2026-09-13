@@ -162,6 +162,36 @@ def test_evidence_kind_vocabulary_is_exact() -> None:
     }
 
 
+@pytest.mark.parametrize(
+    ("evidence", "expected_kind"),
+    [
+        (StructuralRecordEvidenceV1(_source()), EvidenceKindV1.STRUCTURAL_RECORD),
+        (StructuralFaceEvidenceV1(_source(), 0), EvidenceKindV1.STRUCTURAL_FACE),
+        (
+            StructuralFieldEvidenceV1(_source(), "oracle_text", None, None),
+            EvidenceKindV1.STRUCTURAL_FIELD,
+        ),
+        (
+            StructuralKeywordEvidenceV1(_source(), 0, "Flying"),
+            EvidenceKindV1.STRUCTURAL_KEYWORD,
+        ),
+        (
+            RulesCitationEvidenceV1("rules", "v1", "701.5", None),
+            EvidenceKindV1.RULES_CITATION,
+        ),
+        (
+            ExternalReviewEvidenceV1("authority", "v1", "record", "c" * 64),
+            EvidenceKindV1.EXTERNAL_REVIEW,
+        ),
+    ],
+)
+def test_each_evidence_variant_exposes_its_public_kind(
+    evidence: object, expected_kind: EvidenceKindV1
+) -> None:
+    assert evidence.kind == expected_kind  # type: ignore[attr-defined]
+    assert evidence.to_wire()["kind"] == expected_kind.value  # type: ignore[attr-defined]
+
+
 def test_evidence_digest_ordering_is_deterministic_and_fresh() -> None:
     first = StructuralFieldEvidenceV1(_source(), "oracle_text", None, "text")
     second = StructuralFieldEvidenceV1(_source(), "type_line", None, None)

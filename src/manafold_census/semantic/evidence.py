@@ -150,6 +150,10 @@ class SourceRecordRefV1:
 class _Evidence:
     KIND: ClassVar[EvidenceKindV1]
 
+    @property
+    def kind(self) -> EvidenceKindV1:
+        return self.KIND
+
     @classmethod
     def from_wire(cls, value: object) -> _Evidence:
         raise NotImplementedError
