@@ -1,0 +1,26 @@
+{
+  "schema": "census.negative-requirement-authority.v1",
+  "authority_id": "fixture-negative-authority",
+  "authority_version": "1",
+  "record_id": "nra_16860fac21342cd57e9baa4d0ce123c4483b5a5b5b56b28c9e0673f816eb9f9f",
+  "source": {
+    "record_schema": "census.structural-card.v1",
+    "source_lock_digest": "4767dccbb518b4009c235bb1ce531f509c0923ba0ebe190936c2dc2d14e2d4bd",
+    "oracle_id": "44444444-4444-4444-8444-444444444444",
+    "source_card_id": "44444444-4444-4444-8444-444444444445",
+    "source_record_sha256": "5555555555555555555555555555555555555555555555555555555555555555"
+  },
+  "scope": {
+    "scope_schema": "census.m3-negative-authority-scope.v1",
+    "scope_id": "census.m3-semantic-requirement-applicability",
+    "scope_version": "v1",
+    "analysis_schema": "census.card-analysis.v1",
+    "m2_requirement_schema": "census.semantic-requirement.v1",
+    "m2_bundle_schema": "census.semantic-requirement-bundle.v1",
+    "source_fields": [
+      "oracle_text"
+    ]
+  },
+  "decision": "NO_REQUIREMENTS_APPLICABLE",
+  "record_sha256": "f2542ddcf2061b364c28252e9e571db534f88f7896c88130624d5553e6bef080"
+}
