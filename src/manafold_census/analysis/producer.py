@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import re
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from enum import StrEnum
 from typing import ClassVar, Protocol, cast
@@ -164,7 +164,14 @@ class ImmutableRegistrySnapshotV1:
         for field in ("registry_kind", "registry_schema", "digest_domain"):
             object.__setattr__(self, field, _require_text(field, getattr(self, field)))
         object.__setattr__(self, "digest", _require_digest("digest", self.digest))
-        expected = domain_digest(self.digest_domain, thaw_json(self.wire))
+        wire = (
+            thaw_json(cast(FrozenJSONValue, self.wire))
+            if isinstance(self.wire, Mapping | tuple)
+            else self.wire
+        )
+        frozen = freeze_json(wire)
+        object.__setattr__(self, "wire", frozen)
+        expected = domain_digest(self.digest_domain, thaw_json(frozen))
         if self.digest != expected:
             raise ValueError("registry snapshot digest does not match wire")
 
@@ -336,6 +343,22 @@ def execute_producer(
 ) -> ProducerResultV1:
     """Execute one producer without converting exceptions into no-match."""
 
+    descriptor = getattr(producer, "descriptor", None)
+    if not isinstance(descriptor, ProducerDescriptorV1):
+        raise ProducerContractError("producer must expose ProducerDescriptorV1")
+    if not isinstance(context, ProducerContextV1):
+        raise ProducerContractError("producer context must be ProducerContextV1")
+    if descriptor.pattern_registry_digest is not None:
+        if context.pattern_registry is None:
+            raise ProducerContractError(
+                "producer declares pattern_registry_digest but context has no "
+                "pattern_registry snapshot"
+            )
+        if descriptor.pattern_registry_digest != context.pattern_registry.digest:
+            raise ProducerContractError(
+                "producer pattern_registry_digest does not match context snapshot"
+            )
+
     try:
         result = producer.produce(record, context)
     except ProducerExecutionError:
@@ -344,9 +367,6 @@ def execute_producer(
         raise ProducerExecutionError("producer failed") from error
     if not isinstance(result, ProducerResultV1):
         raise ProducerExecutionError("producer returned an invalid result")
-    descriptor = getattr(producer, "descriptor", None)
-    if not isinstance(descriptor, ProducerDescriptorV1):
-        raise ProducerContractError("producer must expose ProducerDescriptorV1")
     if result.relationship_proposals and not descriptor.supports_relationships:
         raise ProducerContractError(
             "producer descriptor supports_relationships=false but emitted "

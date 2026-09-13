@@ -20,6 +20,7 @@ from manafold_census.analysis.producer import (
     execute_producer,
     validate_producer_candidate,
 )
+from manafold_census.digest import domain_digest
 from manafold_census.semantic.bundle import (
     RelationshipTypeV1,
     RequirementRelationshipV1,
@@ -33,6 +34,7 @@ def descriptor(
     deterministic: bool = True,
     derivation_method: DerivationMethodV1 = DerivationMethodV1.DETERMINISTIC_RULE,
     supports_relationships: bool = False,
+    pattern_registry_digest: str | None = None,
 ) -> ProducerDescriptorV1:
     return ProducerDescriptorV1(
         producer_id=producer_id,
@@ -40,9 +42,27 @@ def descriptor(
         derivation_method=derivation_method,
         input_schema="census.structural-card.v1",
         input_fields=("oracle_text",),
-        pattern_registry_digest=None,
+        pattern_registry_digest=pattern_registry_digest,
         deterministic=deterministic,
         supports_relationships=supports_relationships,
+    )
+
+
+def producer_context(
+    *,
+    pattern_registry: ImmutableRegistrySnapshotV1 | None = None,
+) -> ProducerContextV1:
+    return ProducerContextV1(
+        source_lock_digest=source_lock_digest(),
+        m2_requirement_schema="census.semantic-requirement.v1",
+        m2_bundle_schema="census.semantic-requirement-bundle.v1",
+        producer_registry=ImmutableRegistrySnapshotV1.from_wire(
+            "producer",
+            "census.producer-registry.v1",
+            "census.test-registry.v1",
+            {"schema": "census.producer-registry.v1", "producers": []},
+        ),
+        pattern_registry=pattern_registry,
     )
 
 
@@ -129,6 +149,23 @@ def test_context_carries_immutable_registry_snapshots() -> None:
         producer_snapshot.wire["mutated"] = True  # type: ignore[index]
 
 
+def test_direct_snapshot_construction_defensively_freezes_mutable_wire() -> None:
+    wire = {"schema": "census.producer-registry.v1", "producers": []}
+    digest_domain_name = "census.test-registry.v1"
+    snapshot = ImmutableRegistrySnapshotV1(
+        registry_kind="producer",
+        registry_schema="census.producer-registry.v1",
+        digest_domain=digest_domain_name,
+        digest=domain_digest(digest_domain_name, wire),
+        wire=wire,
+    )
+    wire["producers"].append({"mutated": True})
+    assert snapshot.to_wire() == {
+        "schema": "census.producer-registry.v1",
+        "producers": [],
+    }
+
+
 def test_relationship_proposals_require_descriptor_support() -> None:
     proposal = bundle().requirements[0]
     relationship = RelationshipProposalV1(
@@ -150,16 +187,114 @@ def test_relationship_proposals_require_descriptor_support() -> None:
         execute_producer(
             RelationshipProducer(),
             structural_record(),
-            ProducerContextV1(
-                source_lock_digest=source_lock_digest(),
-                m2_requirement_schema="census.semantic-requirement.v1",
-                m2_bundle_schema="census.semantic-requirement-bundle.v1",
-                producer_registry=ImmutableRegistrySnapshotV1.from_wire(
-                    "producer",
-                    "census.producer-registry.v1",
-                    "census.test-registry.v1",
-                    {"schema": "census.producer-registry.v1", "producers": []},
-                ),
-                pattern_registry=None,
-            ),
+            producer_context(),
         )
+
+
+def test_pattern_descriptor_requires_context_snapshot() -> None:
+    pattern = ImmutableRegistrySnapshotV1.from_wire(
+        "pattern",
+        "census.pattern-registry.v1",
+        "census.test-pattern-registry.v1",
+        {"schema": "census.pattern-registry.v1", "rules": []},
+    )
+
+    class ProbeProducer:
+        descriptor = descriptor(
+            "m3.pattern-dependent",
+            pattern_registry_digest=pattern.digest,
+        )
+        called = False
+
+        def produce(self, record, context):
+            self.called = True
+            return ProducerResultV1.no_match()
+
+    producer = ProbeProducer()
+    with pytest.raises(ProducerContractError, match="pattern_registry"):
+        execute_producer(
+            producer,
+            structural_record(),
+            producer_context(pattern_registry=None),
+        )
+    assert producer.called is False
+
+
+def test_pattern_descriptor_rejects_context_digest_mismatch() -> None:
+    declared = ImmutableRegistrySnapshotV1.from_wire(
+        "pattern",
+        "census.pattern-registry.v1",
+        "census.test-pattern-registry.v1",
+        {"schema": "census.pattern-registry.v1", "rules": []},
+    )
+    actual = ImmutableRegistrySnapshotV1.from_wire(
+        "pattern",
+        "census.pattern-registry.v1",
+        "census.test-pattern-registry.v1",
+        {"schema": "census.pattern-registry.v1", "rules": [{"id": "other"}]},
+    )
+
+    class ProbeProducer:
+        descriptor = descriptor(
+            "m3.pattern-dependent",
+            pattern_registry_digest=declared.digest,
+        )
+        called = False
+
+        def produce(self, record, context):
+            self.called = True
+            return ProducerResultV1.no_match()
+
+    producer = ProbeProducer()
+    with pytest.raises(ProducerContractError, match="digest"):
+        execute_producer(
+            producer,
+            structural_record(),
+            producer_context(pattern_registry=actual),
+        )
+    assert producer.called is False
+
+
+def test_pattern_descriptor_matching_context_is_allowed() -> None:
+    pattern = ImmutableRegistrySnapshotV1.from_wire(
+        "pattern",
+        "census.pattern-registry.v1",
+        "census.test-pattern-registry.v1",
+        {"schema": "census.pattern-registry.v1", "rules": []},
+    )
+
+    class ProbeProducer:
+        descriptor = descriptor(
+            "m3.pattern-dependent",
+            pattern_registry_digest=pattern.digest,
+        )
+        called = False
+
+        def produce(self, record, context):
+            self.called = True
+            return ProducerResultV1.no_match()
+
+    producer = ProbeProducer()
+    assert (
+        execute_producer(
+            producer,
+            structural_record(),
+            producer_context(pattern_registry=pattern),
+        ).status
+        is ProducerResultStatusV1.NO_MATCH
+    )
+    assert producer.called is True
+
+
+def test_invalid_descriptor_is_rejected_before_producer_call() -> None:
+    class InvalidProducer:
+        called = False
+
+        def produce(self, record, context):
+            self.called = True
+            return ProducerResultV1.no_match()
+
+    producer = InvalidProducer()
+    with pytest.raises(ProducerContractError, match="Descriptor"):
+        execute_producer(producer, structural_record(), producer_context())
+    assert producer.called is False
