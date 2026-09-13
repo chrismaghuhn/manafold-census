@@ -1,0 +1,109 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://manafold-census.invalid/schemas/semantic-requirement-bundle.v1.schema.json",
+  "title": "Manafold Census Semantic Requirement Bundle V1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "source", "requirements", "relationships"],
+  "properties": {
+    "schema": {
+      "const": "census.semantic-requirement-bundle.v1"
+    },
+    "source": {
+      "$ref": "semantic-requirement.v1.schema.json#/$defs/source"
+    },
+    "requirements": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "semantic-requirement.v1.schema.json"
+      }
+    },
+    "relationships": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/relationship"
+      }
+    }
+  },
+  "$defs": {
+    "requirement_id": {
+      "type": "string",
+      "pattern": "^srq_[0-9a-f]{64}$"
+    },
+    "nonnegative64": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 9223372036854775807
+    },
+    "relationship": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "from", "to", "ordinal"],
+      "properties": {
+        "type": {
+          "enum": [
+            "PARENT_OF",
+            "ALTERNATIVE_OF",
+            "CONDITION_OF",
+            "COST_OF",
+            "SEQUENCE_BEFORE",
+            "CONFLICTS_WITH",
+            "SUPERSEDES"
+          ]
+        },
+        "from": {
+          "$ref": "#/$defs/requirement_id"
+        },
+        "to": {
+          "$ref": "#/$defs/requirement_id"
+        },
+        "ordinal": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/nonnegative64"
+            }
+          ]
+        }
+      },
+      "oneOf": [
+        {
+          "properties": {
+            "type": {
+              "const": "SEQUENCE_BEFORE"
+            },
+            "ordinal": {
+              "$ref": "#/$defs/nonnegative64"
+            }
+          }
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "PARENT_OF"
+            }
+          }
+        },
+        {
+          "properties": {
+            "type": {
+              "enum": [
+                "ALTERNATIVE_OF",
+                "CONDITION_OF",
+                "COST_OF",
+                "CONFLICTS_WITH",
+                "SUPERSEDES"
+              ]
+            },
+            "ordinal": {
+              "const": null
+            }
+          }
+        }
+      ]
+    }
+  }
+}

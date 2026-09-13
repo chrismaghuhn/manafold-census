@@ -1,0 +1,2624 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://manafold-census.invalid/schemas/semantic-requirement.v1.schema.json",
+  "title": "Manafold Census Semantic Requirement V1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "requirement_id",
+    "source",
+    "family",
+    "kind",
+    "parameters",
+    "evidence",
+    "provenance",
+    "review",
+    "resolution"
+  ],
+  "properties": {
+    "schema": {
+      "const": "census.semantic-requirement.v1"
+    },
+    "requirement_id": {
+      "$ref": "#/$defs/requirement_id"
+    },
+    "source": {
+      "$ref": "#/$defs/source"
+    },
+    "family": {
+      "$ref": "#/$defs/family"
+    },
+    "kind": {
+      "$ref": "#/$defs/kind"
+    },
+    "parameters": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/move_between_zones"
+        },
+        {
+          "$ref": "#/$defs/create_object"
+        },
+        {
+          "$ref": "#/$defs/select"
+        },
+        {
+          "$ref": "#/$defs/modify_characteristic"
+        },
+        {
+          "$ref": "#/$defs/apply_continuous_effect"
+        },
+        {
+          "$ref": "#/$defs/search_zone"
+        },
+        {
+          "$ref": "#/$defs/draw_cards"
+        },
+        {
+          "$ref": "#/$defs/deal_damage"
+        },
+        {
+          "$ref": "#/$defs/create_delayed_effect"
+        },
+        {
+          "$ref": "#/$defs/trigger_from_event"
+        },
+        {
+          "$ref": "#/$defs/replace_event"
+        },
+        {
+          "$ref": "#/$defs/pay_cost"
+        },
+        {
+          "$ref": "#/$defs/modify_cost"
+        },
+        {
+          "$ref": "#/$defs/choose_mode"
+        },
+        {
+          "$ref": "#/$defs/conditional_effect"
+        },
+        {
+          "$ref": "#/$defs/keyword_reference"
+        },
+        {
+          "$ref": "#/$defs/unresolved"
+        }
+      ]
+    },
+    "evidence": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "contains": {
+        "oneOf": [
+          {
+            "$ref": "#/$defs/structural_record_evidence"
+          },
+          {
+            "$ref": "#/$defs/structural_face_evidence"
+          },
+          {
+            "$ref": "#/$defs/structural_field_evidence"
+          },
+          {
+            "$ref": "#/$defs/structural_keyword_evidence"
+          }
+        ]
+      },
+      "items": {
+        "oneOf": [
+          {
+            "$ref": "#/$defs/structural_record_evidence"
+          },
+          {
+            "$ref": "#/$defs/structural_face_evidence"
+          },
+          {
+            "$ref": "#/$defs/structural_field_evidence"
+          },
+          {
+            "$ref": "#/$defs/structural_keyword_evidence"
+          },
+          {
+            "$ref": "#/$defs/rules_citation_evidence"
+          },
+          {
+            "$ref": "#/$defs/external_review_evidence"
+          }
+        ]
+      }
+    },
+    "provenance": {
+      "$ref": "#/$defs/provenance"
+    },
+    "review": {
+      "$ref": "#/$defs/review"
+    },
+    "resolution": {
+      "$ref": "#/$defs/resolution"
+    }
+  },
+  "allOf": [
+    {
+      "oneOf": [
+        {
+          "properties": {
+            "family": {
+              "const": "effect"
+            },
+            "kind": {
+              "const": "move_between_zones"
+            },
+            "parameters": {
+              "$ref": "#/$defs/move_between_zones"
+            }
+          },
+          "required": ["family", "kind", "parameters"]
+        },
+        {
+          "properties": {
+            "family": {
+              "const": "effect"
+            },
+            "kind": {
+              "const": "create_object"
+            },
+            "parameters": {
+              "$ref": "#/$defs/create_object"
+            }
+          },
+          "required": ["family", "kind", "parameters"]
+        },
+        {
+          "properties": {
+            "family": {
+              "const": "choice"
+            },
+            "kind": {
+              "const": "select"
+            },
+            "parameters": {
+              "$ref": "#/$defs/select"
+            }
+          },
+          "required": ["family", "kind", "parameters"]
+        },
+        {
+          "properties": {
+            "family": {
+              "const": "effect"
+            },
+            "kind": {
+              "const": "modify_characteristic"
+            },
+            "parameters": {
+              "$ref": "#/$defs/modify_characteristic"
+            }
+          },
+          "required": ["family", "kind", "parameters"]
+        },
+        {
+          "properties": {
+            "family": {
+              "const": "effect"
+            },
+            "kind": {
+              "const": "apply_continuous_effect"
+            },
+            "parameters": {
+              "$ref": "#/$defs/apply_continuous_effect"
+            }
+          },
+          "required": ["family", "kind", "parameters"]
+        },
+        {
+          "properties": {
+            "family": {
+              "const": "effect"
+            },
+            "kind": {
+              "const": "search_zone"
+            },
+            "parameters": {
+              "$ref": "#/$defs/search_zone"
+            }
+          },
+          "required": ["family", "kind", "parameters"]
+        },
+        {
+          "properties": {
+            "family": {
+              "const": "effect"
+            },
+            "kind": {
+              "const": "draw_cards"
+            },
+            "parameters": {
+              "$ref": "#/$defs/draw_cards"
+            }
+          },
+          "required": ["family", "kind", "parameters"]
+        },
+        {
+          "properties": {
+            "family": {
+              "const": "effect"
+            },
+            "kind": {
+              "const": "deal_damage"
+            },
+            "parameters": {
+              "$ref": "#/$defs/deal_damage"
+            }
+          },
+          "required": ["family", "kind", "parameters"]
+        },
+        {
+          "properties": {
+            "family": {
+              "const": "effect"
+            },
+            "kind": {
+              "const": "create_delayed_effect"
+            },
+            "parameters": {
+              "$ref": "#/$defs/create_delayed_effect"
+            }
+          },
+          "required": ["family", "kind", "parameters"]
+        },
+        {
+          "properties": {
+            "family": {
+              "const": "event"
+            },
+            "kind": {
+              "const": "trigger_from_event"
+            },
+            "parameters": {
+              "$ref": "#/$defs/trigger_from_event"
+            }
+          },
+          "required": ["family", "kind", "parameters"]
+        },
+        {
+          "properties": {
+            "family": {
+              "const": "event"
+            },
+            "kind": {
+              "const": "replace_event"
+            },
+            "parameters": {
+              "$ref": "#/$defs/replace_event"
+            }
+          },
+          "required": ["family", "kind", "parameters"]
+        },
+        {
+          "properties": {
+            "family": {
+              "const": "cost"
+            },
+            "kind": {
+              "const": "pay_cost"
+            },
+            "parameters": {
+              "$ref": "#/$defs/pay_cost"
+            }
+          },
+          "required": ["family", "kind", "parameters"]
+        },
+        {
+          "properties": {
+            "family": {
+              "const": "cost"
+            },
+            "kind": {
+              "const": "modify_cost"
+            },
+            "parameters": {
+              "$ref": "#/$defs/modify_cost"
+            }
+          },
+          "required": ["family", "kind", "parameters"]
+        },
+        {
+          "properties": {
+            "family": {
+              "const": "choice"
+            },
+            "kind": {
+              "const": "choose_mode"
+            },
+            "parameters": {
+              "$ref": "#/$defs/choose_mode"
+            }
+          },
+          "required": ["family", "kind", "parameters"]
+        },
+        {
+          "properties": {
+            "family": {
+              "const": "control"
+            },
+            "kind": {
+              "const": "conditional_effect"
+            },
+            "parameters": {
+              "$ref": "#/$defs/conditional_effect"
+            }
+          },
+          "required": ["family", "kind", "parameters"]
+        },
+        {
+          "properties": {
+            "family": {
+              "const": "reference"
+            },
+            "kind": {
+              "const": "keyword_reference"
+            },
+            "parameters": {
+              "$ref": "#/$defs/keyword_reference"
+            }
+          },
+          "required": ["family", "kind", "parameters"]
+        },
+        {
+          "properties": {
+            "family": {
+              "const": "unknown"
+            },
+            "kind": {
+              "const": "unresolved"
+            },
+            "parameters": {
+              "$ref": "#/$defs/unresolved"
+            }
+          },
+          "required": ["family", "kind", "parameters"]
+        }
+      ]
+    },
+    {
+      "if": {
+        "properties": {
+          "resolution": {
+            "properties": {
+              "state": {
+                "const": "COMPLETE"
+              }
+            }
+          }
+        }
+      },
+      "then": {
+        "oneOf": [
+          {
+            "properties": {
+              "kind": {
+                "const": "move_between_zones"
+              },
+              "parameters": {
+                "$ref": "#/$defs/complete_move_between_zones"
+              }
+            },
+            "required": ["kind", "parameters"]
+          },
+          {
+            "properties": {
+              "kind": {
+                "const": "create_object"
+              },
+              "parameters": {
+                "$ref": "#/$defs/complete_create_object"
+              }
+            },
+            "required": ["kind", "parameters"]
+          },
+          {
+            "properties": {
+              "kind": {
+                "const": "select"
+              },
+              "parameters": {
+                "$ref": "#/$defs/complete_select"
+              }
+            },
+            "required": ["kind", "parameters"]
+          },
+          {
+            "properties": {
+              "kind": {
+                "const": "modify_characteristic"
+              },
+              "parameters": {
+                "$ref": "#/$defs/complete_modify_characteristic"
+              }
+            },
+            "required": ["kind", "parameters"]
+          },
+          {
+            "properties": {
+              "kind": {
+                "const": "apply_continuous_effect"
+              },
+              "parameters": {
+                "$ref": "#/$defs/complete_apply_continuous_effect"
+              }
+            },
+            "required": ["kind", "parameters"]
+          },
+          {
+            "properties": {
+              "kind": {
+                "const": "search_zone"
+              },
+              "parameters": {
+                "$ref": "#/$defs/complete_search_zone"
+              }
+            },
+            "required": ["kind", "parameters"]
+          },
+          {
+            "properties": {
+              "kind": {
+                "const": "draw_cards"
+              },
+              "parameters": {
+                "$ref": "#/$defs/complete_draw_cards"
+              }
+            },
+            "required": ["kind", "parameters"]
+          },
+          {
+            "properties": {
+              "kind": {
+                "const": "deal_damage"
+              },
+              "parameters": {
+                "$ref": "#/$defs/complete_deal_damage"
+              }
+            },
+            "required": ["kind", "parameters"]
+          },
+          {
+            "properties": {
+              "kind": {
+                "const": "create_delayed_effect"
+              },
+              "parameters": {
+                "$ref": "#/$defs/complete_create_delayed_effect"
+              }
+            },
+            "required": ["kind", "parameters"]
+          },
+          {
+            "properties": {
+              "kind": {
+                "const": "trigger_from_event"
+              },
+              "parameters": {
+                "$ref": "#/$defs/complete_trigger_from_event"
+              }
+            },
+            "required": ["kind", "parameters"]
+          },
+          {
+            "properties": {
+              "kind": {
+                "const": "replace_event"
+              },
+              "parameters": {
+                "$ref": "#/$defs/complete_replace_event"
+              }
+            },
+            "required": ["kind", "parameters"]
+          },
+          {
+            "properties": {
+              "kind": {
+                "const": "pay_cost"
+              },
+              "parameters": {
+                "$ref": "#/$defs/complete_pay_cost"
+              }
+            },
+            "required": ["kind", "parameters"]
+          },
+          {
+            "properties": {
+              "kind": {
+                "const": "modify_cost"
+              },
+              "parameters": {
+                "$ref": "#/$defs/complete_modify_cost"
+              }
+            },
+            "required": ["kind", "parameters"]
+          },
+          {
+            "properties": {
+              "kind": {
+                "const": "choose_mode"
+              },
+              "parameters": {
+                "$ref": "#/$defs/complete_choose_mode"
+              }
+            },
+            "required": ["kind", "parameters"]
+          },
+          {
+            "properties": {
+              "kind": {
+                "const": "conditional_effect"
+              },
+              "parameters": {
+                "$ref": "#/$defs/complete_conditional_effect"
+              }
+            },
+            "required": ["kind", "parameters"]
+          },
+          {
+            "properties": {
+              "kind": {
+                "const": "keyword_reference"
+              },
+              "parameters": {
+                "$ref": "#/$defs/complete_keyword_reference"
+              }
+            },
+            "required": ["kind", "parameters"]
+          }
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "resolution": {
+            "properties": {
+              "state": {
+                "const": "PARTIAL"
+              }
+            }
+          }
+        }
+      },
+      "then": {
+        "not": {
+          "properties": {
+            "kind": {
+              "const": "unresolved"
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "resolution": {
+            "properties": {
+              "state": {
+                "const": "UNRESOLVED"
+              },
+              "reason": {
+                "not": {
+                  "const": "CONFLICTING_INTERPRETATIONS"
+                }
+              }
+            }
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "kind": {
+            "const": "unresolved"
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "signed64": {
+      "type": "integer",
+      "minimum": -9223372036854775808,
+      "maximum": 9223372036854775807
+    },
+    "nonnegative64": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 9223372036854775807
+    },
+    "text": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 4096
+    },
+    "identifier": {
+      "type": "string",
+      "minLength": 1
+    },
+    "uuid": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "requirement_id": {
+      "type": "string",
+      "pattern": "^srq_[0-9a-f]{64}$"
+    },
+    "family": {
+      "type": "string",
+      "enum": [
+        "effect",
+        "event",
+        "choice",
+        "cost",
+        "control",
+        "reference",
+        "unknown"
+      ]
+    },
+    "kind": {
+      "type": "string",
+      "enum": [
+        "move_between_zones",
+        "create_object",
+        "select",
+        "modify_characteristic",
+        "apply_continuous_effect",
+        "search_zone",
+        "draw_cards",
+        "deal_damage",
+        "create_delayed_effect",
+        "trigger_from_event",
+        "replace_event",
+        "pay_cost",
+        "modify_cost",
+        "choose_mode",
+        "conditional_effect",
+        "keyword_reference",
+        "unresolved"
+      ]
+    },
+    "entity_role": {
+      "type": "string",
+      "enum": [
+        "source",
+        "target",
+        "chosen",
+        "affected",
+        "created",
+        "event_subject",
+        "controller",
+        "owner",
+        "payer",
+        "chooser",
+        "unknown"
+      ]
+    },
+    "multiplicity": {
+      "type": "string",
+      "enum": ["one", "many", "each", "unknown"]
+    },
+    "zone_name": {
+      "type": "string",
+      "enum": [
+        "library",
+        "hand",
+        "battlefield",
+        "graveyard",
+        "exile",
+        "stack",
+        "command",
+        "outside_game",
+        "unknown"
+      ]
+    },
+    "quantity_mode": {
+      "type": "string",
+      "enum": ["exact", "all", "each", "symbolic", "unknown"]
+    },
+    "characteristic_name": {
+      "type": "string",
+      "enum": [
+        "power",
+        "toughness",
+        "color",
+        "type",
+        "subtype",
+        "ability",
+        "controller",
+        "owner",
+        "zone",
+        "cost",
+        "base",
+        "other"
+      ]
+    },
+    "parameter_value_type": {
+      "type": "string",
+      "enum": ["text", "integer", "boolean", "descriptor", "unknown"]
+    },
+    "semantic_shape": {
+      "type": "string",
+      "enum": [
+        "event",
+        "condition",
+        "restriction",
+        "effect",
+        "replacement",
+        "duration",
+        "cost",
+        "alternative",
+        "unknown"
+      ]
+    },
+    "known_semantic_shape": {
+      "type": "string",
+      "enum": [
+        "event",
+        "condition",
+        "restriction",
+        "effect",
+        "replacement",
+        "duration",
+        "cost",
+        "alternative"
+      ]
+    },
+    "subject_kind": {
+      "type": "string",
+      "enum": ["object", "player", "card", "zone", "ability", "unknown"]
+    },
+    "modification_operation": {
+      "type": "string",
+      "enum": ["set", "add", "subtract", "grant", "remove", "change", "unknown"]
+    },
+    "cost_operation": {
+      "type": "string",
+      "enum": ["increase", "decrease", "alternative", "unknown"]
+    },
+    "expansion_state": {
+      "type": "string",
+      "enum": ["unexpanded", "expanded", "unknown"]
+    },
+    "duration_kind": {
+      "type": "string",
+      "enum": ["until_end_of_turn", "this_turn", "permanent", "delayed", "unknown"]
+    },
+    "unknown_reason": {
+      "type": "string",
+      "enum": [
+        "INSUFFICIENT_EVIDENCE",
+        "AMBIGUOUS_SOURCE",
+        "UNSUPPORTED_SHAPE",
+        "CONFLICTING_INTERPRETATIONS",
+        "UNKNOWN_SEMANTICS"
+      ]
+    },
+    "entity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["role", "multiplicity", "ordinal"],
+      "properties": {
+        "role": {
+          "$ref": "#/$defs/entity_role"
+        },
+        "multiplicity": {
+          "$ref": "#/$defs/multiplicity"
+        },
+        "ordinal": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/nonnegative64"
+            }
+          ]
+        }
+      }
+    },
+    "zone": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["zone", "label"],
+      "properties": {
+        "zone": {
+          "$ref": "#/$defs/zone_name"
+        },
+        "label": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/text"
+            }
+          ]
+        }
+      },
+      "oneOf": [
+        {
+          "properties": {
+            "zone": {
+              "const": "unknown"
+            }
+          }
+        },
+        {
+          "properties": {
+            "zone": {
+              "enum": [
+                "library",
+                "hand",
+                "battlefield",
+                "graveyard",
+                "exile",
+                "stack",
+                "command",
+                "outside_game"
+              ]
+            },
+            "label": {
+              "const": null
+            }
+          }
+        }
+      ]
+    },
+    "quantity": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["mode", "value"],
+          "properties": {
+            "mode": {
+              "const": "exact"
+            },
+            "value": {
+              "$ref": "#/$defs/signed64"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["mode", "value"],
+          "properties": {
+            "mode": {
+              "enum": ["all", "each"]
+            },
+            "value": {
+              "const": null
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["mode", "value"],
+          "properties": {
+            "mode": {
+              "const": "symbolic"
+            },
+            "value": {
+              "$ref": "#/$defs/text"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["mode", "value"],
+          "properties": {
+            "mode": {
+              "const": "unknown"
+            },
+            "value": {
+              "$ref": "#/$defs/unknown_value"
+            }
+          }
+        }
+      ]
+    },
+    "unknown_value": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["reason", "hint"],
+      "properties": {
+        "reason": {
+          "$ref": "#/$defs/unknown_reason"
+        },
+        "hint": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/text"
+            }
+          ]
+        }
+      }
+    },
+    "characteristic": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "label"],
+      "properties": {
+        "name": {
+          "$ref": "#/$defs/characteristic_name"
+        },
+        "label": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/text"
+            }
+          ]
+        }
+      },
+      "oneOf": [
+        {
+          "properties": {
+            "name": {
+              "const": "other"
+            },
+            "label": {
+              "$ref": "#/$defs/text"
+            }
+          }
+        },
+        {
+          "properties": {
+            "name": {
+              "enum": [
+                "power",
+                "toughness",
+                "color",
+                "type",
+                "subtype",
+                "ability",
+                "controller",
+                "owner",
+                "zone",
+                "cost",
+                "base"
+              ]
+            },
+            "label": {
+              "const": null
+            }
+          }
+        }
+      ]
+    },
+    "descriptor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["shape", "label", "subject", "object", "value", "children"],
+      "properties": {
+        "shape": {
+          "$ref": "#/$defs/semantic_shape"
+        },
+        "label": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/text"
+            }
+          ]
+        },
+        "subject": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/entity"
+            }
+          ]
+        },
+        "object": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/entity"
+            }
+          ]
+        },
+        "value": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/parameter_value"
+            }
+          ]
+        },
+        "children": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/descriptor"
+          }
+        }
+      }
+    },
+    "parameter_value": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["type", "value"],
+          "properties": {
+            "type": {
+              "const": "text"
+            },
+            "value": {
+              "$ref": "#/$defs/text"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["type", "value"],
+          "properties": {
+            "type": {
+              "const": "integer"
+            },
+            "value": {
+              "$ref": "#/$defs/signed64"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["type", "value"],
+          "properties": {
+            "type": {
+              "const": "boolean"
+            },
+            "value": {
+              "type": "boolean"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["type", "value"],
+          "properties": {
+            "type": {
+              "const": "descriptor"
+            },
+            "value": {
+              "$ref": "#/$defs/descriptor"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["type", "value"],
+          "properties": {
+            "type": {
+              "const": "unknown"
+            },
+            "value": {
+              "$ref": "#/$defs/unknown_value"
+            }
+          }
+        }
+      ]
+    },
+    "duration": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "value"],
+          "properties": {
+            "kind": {
+              "enum": ["until_end_of_turn", "this_turn", "permanent"]
+            },
+            "value": {
+              "const": null
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "value"],
+          "properties": {
+            "kind": {
+              "const": "delayed"
+            },
+            "value": {
+              "$ref": "#/$defs/descriptor"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "value"],
+          "properties": {
+            "kind": {
+              "const": "unknown"
+            },
+            "value": {
+              "$ref": "#/$defs/unknown_value"
+            }
+          }
+        }
+      ]
+    },
+    "assignment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["characteristic", "value"],
+      "properties": {
+        "characteristic": {
+          "$ref": "#/$defs/characteristic"
+        },
+        "value": {
+          "$ref": "#/$defs/parameter_value"
+        }
+      }
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "record_schema",
+        "source_lock_digest",
+        "oracle_id",
+        "source_card_id",
+        "source_record_sha256"
+      ],
+      "properties": {
+        "record_schema": {
+          "const": "census.structural-card.v1"
+        },
+        "source_lock_digest": {
+          "$ref": "#/$defs/sha256"
+        },
+        "oracle_id": {
+          "$ref": "#/$defs/uuid"
+        },
+        "source_card_id": {
+          "$ref": "#/$defs/uuid"
+        },
+        "source_record_sha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    },
+    "field": {
+      "type": "string",
+      "enum": [
+        "name",
+        "layout",
+        "mana_cost",
+        "type_line",
+        "oracle_text",
+        "colors",
+        "color_identity",
+        "color_indicator",
+        "keywords",
+        "produced_mana",
+        "power",
+        "toughness",
+        "loyalty",
+        "defense",
+        "hand_modifier",
+        "life_modifier",
+        "attraction_lights",
+        "faces",
+        "all_parts"
+      ]
+    },
+    "face_field": {
+      "type": "string",
+      "enum": [
+        "name",
+        "mana_cost",
+        "type_line",
+        "oracle_text",
+        "colors",
+        "color_indicator",
+        "power",
+        "toughness",
+        "loyalty",
+        "defense"
+      ]
+    },
+    "parent_text_field": {
+      "type": "string",
+      "enum": [
+        "name",
+        "layout",
+        "mana_cost",
+        "type_line",
+        "oracle_text",
+        "power",
+        "toughness",
+        "loyalty",
+        "defense",
+        "hand_modifier",
+        "life_modifier"
+      ]
+    },
+    "face_text_field": {
+      "type": "string",
+      "enum": [
+        "name",
+        "mana_cost",
+        "type_line",
+        "oracle_text",
+        "power",
+        "toughness",
+        "loyalty",
+        "defense"
+      ]
+    },
+    "structural_record_evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "source"],
+      "properties": {
+        "kind": {
+          "const": "STRUCTURAL_RECORD"
+        },
+        "source": {
+          "$ref": "#/$defs/source"
+        }
+      }
+    },
+    "structural_face_evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "source", "face_index"],
+      "properties": {
+        "kind": {
+          "const": "STRUCTURAL_FACE"
+        },
+        "source": {
+          "$ref": "#/$defs/source"
+        },
+        "face_index": {
+          "$ref": "#/$defs/nonnegative64"
+        }
+      }
+    },
+    "structural_field_evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "source", "field", "face_index", "fragment"],
+      "properties": {
+        "kind": {
+          "const": "STRUCTURAL_FIELD"
+        },
+        "source": {
+          "$ref": "#/$defs/source"
+        },
+        "field": {
+          "$ref": "#/$defs/field"
+        },
+        "face_index": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/nonnegative64"
+            }
+          ]
+        },
+        "fragment": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/text"
+            }
+          ]
+        }
+      },
+      "oneOf": [
+        {
+          "properties": {
+            "face_index": {
+              "const": null
+            },
+            "field": {
+              "$ref": "#/$defs/parent_text_field"
+            }
+          }
+        },
+        {
+          "properties": {
+            "face_index": {
+              "const": null
+            },
+            "field": {
+              "enum": [
+                "colors",
+                "color_identity",
+                "color_indicator",
+                "keywords",
+                "produced_mana",
+                "attraction_lights",
+                "faces",
+                "all_parts"
+              ]
+            },
+            "fragment": {
+              "const": null
+            }
+          }
+        },
+        {
+          "properties": {
+            "face_index": {
+              "$ref": "#/$defs/nonnegative64"
+            },
+            "field": {
+              "$ref": "#/$defs/face_text_field"
+            }
+          }
+        },
+        {
+          "properties": {
+            "face_index": {
+              "$ref": "#/$defs/nonnegative64"
+            },
+            "field": {
+              "enum": ["colors", "color_indicator"]
+            },
+            "fragment": {
+              "const": null
+            }
+          }
+        }
+      ]
+    },
+    "structural_keyword_evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "source", "keyword_index", "keyword_value"],
+      "properties": {
+        "kind": {
+          "const": "STRUCTURAL_KEYWORD"
+        },
+        "source": {
+          "$ref": "#/$defs/source"
+        },
+        "keyword_index": {
+          "$ref": "#/$defs/nonnegative64"
+        },
+        "keyword_value": {
+          "type": "string"
+        }
+      }
+    },
+    "rules_citation_evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "ruleset_id",
+        "ruleset_version",
+        "rule_id",
+        "rules_artifact_sha256"
+      ],
+      "properties": {
+        "kind": {
+          "const": "RULES_CITATION"
+        },
+        "ruleset_id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "ruleset_version": {
+          "$ref": "#/$defs/identifier"
+        },
+        "rule_id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "rules_artifact_sha256": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/sha256"
+            }
+          ]
+        }
+      }
+    },
+    "external_review_evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "authority_id",
+        "authority_version",
+        "record_id",
+        "record_sha256"
+      ],
+      "properties": {
+        "kind": {
+          "const": "EXTERNAL_REVIEW"
+        },
+        "authority_id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "authority_version": {
+          "$ref": "#/$defs/identifier"
+        },
+        "record_id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "record_sha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    },
+    "derivation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["method", "producer_id", "producer_version"],
+      "properties": {
+        "method": {
+          "enum": [
+            "HUMAN_AUTHORED",
+            "DETERMINISTIC_RULE",
+            "PARSER",
+            "HEURISTIC",
+            "MODEL",
+            "IMPORTED_ANNOTATION"
+          ]
+        },
+        "producer_id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "producer_version": {
+          "$ref": "#/$defs/identifier"
+        }
+      }
+    },
+    "provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["derivations"],
+      "properties": {
+        "derivations": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/derivation"
+          }
+        }
+      }
+    },
+    "review": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "reviewed_by", "reviewed_claim_digest"],
+      "properties": {
+        "status": {
+          "enum": ["PROPOSED", "IN_REVIEW", "ACCEPTED", "REJECTED"]
+        },
+        "reviewed_by": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/identifier"
+            }
+          ]
+        },
+        "reviewed_claim_digest": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/sha256"
+            }
+          ]
+        }
+      },
+      "oneOf": [
+        {
+          "properties": {
+            "status": {
+              "enum": ["PROPOSED", "IN_REVIEW"]
+            },
+            "reviewed_by": {
+              "const": null
+            },
+            "reviewed_claim_digest": {
+              "const": null
+            }
+          }
+        },
+        {
+          "properties": {
+            "status": {
+              "enum": ["ACCEPTED", "REJECTED"]
+            },
+            "reviewed_by": {
+              "$ref": "#/$defs/identifier"
+            },
+            "reviewed_claim_digest": {
+              "$ref": "#/$defs/sha256"
+            }
+          }
+        }
+      ]
+    },
+    "unknown_path": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^/(?:kind|parameters(?:[./].*)?)$"
+    },
+    "resolution": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["state", "reason", "unknown_paths"],
+      "properties": {
+        "state": {
+          "enum": ["COMPLETE", "PARTIAL", "UNRESOLVED"]
+        },
+        "reason": {
+          "enum": [
+            "NONE",
+            "INSUFFICIENT_EVIDENCE",
+            "AMBIGUOUS_SOURCE",
+            "UNSUPPORTED_SHAPE",
+            "CONFLICTING_INTERPRETATIONS",
+            "UNKNOWN_SEMANTICS"
+          ]
+        },
+        "unknown_paths": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/unknown_path"
+          }
+        }
+      },
+      "oneOf": [
+        {
+          "properties": {
+            "state": {
+              "const": "COMPLETE"
+            },
+            "reason": {
+              "const": "NONE"
+            },
+            "unknown_paths": {
+              "maxItems": 0
+            }
+          }
+        },
+        {
+          "properties": {
+            "state": {
+              "enum": ["PARTIAL", "UNRESOLVED"]
+            },
+            "reason": {
+              "enum": [
+                "INSUFFICIENT_EVIDENCE",
+                "AMBIGUOUS_SOURCE",
+                "UNSUPPORTED_SHAPE",
+                "CONFLICTING_INTERPRETATIONS",
+                "UNKNOWN_SEMANTICS"
+              ]
+            },
+            "unknown_paths": {
+              "minItems": 1
+            }
+          }
+        }
+      ]
+    },
+    "move_between_zones": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["subject", "from_zone", "to_zone", "quantity", "cause"],
+      "properties": {
+        "subject": {
+          "$ref": "#/$defs/entity"
+        },
+        "from_zone": {
+          "$ref": "#/$defs/zone"
+        },
+        "to_zone": {
+          "$ref": "#/$defs/zone"
+        },
+        "quantity": {
+          "$ref": "#/$defs/quantity"
+        },
+        "cause": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/descriptor"
+            }
+          ]
+        }
+      }
+    },
+    "create_object": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["object_class", "quantity", "characteristics", "duration"],
+      "properties": {
+        "object_class": {
+          "$ref": "#/$defs/parameter_value"
+        },
+        "quantity": {
+          "$ref": "#/$defs/quantity"
+        },
+        "characteristics": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/assignment"
+          }
+        },
+        "duration": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/duration"
+            }
+          ]
+        }
+      }
+    },
+    "select": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["chooser", "subject_kind", "quantity", "restriction", "targeting"],
+      "properties": {
+        "chooser": {
+          "$ref": "#/$defs/entity"
+        },
+        "subject_kind": {
+          "$ref": "#/$defs/subject_kind"
+        },
+        "quantity": {
+          "$ref": "#/$defs/quantity"
+        },
+        "restriction": {
+          "$ref": "#/$defs/descriptor"
+        },
+        "targeting": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "boolean"
+            }
+          ]
+        }
+      }
+    },
+    "modify_characteristic": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["subject", "characteristic", "operation", "value"],
+      "properties": {
+        "subject": {
+          "$ref": "#/$defs/entity"
+        },
+        "characteristic": {
+          "$ref": "#/$defs/characteristic"
+        },
+        "operation": {
+          "$ref": "#/$defs/modification_operation"
+        },
+        "value": {
+          "$ref": "#/$defs/parameter_value"
+        }
+      }
+    },
+    "apply_continuous_effect": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["subject", "duration", "effect"],
+      "properties": {
+        "subject": {
+          "$ref": "#/$defs/entity"
+        },
+        "duration": {
+          "$ref": "#/$defs/duration"
+        },
+        "effect": {
+          "$ref": "#/$defs/descriptor"
+        }
+      }
+    },
+    "search_zone": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["searcher", "zone", "selection", "destination", "reveal"],
+      "properties": {
+        "searcher": {
+          "$ref": "#/$defs/entity"
+        },
+        "zone": {
+          "$ref": "#/$defs/zone"
+        },
+        "selection": {
+          "$ref": "#/$defs/descriptor"
+        },
+        "destination": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/zone"
+            }
+          ]
+        },
+        "reveal": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "boolean"
+            }
+          ]
+        }
+      }
+    },
+    "draw_cards": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["drawer", "quantity"],
+      "properties": {
+        "drawer": {
+          "$ref": "#/$defs/entity"
+        },
+        "quantity": {
+          "$ref": "#/$defs/quantity"
+        }
+      }
+    },
+    "deal_damage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source", "recipient", "amount"],
+      "properties": {
+        "source": {
+          "$ref": "#/$defs/entity"
+        },
+        "recipient": {
+          "$ref": "#/$defs/entity"
+        },
+        "amount": {
+          "$ref": "#/$defs/quantity"
+        }
+      }
+    },
+    "create_delayed_effect": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["delay", "effect"],
+      "properties": {
+        "delay": {
+          "$ref": "#/$defs/descriptor"
+        },
+        "effect": {
+          "$ref": "#/$defs/descriptor"
+        }
+      }
+    },
+    "trigger_from_event": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["event", "controller", "condition"],
+      "properties": {
+        "event": {
+          "$ref": "#/$defs/descriptor"
+        },
+        "controller": {
+          "$ref": "#/$defs/entity"
+        },
+        "condition": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/descriptor"
+            }
+          ]
+        }
+      }
+    },
+    "replace_event": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["event", "replacement"],
+      "properties": {
+        "event": {
+          "$ref": "#/$defs/descriptor"
+        },
+        "replacement": {
+          "$ref": "#/$defs/descriptor"
+        }
+      }
+    },
+    "pay_cost": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["payer", "cost"],
+      "properties": {
+        "payer": {
+          "$ref": "#/$defs/entity"
+        },
+        "cost": {
+          "$ref": "#/$defs/descriptor"
+        }
+      }
+    },
+    "modify_cost": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["subject", "cost", "operation"],
+      "properties": {
+        "subject": {
+          "$ref": "#/$defs/entity"
+        },
+        "cost": {
+          "$ref": "#/$defs/descriptor"
+        },
+        "operation": {
+          "$ref": "#/$defs/cost_operation"
+        }
+      }
+    },
+    "choose_mode": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["chooser", "minimum", "maximum", "alternatives"],
+      "properties": {
+        "chooser": {
+          "$ref": "#/$defs/entity"
+        },
+        "minimum": {
+          "$ref": "#/$defs/quantity"
+        },
+        "maximum": {
+          "$ref": "#/$defs/quantity"
+        },
+        "alternatives": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/descriptor"
+          }
+        }
+      }
+    },
+    "conditional_effect": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["condition", "then_effect", "else_effect"],
+      "properties": {
+        "condition": {
+          "$ref": "#/$defs/descriptor"
+        },
+        "then_effect": {
+          "$ref": "#/$defs/descriptor"
+        },
+        "else_effect": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/descriptor"
+            }
+          ]
+        }
+      }
+    },
+    "keyword_reference": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["keyword", "keyword_index", "expansion_state", "expansion"],
+      "properties": {
+        "keyword": {
+          "$ref": "#/$defs/text"
+        },
+        "keyword_index": {
+          "$ref": "#/$defs/nonnegative64"
+        },
+        "expansion_state": {
+          "enum": ["unexpanded", "expanded", "unknown"]
+        },
+        "expansion": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/descriptor"
+            }
+          ]
+        }
+      },
+      "oneOf": [
+        {
+          "properties": {
+            "expansion_state": {
+              "const": "expanded"
+            },
+            "expansion": {
+              "$ref": "#/$defs/descriptor"
+            }
+          }
+        },
+        {
+          "properties": {
+            "expansion_state": {
+              "enum": ["unexpanded", "unknown"]
+            },
+            "expansion": {
+              "const": null
+            }
+          }
+        }
+      ]
+    },
+    "unresolved": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["observed_field", "observed_shape", "question", "candidate_kinds", "fragment"],
+      "properties": {
+        "observed_field": {
+          "enum": [
+            "record",
+            "name",
+            "layout",
+            "mana_cost",
+            "type_line",
+            "oracle_text",
+            "colors",
+            "color_identity",
+            "color_indicator",
+            "keywords",
+            "produced_mana",
+            "power",
+            "toughness",
+            "loyalty",
+            "defense",
+            "hand_modifier",
+            "life_modifier",
+            "attraction_lights",
+            "faces",
+            "all_parts"
+          ]
+        },
+        "observed_shape": {
+          "$ref": "#/$defs/semantic_shape"
+        },
+        "question": {
+          "$ref": "#/$defs/text"
+        },
+        "candidate_kinds": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/kind"
+          }
+        },
+        "fragment": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/text"
+            }
+          ]
+        }
+      }
+    },
+    "complete_entity": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/entity"
+        },
+        {
+          "properties": {
+            "role": {
+              "enum": [
+                "source",
+                "target",
+                "chosen",
+                "affected",
+                "created",
+                "event_subject",
+                "controller",
+                "owner",
+                "payer",
+                "chooser"
+              ]
+            },
+            "multiplicity": {
+              "enum": ["one", "many", "each"]
+            }
+          }
+        }
+      ]
+    },
+    "complete_zone": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/zone"
+        },
+        {
+          "properties": {
+            "zone": {
+              "enum": [
+                "library",
+                "hand",
+                "battlefield",
+                "graveyard",
+                "exile",
+                "stack",
+                "command",
+                "outside_game"
+              ]
+            },
+            "label": {
+              "const": null
+            }
+          }
+        }
+      ]
+    },
+    "complete_subject_kind": {
+      "type": "string",
+      "enum": ["object", "player", "card", "zone", "ability"]
+    },
+    "complete_modification_operation": {
+      "type": "string",
+      "enum": ["set", "add", "subtract", "grant", "remove", "change"]
+    },
+    "complete_cost_operation": {
+      "type": "string",
+      "enum": ["increase", "decrease", "alternative"]
+    },
+    "complete_descriptor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["shape", "label", "subject", "object", "value", "children"],
+      "properties": {
+        "shape": {
+          "$ref": "#/$defs/known_semantic_shape"
+        },
+        "label": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/text"
+            }
+          ]
+        },
+        "subject": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/complete_entity"
+            }
+          ]
+        },
+        "object": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/complete_entity"
+            }
+          ]
+        },
+        "value": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/complete_parameter_value"
+            }
+          ]
+        },
+        "children": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/complete_descriptor"
+          }
+        }
+      },
+      "not": {
+        "properties": {
+          "label": {
+            "type": "string"
+          },
+          "subject": {
+            "const": null
+          },
+          "object": {
+            "const": null
+          },
+          "value": {
+            "const": null
+          },
+          "children": {
+            "const": []
+          }
+        },
+        "required": ["label", "subject", "object", "value", "children"]
+      }
+    },
+    "complete_parameter_value": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["type", "value"],
+          "properties": {
+            "type": {
+              "const": "text"
+            },
+            "value": {
+              "$ref": "#/$defs/text"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["type", "value"],
+          "properties": {
+            "type": {
+              "const": "integer"
+            },
+            "value": {
+              "$ref": "#/$defs/signed64"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["type", "value"],
+          "properties": {
+            "type": {
+              "const": "boolean"
+            },
+            "value": {
+              "type": "boolean"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["type", "value"],
+          "properties": {
+            "type": {
+              "const": "descriptor"
+            },
+            "value": {
+              "$ref": "#/$defs/complete_descriptor"
+            }
+          }
+        }
+      ]
+    },
+    "complete_quantity": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["mode", "value"],
+          "properties": {
+            "mode": {
+              "const": "exact"
+            },
+            "value": {
+              "$ref": "#/$defs/signed64"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["mode", "value"],
+          "properties": {
+            "mode": {
+              "enum": ["all", "each"]
+            },
+            "value": {
+              "const": null
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["mode", "value"],
+          "properties": {
+            "mode": {
+              "const": "symbolic"
+            },
+            "value": {
+              "$ref": "#/$defs/text"
+            }
+          }
+        }
+      ]
+    },
+    "complete_duration": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "value"],
+          "properties": {
+            "kind": {
+              "enum": ["until_end_of_turn", "this_turn", "permanent"]
+            },
+            "value": {
+              "const": null
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "value"],
+          "properties": {
+            "kind": {
+              "const": "delayed"
+            },
+            "value": {
+              "$ref": "#/$defs/complete_descriptor"
+            }
+          }
+        }
+      ]
+    },
+    "complete_assignment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["characteristic", "value"],
+      "properties": {
+        "characteristic": {
+          "$ref": "#/$defs/characteristic"
+        },
+        "value": {
+          "$ref": "#/$defs/complete_parameter_value"
+        }
+      }
+    },
+    "complete_move_between_zones": {
+      "$ref": "#/$defs/move_between_zones",
+      "properties": {
+        "subject": {
+          "$ref": "#/$defs/complete_entity"
+        },
+        "from_zone": {
+          "$ref": "#/$defs/complete_zone"
+        },
+        "to_zone": {
+          "$ref": "#/$defs/complete_zone"
+        },
+        "quantity": {
+          "$ref": "#/$defs/complete_quantity"
+        },
+        "cause": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/complete_descriptor"
+            }
+          ]
+        }
+      }
+    },
+    "complete_create_object": {
+      "$ref": "#/$defs/create_object",
+      "properties": {
+        "object_class": {
+          "$ref": "#/$defs/complete_parameter_value"
+        },
+        "quantity": {
+          "$ref": "#/$defs/complete_quantity"
+        },
+        "characteristics": {
+          "items": {
+            "$ref": "#/$defs/complete_assignment"
+          }
+        },
+        "duration": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/complete_duration"
+            }
+          ]
+        }
+      }
+    },
+    "complete_select": {
+      "$ref": "#/$defs/select",
+      "properties": {
+        "chooser": {
+          "$ref": "#/$defs/complete_entity"
+        },
+        "subject_kind": {
+          "$ref": "#/$defs/complete_subject_kind"
+        },
+        "quantity": {
+          "$ref": "#/$defs/complete_quantity"
+        },
+        "restriction": {
+          "$ref": "#/$defs/complete_descriptor"
+        }
+      }
+    },
+    "complete_modify_characteristic": {
+      "$ref": "#/$defs/modify_characteristic",
+      "properties": {
+        "subject": {
+          "$ref": "#/$defs/complete_entity"
+        },
+        "operation": {
+          "$ref": "#/$defs/complete_modification_operation"
+        },
+        "value": {
+          "$ref": "#/$defs/complete_parameter_value"
+        }
+      }
+    },
+    "complete_apply_continuous_effect": {
+      "$ref": "#/$defs/apply_continuous_effect",
+      "properties": {
+        "subject": {
+          "$ref": "#/$defs/complete_entity"
+        },
+        "duration": {
+          "$ref": "#/$defs/complete_duration"
+        },
+        "effect": {
+          "$ref": "#/$defs/complete_descriptor"
+        }
+      }
+    },
+    "complete_search_zone": {
+      "$ref": "#/$defs/search_zone",
+      "properties": {
+        "searcher": {
+          "$ref": "#/$defs/complete_entity"
+        },
+        "zone": {
+          "$ref": "#/$defs/complete_zone"
+        },
+        "selection": {
+          "$ref": "#/$defs/complete_descriptor"
+        },
+        "destination": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/complete_zone"
+            }
+          ]
+        }
+      }
+    },
+    "complete_draw_cards": {
+      "$ref": "#/$defs/draw_cards",
+      "properties": {
+        "drawer": {
+          "$ref": "#/$defs/complete_entity"
+        },
+        "quantity": {
+          "$ref": "#/$defs/complete_quantity"
+        }
+      }
+    },
+    "complete_deal_damage": {
+      "$ref": "#/$defs/deal_damage",
+      "properties": {
+        "source": {
+          "$ref": "#/$defs/complete_entity"
+        },
+        "recipient": {
+          "$ref": "#/$defs/complete_entity"
+        },
+        "amount": {
+          "$ref": "#/$defs/complete_quantity"
+        }
+      }
+    },
+    "complete_create_delayed_effect": {
+      "$ref": "#/$defs/create_delayed_effect",
+      "properties": {
+        "delay": {
+          "$ref": "#/$defs/complete_descriptor"
+        },
+        "effect": {
+          "$ref": "#/$defs/complete_descriptor"
+        }
+      }
+    },
+    "complete_trigger_from_event": {
+      "$ref": "#/$defs/trigger_from_event",
+      "properties": {
+        "event": {
+          "$ref": "#/$defs/complete_descriptor"
+        },
+        "controller": {
+          "$ref": "#/$defs/complete_entity"
+        },
+        "condition": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/complete_descriptor"
+            }
+          ]
+        }
+      }
+    },
+    "complete_replace_event": {
+      "$ref": "#/$defs/replace_event",
+      "properties": {
+        "event": {
+          "$ref": "#/$defs/complete_descriptor"
+        },
+        "replacement": {
+          "$ref": "#/$defs/complete_descriptor"
+        }
+      }
+    },
+    "complete_pay_cost": {
+      "$ref": "#/$defs/pay_cost",
+      "properties": {
+        "payer": {
+          "$ref": "#/$defs/complete_entity"
+        },
+        "cost": {
+          "$ref": "#/$defs/complete_descriptor"
+        }
+      }
+    },
+    "complete_modify_cost": {
+      "$ref": "#/$defs/modify_cost",
+      "properties": {
+        "subject": {
+          "$ref": "#/$defs/complete_entity"
+        },
+        "cost": {
+          "$ref": "#/$defs/complete_descriptor"
+        },
+        "operation": {
+          "$ref": "#/$defs/complete_cost_operation"
+        }
+      }
+    },
+    "complete_choose_mode": {
+      "$ref": "#/$defs/choose_mode",
+      "properties": {
+        "chooser": {
+          "$ref": "#/$defs/complete_entity"
+        },
+        "minimum": {
+          "$ref": "#/$defs/complete_quantity"
+        },
+        "maximum": {
+          "$ref": "#/$defs/complete_quantity"
+        },
+        "alternatives": {
+          "items": {
+            "$ref": "#/$defs/complete_descriptor"
+          }
+        }
+      }
+    },
+    "complete_conditional_effect": {
+      "$ref": "#/$defs/conditional_effect",
+      "properties": {
+        "condition": {
+          "$ref": "#/$defs/complete_descriptor"
+        },
+        "then_effect": {
+          "$ref": "#/$defs/complete_descriptor"
+        },
+        "else_effect": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/complete_descriptor"
+            }
+          ]
+        }
+      }
+    },
+    "complete_keyword_reference": {
+      "$ref": "#/$defs/keyword_reference",
+      "properties": {
+        "expansion_state": {
+          "const": "expanded"
+        },
+        "expansion": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/complete_descriptor"
+            }
+          ]
+        }
+      }
+    }
+  }
+}
