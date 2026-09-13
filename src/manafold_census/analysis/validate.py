@@ -349,6 +349,17 @@ def validate_analysis_closure(
                 "negative authority conflict trace does not match record"
             )
         authority_events[key] = value
+    for key, record in records_by_key.items():
+        if record.outcome is not AnalysisOutcomeV1.NO_REQUIREMENTS_APPLICABLE:
+            continue
+        event = authority_events.get(key)
+        if (
+            event is None
+            or event.disposition
+            is not NegativeAuthorityTraceDispositionV1.NEGATIVE_AUTHORITY_APPLIED
+            or event.authority != record.no_requirements_basis
+        ):
+            raise AnalysisClosureError("missing negative authority trace")
     expected_source_lock_digest = source_lock.digest()
     if manifest.source_lock_digest != expected_source_lock_digest:
         raise AnalysisClosureError("analysis source lock digest mismatch")

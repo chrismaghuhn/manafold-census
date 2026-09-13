@@ -17,6 +17,7 @@ from manafold_census.analysis.manifest import (
 from manafold_census.analysis.model import (
     AnalysisOutcomeV1,
     CardAnalysisRecordV1,
+    NegativeReviewAuthorityRefV1,
     card_source_key,
 )
 from manafold_census.analysis.validate import (
@@ -193,6 +194,35 @@ def test_validate_analysis_closure_reads_m1_and_m3_authority_independently(
     )
     assert len(record_result.values) == 1
     assert len(trace_result.values) == 1
+
+
+def test_no_requirements_record_requires_applied_authority_trace(
+    tmp_path: Path,
+) -> None:
+    m1_root, records, m1_manifest = write_m1_authority(tmp_path)
+    m3_root, _ = write_m3_artifact(tmp_path, m1_root, m1_manifest, records)
+
+    record_path = m3_root / "records" / "a.jsonl"
+    record_document = json.loads(record_path.read_bytes())
+    record_document["outcome"] = "NO_REQUIREMENTS_APPLICABLE"
+    record_document["no_requirements_basis"] = NegativeReviewAuthorityRefV1(
+        authority_id="fixture-negative-authority",
+        authority_version="1",
+        record_id="nra_" + "a" * 64,
+        record_sha256="b" * 64,
+        scope_digest="c" * 64,
+    ).to_wire()
+    record_path.write_bytes(canonical_json_bytes(record_document) + b"\n")
+
+    manifest_path = m3_root / "analysis-manifest.json"
+    manifest_document = json.loads(manifest_path.read_bytes())
+    descriptor = manifest_document["record_shards"][SHARD_NAMES.index("a")]
+    descriptor["sha256"] = hashlib.sha256(record_path.read_bytes()).hexdigest()
+    descriptor["byte_length"] = record_path.stat().st_size
+    manifest_path.write_bytes(canonical_json_bytes(manifest_document))
+
+    with pytest.raises(AnalysisClosureError, match="missing negative authority trace"):
+        validate_analysis_closure(m1_root, m3_root, SOURCE_LOCK_PATH)
 
 
 def test_record_source_lock_digest_mismatch_fails_closed(tmp_path: Path) -> None:

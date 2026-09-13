@@ -363,3 +363,71 @@ def test_disputed_candidate_is_the_only_unresolved_producer_contributor(
         item == {"group_key": "DISPUTED_IDENTITY_OMITTED", "card_count": 1}
         for item in document["largest_unresolved_groups"]
     )
+
+
+def test_disputed_and_unsupported_producers_are_both_unresolved_contributors(
+    tmp_path: Path,
+) -> None:
+    validated_run, structural_records = _build(
+        tmp_path / "fixture",
+        variant="mixed",
+        with_negative_authority=True,
+    )
+    target_source = next(
+        record for record in structural_records if record.name == "Golden No Match"
+    )
+    target_key = card_source_key(
+        next(
+            record.source
+            for record in validated_run.records
+            if record.source.oracle_id == target_source.oracle_id
+        )
+    )
+    target_record = next(
+        record
+        for record in validated_run.records
+        if record.source.oracle_id == target_source.oracle_id
+    )
+    records = tuple(
+        replace(
+            target_record,
+            outcome=AnalysisOutcomeV1.UNRESOLVED_ANALYSIS,
+            bundle=None,
+            no_requirements_basis=None,
+        )
+        if record.source.oracle_id == target_record.source.oracle_id
+        else record
+        for record in validated_run.records
+    )
+    target_event = next(
+        event
+        for event in validated_run.traces
+        if event.card_source_key == target_key
+        and getattr(event, "producer_id", None) == "m3.fixture-conflict"
+        and getattr(event, "candidate_requirement_id", None) is not None
+    )
+    traces = tuple(
+        replace(
+            event,
+            disposition=TraceDispositionV1.DISPUTED_IDENTITY_OMITTED,
+        )
+        if event is target_event
+        else event
+        for event in validated_run.traces
+    )
+    result = build_reports(
+        validated_run._replace(records=records, traces=traces),
+        validated_run.output_dir,
+    )
+    contributions = {
+        (item["producer_id"], item["producer_version"]): item
+        for item in result.report.to_wire()["producer_contributions"]
+    }
+
+    assert contributions[("m3.fixture-conflict", "1")]["unresolved_card_count"] == 1
+    assert (
+        contributions[("m3.fixture-mixed-unsupported", "1")]["unresolved_card_count"]
+        == 1
+    )
+    assert contributions[("m3.exact-rule", "1")]["unresolved_card_count"] == 0
+    assert contributions[("m3.fixture-double", "1")]["unresolved_card_count"] == 0

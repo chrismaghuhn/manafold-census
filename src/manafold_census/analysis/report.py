@@ -295,18 +295,14 @@ def _report_document(
         producer_stats[producer_key]["conflict_count"] += int(
             disposition is TraceDispositionV1.DISPUTED_IDENTITY_OMITTED
         )
-        group = card_groups.get(event.card_source_key)
         card_has_authority_conflict = (
             "NEGATIVE_AUTHORITY_CONFLICT"
             in card_dispositions.get(event.card_source_key, set())
         )
-        if (
-            group == "DISPUTED_IDENTITY_OMITTED"
-            and disposition is TraceDispositionV1.DISPUTED_IDENTITY_OMITTED
-        ) or (
-            group == "PRODUCER_UNSUPPORTED_SHAPE"
-            and disposition is TraceDispositionV1.PRODUCER_UNSUPPORTED_SHAPE
-        ):
+        if card_groups.get(event.card_source_key) is not None and disposition in {
+            TraceDispositionV1.DISPUTED_IDENTITY_OMITTED,
+            TraceDispositionV1.PRODUCER_UNSUPPORTED_SHAPE,
+        }:
             producer_unresolved[producer_key].add(event.card_source_key)
         if card_has_authority_conflict and disposition in {
             TraceDispositionV1.CANDIDATE_EMITTED,
