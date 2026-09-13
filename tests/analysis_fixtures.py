@@ -5,6 +5,7 @@ from manafold_census.semantic.evidence import (
     SourceRecordRefV1,
     StructuralFieldEvidenceV1,
 )
+from manafold_census.semantic.identity import reviewed_claim_digest_for
 from manafold_census.semantic.kind_payloads import DrawCardsParametersV1
 from manafold_census.semantic.kinds import RequirementFamilyV1, RequirementKindV1
 from manafold_census.semantic.model import (
@@ -122,3 +123,21 @@ def bundle(source: SourceRecordRefV1 | None = None) -> RequirementBundleV1:
 def bundle_from_other_source() -> RequirementBundleV1:
     other_source = source_ref(oracle_id=OTHER_ORACLE_ID)
     return bundle(other_source)
+
+
+def accepted_requirement() -> RequirementV1:
+    proposal = bundle().requirements[0]
+    return RequirementV1.create(
+        source=proposal.source,
+        family=proposal.family,
+        kind=proposal.kind,
+        parameters=proposal.parameters,
+        evidence=proposal.evidence,
+        provenance=proposal.provenance,
+        review=ReviewV1(
+            ReviewStatusV1.ACCEPTED,
+            "fixture-reviewer",
+            reviewed_claim_digest_for(proposal),
+        ),
+        resolution=proposal.resolution,
+    )
