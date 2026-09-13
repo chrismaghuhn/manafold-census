@@ -2,9 +2,10 @@ from __future__ import annotations
 
 import hashlib
 import json
+from dataclasses import replace
 from pathlib import Path
 
-from analysis_fixtures import source_lock_digest, structural_record
+from analysis_fixtures import exact_pattern_rule, source_lock_digest, structural_record
 from jsonschema import Draft202012Validator
 from referencing import Registry, Resource
 from referencing.jsonschema import DRAFT202012
@@ -12,6 +13,13 @@ from referencing.jsonschema import DRAFT202012
 from manafold_census.analysis.patterns import (
     PATTERN_REGISTRY_DIGEST_DOMAIN,
     EffectivePatternRegistryV1,
+    EvidencePolicyV1,
+    MatcherKindV1,
+    PatternEligibilityStateV1,
+    PatternEligibilityV1,
+    PatternSourceFieldV1,
+    PatternSourceScopeV1,
+    pattern_rule_digest_for,
 )
 from manafold_census.analysis.producer import (
     ImmutableRegistrySnapshotV1,
@@ -24,20 +32,24 @@ from manafold_census.resources import project_data_root
 
 PROPOSAL_RECORD_ID = "m3.corpus.pattern-proposal.draw-two-cards.v1"
 DECISION_RECORD_ID = "m3.corpus.pattern-decision.draw-two-cards.v1"
+NEW_PROPOSAL_RECORD_ID = "m3.corpus.pattern-proposal.draw-two-cards-exact-field.v1"
 EXPECTED_PROPOSAL_SHA256 = (
     "f963d6ae37a6895458da2ed40b606d3d5f52f2f9daea97d6033c417fbbf478cb"
 )
 EXPECTED_RULE_DIGEST = (
     "d4ef898620fb9d2e794390a545d08b9c9cb90a238af83fc7fd6e76900d0023a9"
 )
-EXPECTED_REGISTRY_DIGEST = (
-    "1f7f2189aaa9e2fa12b9e76f9da57ff7c57a4cd53a553b3de60287a31cd8cbaa"
-)
 EXPECTED_DECISION_SHA256 = (
     "89b73bb76d2a54bd847a322519a12a43b0e9736361f307771598b2225e67fd07"
 )
-EXPECTED_POST_DECISION_REGISTRY_DIGEST = (
-    "097973ee6ae59b06d868eaac8e1947dc66e519fca78432b3f79a650e2d4e21c1"
+EXPECTED_POST_PROPOSAL_REGISTRY_DIGEST = (
+    "8cf822b4b8459f5335d3fe393209765040ee8506aac0a2e229a5842d1eab50d9"
+)
+EXPECTED_NEW_PROPOSAL_SHA256 = (
+    "04d659d2e21e3b2333efc4d5bd974f46119fe128e20ec5cebcb3aa894b00897f"
+)
+EXPECTED_NEW_RULE_DIGEST = (
+    "b97740ed2d63e8b23e1a2e6fec5ed340d9b223078ca6d728e9feb279e2a7a32c"
 )
 
 
@@ -55,6 +67,13 @@ def _registry_path() -> Path:
 
 def _decision_path() -> Path:
     return _analysis_config_root() / "m3-corpus-pattern-decision.v1.json"
+
+
+def _new_proposal_path() -> Path:
+    return (
+        _analysis_config_root()
+        / "m3-corpus-pattern-proposal-draw-two-exact-field.v1.json"
+    )
 
 
 def _read_json(path: Path) -> dict[str, object]:
@@ -129,6 +148,34 @@ def test_proposal_record_is_closed_and_canonical() -> None:
     )
 
 
+def test_replacement_proposal_is_canonical_and_exact_field_only() -> None:
+    path = _new_proposal_path()
+    document = _read_json(path)
+
+    assert path.read_bytes() == canonical_json_bytes(document)
+    assert document["record_id"] == NEW_PROPOSAL_RECORD_ID
+    assert document["record_version"] == 1
+    assert document["status"] == "PROPOSAL_ONLY"
+    assert "registry_digest" not in document
+    assert document["pattern_id"] == "m3.corpus.exact-field.draw-two-cards"
+    assert document["pattern_version"] == "1"
+    assert document["matcher_kind"] == "EXACT_FIELD_TEXT"
+    assert document["normalization_profile"] == "NONE"
+    assert document["source_scope"] == {
+        "field": "oracle_text",
+        "face_index": None,
+    }
+    assert document["match_text"] == "Draw two cards."
+    assert document["evidence_policy"] == "EXACT_FIELD"
+    assert document["producer_id"] == "m3.registry-exact-pattern"
+    assert document["producer_version"] == "1"
+    assert document["output_template"]["parameters"] == {
+        "drawer": {"role": "source", "multiplicity": "one", "ordinal": None},
+        "quantity": {"mode": "exact", "value": 2},
+    }
+    assert "complete parent oracle_text" in str(document["known_false_positive_risk"])
+
+
 def test_decision_record_is_closed_canonical_and_rejects_reuse() -> None:
     path = _decision_path()
     document = _read_json(path)
@@ -168,8 +215,12 @@ def test_corpus_registry_is_canonical_schema_valid_and_not_fixture_authority() -
     assert "fixtures" not in registry_path.parts
     assert registry_path.read_bytes() == canonical_json_bytes(document)
     _validate_pattern_registry_schema(document)
-    assert len(registry.rules) == 1
-    assert len(registry.eligibility) == 1
+    assert len(registry.rules) == 2
+    assert len(registry.eligibility) == 2
+    assert [rule.pattern_id for rule in registry.rules] == [
+        "m3.corpus.exact-clause.draw-two-cards",
+        "m3.corpus.exact-field.draw-two-cards",
+    ]
     assert all(
         item.review_record_id != "fixture-pattern-review"
         for item in registry.eligibility
@@ -180,17 +231,21 @@ def test_corpus_registry_is_canonical_schema_valid_and_not_fixture_authority() -
 
 def test_corpus_rule_and_typed_draw_output_are_exact() -> None:
     registry = EffectivePatternRegistryV1.from_wire(_read_json(_registry_path()))
-    rule = registry.rules[0]
+    rule = next(
+        item
+        for item in registry.rules
+        if item.pattern_id == "m3.corpus.exact-field.draw-two-cards"
+    )
     parameters = rule.output_template.parameters.to_wire()
 
-    assert rule.pattern_id == "m3.corpus.exact-clause.draw-two-cards"
+    assert rule.pattern_id == "m3.corpus.exact-field.draw-two-cards"
     assert rule.pattern_version == "1"
-    assert rule.matcher_kind.value == "EXACT_FRAGMENT"
+    assert rule.matcher_kind.value == "EXACT_FIELD_TEXT"
     assert rule.normalization_profile.value == "NONE"
     assert rule.source_scope.field.value == "oracle_text"
     assert rule.source_scope.face_index is None
     assert rule.match_text == "Draw two cards."
-    assert rule.evidence_policy.value == "EXACT_FRAGMENT"
+    assert rule.evidence_policy.value == "EXACT_FIELD"
     assert rule.output_template.family.value == "effect"
     assert rule.output_template.kind.value == "draw_cards"
     assert parameters == {
@@ -208,19 +263,45 @@ def test_decision_sha_is_the_registry_binding_and_rule_digest_is_unchanged() -> 
     decision_bytes = _decision_path().read_bytes()
     decision_sha = hashlib.sha256(decision_bytes).hexdigest()
     registry = EffectivePatternRegistryV1.from_wire(_read_json(_registry_path()))
-    eligibility = registry.eligibility[0]
+    old_rule = next(
+        item
+        for item in registry.rules
+        if item.pattern_id == "m3.corpus.exact-clause.draw-two-cards"
+    )
+    eligibility = next(
+        item for item in registry.eligibility if item.pattern_id == old_rule.pattern_id
+    )
 
     assert proposal_sha == EXPECTED_PROPOSAL_SHA256
     assert decision_sha == EXPECTED_DECISION_SHA256
-    assert registry.rules[0].pattern_id == eligibility.pattern_id
+    assert old_rule.pattern_id == eligibility.pattern_id
     assert eligibility.eligibility.value == "NOT_ELIGIBLE"
     assert eligibility.review_record_id == DECISION_RECORD_ID
     assert eligibility.review_record_sha256 == decision_sha
-    assert registry.rules[0].pattern_id == "m3.corpus.exact-clause.draw-two-cards"
-    from manafold_census.analysis.patterns import pattern_rule_digest_for
+    assert old_rule.pattern_id == "m3.corpus.exact-clause.draw-two-cards"
+    assert pattern_rule_digest_for(old_rule) == EXPECTED_RULE_DIGEST
+    assert registry.digest() == EXPECTED_POST_PROPOSAL_REGISTRY_DIGEST
 
-    assert pattern_rule_digest_for(registry.rules[0]) == EXPECTED_RULE_DIGEST
-    assert registry.digest() == EXPECTED_POST_DECISION_REGISTRY_DIGEST
+
+def test_replacement_proposal_sha_and_rule_digest_are_pinned() -> None:
+    proposal_bytes = _new_proposal_path().read_bytes()
+    proposal_sha = hashlib.sha256(proposal_bytes).hexdigest()
+    registry = EffectivePatternRegistryV1.from_wire(_read_json(_registry_path()))
+    new_rule = next(
+        item
+        for item in registry.rules
+        if item.pattern_id == "m3.corpus.exact-field.draw-two-cards"
+    )
+    new_eligibility = next(
+        item for item in registry.eligibility if item.pattern_id == new_rule.pattern_id
+    )
+
+    assert proposal_sha == EXPECTED_NEW_PROPOSAL_SHA256
+    assert new_eligibility.eligibility is PatternEligibilityStateV1.NOT_ELIGIBLE
+    assert new_eligibility.review_record_id == NEW_PROPOSAL_RECORD_ID
+    assert new_eligibility.review_record_sha256 == proposal_sha
+    assert pattern_rule_digest_for(new_rule) == EXPECTED_NEW_RULE_DIGEST
+    assert registry.digest() == EXPECTED_POST_PROPOSAL_REGISTRY_DIGEST
 
 
 def test_proposed_corpus_rule_is_not_activated_by_registry_configuration() -> None:
@@ -241,6 +322,60 @@ def test_proposed_corpus_rule_is_not_activated_by_registry_configuration() -> No
     assert result.status is ProducerResultStatusV1.NO_MATCH
     assert result.candidates == ()
     assert result.findings == ()
+
+
+def test_exact_field_matcher_semantics_are_whole_parent_field_only() -> None:
+    rule, _ = exact_pattern_rule()
+    reviewed_rule = replace(
+        rule,
+        pattern_id="m3.test.exact-field.draw-two-cards",
+        matcher_kind=MatcherKindV1.EXACT_FIELD_TEXT,
+        evidence_policy=EvidencePolicyV1.EXACT_FIELD,
+        source_scope=PatternSourceScopeV1(PatternSourceFieldV1.ORACLE_TEXT, None),
+        producer_id="m3.registry-exact-pattern",
+        producer_version="1",
+    )
+    reviewed_registry = EffectivePatternRegistryV1.build(
+        (reviewed_rule,),
+        (
+            PatternEligibilityV1(
+                pattern_id=reviewed_rule.pattern_id,
+                pattern_version=reviewed_rule.pattern_version,
+                eligibility=PatternEligibilityStateV1.REVIEWED_FOR_REUSE,
+                review_record_id="test-review",
+                review_record_sha256="a" * 64,
+            ),
+        ),
+    )
+    from manafold_census.analysis.pattern_producer import (
+        RegistryDrivenExactPatternProducerV1,
+    )
+
+    producer = RegistryDrivenExactPatternProducerV1(
+        pattern_registry_digest=reviewed_registry.digest()
+    )
+    result = execute_producer(
+        producer,
+        replace(structural_record(), oracle_text="Draw two cards."),
+        _context_for_registry(reviewed_registry),
+    )
+    assert result.status is ProducerResultStatusV1.EMITTED
+    assert len(result.candidates) == 1
+
+    for text in (
+        "Draw two cards.\nGain 2 life.",
+        "If you do, draw two cards.",
+        "Draw two cards instead.",
+        "Draw two cards",
+    ):
+        result = execute_producer(
+            producer,
+            replace(structural_record(), oracle_text=text),
+            _context_for_registry(reviewed_registry),
+        )
+        assert result.status is ProducerResultStatusV1.NO_MATCH
+        assert result.candidates == ()
+        assert result.findings == ()
 
 
 def test_review_packet_records_pending_authority_and_exact_fragment_risk() -> None:
