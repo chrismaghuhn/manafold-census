@@ -34,7 +34,18 @@ from manafold_census.semantic.bundle import (
     RelationshipTypeV1,
     RequirementRelationshipV1,
 )
-from manafold_census.semantic.model import DerivationMethodV1
+from manafold_census.semantic.evidence import StructuralFieldEvidenceV1
+from manafold_census.semantic.model import (
+    DerivationMethodV1,
+    DerivationV1,
+    ProvenanceV1,
+    RequirementV1,
+    ResolutionReasonV1,
+    ResolutionStateV1,
+    ResolutionV1,
+    ReviewStatusV1,
+    ReviewV1,
+)
 
 
 def descriptor(
@@ -133,7 +144,30 @@ def _pattern_probe(*, producer_id: str = "m3.exact-rule", finding=None):
         PATTERN_REGISTRY_DIGEST_DOMAIN,
         registry.to_wire(),
     )
-    proposal = bundle().requirements[0]
+    base_proposal = bundle().requirements[0]
+    proposal = RequirementV1.create(
+        source=base_proposal.source,
+        family=rule.output_template.family,
+        kind=rule.output_template.kind,
+        parameters=rule.output_template.parameters,
+        evidence=(
+            StructuralFieldEvidenceV1(
+                base_proposal.source,
+                "oracle_text",
+                None,
+                rule.match_text,
+            ),
+        ),
+        provenance=ProvenanceV1(
+            (DerivationV1(DerivationMethodV1.DETERMINISTIC_RULE, producer_id, "1"),)
+        ),
+        review=ReviewV1(ReviewStatusV1.PROPOSED, None, None),
+        resolution=ResolutionV1(
+            ResolutionStateV1.COMPLETE,
+            ResolutionReasonV1.NONE,
+            (),
+        ),
+    )
     actual_finding = finding or ProducerFindingV1(
         candidate_index=0,
         pattern_id=rule.pattern_id,
