@@ -233,6 +233,45 @@ def test_bundle_rejects_cross_source_unsorted_duplicate_and_missing_edges() -> N
         _bundle(source, ordered, (missing,))
 
 
+def test_bundle_rejects_exact_duplicate_relationship_edges() -> None:
+    source = _source()
+    first = _draw(source)
+    second = _cost(source)
+    requirements = tuple(sorted((first, second), key=lambda item: item.requirement_id))
+    edge = RequirementRelationshipV1(
+        RelationshipTypeV1.PARENT_OF,
+        first.requirement_id,
+        second.requirement_id,
+        None,
+    )
+
+    with pytest.raises(ValueError, match="duplicate"):
+        _bundle(source, requirements, (edge, edge))
+
+
+def test_bundle_rejects_reverse_symmetric_duplicate_after_canonicalization() -> None:
+    source = _source()
+    first = _draw(source)
+    second = _cost(source)
+    requirements = tuple(sorted((first, second), key=lambda item: item.requirement_id))
+    forward = RequirementRelationshipV1(
+        RelationshipTypeV1.ALTERNATIVE_OF,
+        first.requirement_id,
+        second.requirement_id,
+        None,
+    )
+    reverse = RequirementRelationshipV1(
+        RelationshipTypeV1.ALTERNATIVE_OF,
+        second.requirement_id,
+        first.requirement_id,
+        None,
+    )
+
+    assert forward == reverse
+    with pytest.raises(ValueError, match="duplicate"):
+        _bundle(source, requirements, (forward, reverse))
+
+
 def test_bundle_rejects_self_edges_bad_ordinals_and_arbitrary_relationships() -> None:
     source = _source()
     first = _draw(source)
