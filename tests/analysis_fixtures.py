@@ -1,6 +1,10 @@
 from __future__ import annotations
 
-from manafold_census.semantic.bundle import RequirementBundleV1
+from manafold_census.semantic.bundle import (
+    RelationshipTypeV1,
+    RequirementBundleV1,
+    RequirementRelationshipV1,
+)
 from manafold_census.semantic.evidence import (
     SourceRecordRefV1,
     StructuralFieldEvidenceV1,
@@ -234,3 +238,82 @@ def trace_event(
         local_candidate_key="fixture-candidate",
         disposition=TraceDispositionV1.CANDIDATE_EMITTED,
     )
+
+
+def _candidate(
+    *,
+    quantity: int = 2,
+    fragment: str = "Draw",
+    producer_id: str = "fixture",
+    resolution: ResolutionV1 | None = None,
+) -> RequirementV1:
+    actual_source = source_ref()
+    return RequirementV1.create(
+        source=actual_source,
+        family=RequirementFamilyV1.EFFECT,
+        kind=RequirementKindV1.DRAW_CARDS,
+        parameters=DrawCardsParametersV1(
+            _entity(),
+            QuantityV1(QuantityModeV1.EXACT, quantity),
+        ),
+        evidence=(
+            StructuralFieldEvidenceV1(actual_source, "oracle_text", None, fragment),
+        ),
+        provenance=ProvenanceV1(
+            (DerivationV1(DerivationMethodV1.PARSER, producer_id, "1"),)
+        ),
+        review=ReviewV1(ReviewStatusV1.PROPOSED, None, None),
+        resolution=resolution
+        or ResolutionV1(ResolutionStateV1.COMPLETE, ResolutionReasonV1.NONE, ()),
+    )
+
+
+def candidate_a() -> RequirementV1:
+    return _candidate()
+
+
+def candidate_b_with_other_evidence() -> RequirementV1:
+    return _candidate(fragment="two", producer_id="fixture-other")
+
+
+def complete_candidate() -> RequirementV1:
+    return candidate_a()
+
+
+def partial_candidate_same_id() -> RequirementV1:
+    return _candidate(
+        resolution=ResolutionV1(
+            ResolutionStateV1.PARTIAL,
+            ResolutionReasonV1.INSUFFICIENT_EVIDENCE,
+            ("/parameters",),
+        )
+    )
+
+
+def other_candidate() -> RequirementV1:
+    return _candidate(quantity=1, fragment="one")
+
+
+def competing_candidate_b() -> RequirementV1:
+    return other_candidate()
+
+
+def explicit_conflict():
+    from manafold_census.analysis.producer import RelationshipProposalV1
+
+    return RelationshipProposalV1(
+        RequirementRelationshipV1(
+            RelationshipTypeV1.CONFLICTS_WITH,
+            candidate_a().requirement_id,
+            other_candidate().requirement_id,
+            None,
+        )
+    )
+
+
+def canonical_conflict() -> RequirementRelationshipV1:
+    return explicit_conflict().relationship
+
+
+def accepted_producer_candidate() -> RequirementV1:
+    return accepted_requirement()
