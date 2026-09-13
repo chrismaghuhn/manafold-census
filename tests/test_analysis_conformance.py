@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import hashlib
 import inspect
+import json
 from pathlib import Path
 
 import pytest
@@ -14,6 +16,7 @@ from analysis_fixtures import (
     explicit_conflict,
     other_candidate,
     partial_candidate_same_id,
+    source_ref,
 )
 from test_analysis_build import _build, _source_ref
 from test_analysis_validate import (
@@ -22,17 +25,27 @@ from test_analysis_validate import (
     write_m3_artifact,
 )
 
+from manafold_census.analysis.build import ReferenceBuildResultV1, _write_shards
 from manafold_census.analysis.manifest import (
+    SHARD_NAMES,
+    AnalysisManifestV1,
     merge_partitioned_records,
     partition_records,
+    record_identity_set_digest,
 )
-from manafold_census.analysis.model import AnalysisOutcomeV1, card_source_key
+from manafold_census.analysis.model import (
+    AnalysisOutcomeV1,
+    CardAnalysisRecordV1,
+    card_source_key,
+)
 from manafold_census.analysis.reconcile import ReconciliationFailure, reconcile
 from manafold_census.analysis.report import build_reports
 from manafold_census.analysis.validate import (
     AnalysisClosureError,
     validate_analysis_closure,
 )
+from manafold_census.canonical import canonical_json_bytes
+from manafold_census.cli import directory_digest
 
 
 def test_reference_card_cardinality_and_outcome_matrix(tmp_path: Path) -> None:
@@ -128,35 +141,101 @@ def test_report_is_downstream_of_finalized_analysis_manifest(tmp_path: Path) -> 
     assert (result.output_dir / "reports" / "analysis-report.json").is_file()
 
 
-def test_partition_merge_parity_is_in_process_only(tmp_path: Path) -> None:
+def _package_partition(
+    root: Path,
+    result: ReferenceBuildResultV1,
+    records: tuple[CardAnalysisRecordV1, ...],
+) -> str:
+    manifest = result.manifest
+    record_shards, trace_shards = _write_shards(root, records, result.traces)
+    manifest = AnalysisManifestV1(
+        manifest.analysis_schema,
+        manifest.source_lock_digest,
+        manifest.structural_record_schema,
+        manifest.structural_index_manifest_sha256,
+        manifest.structural_index_aggregate_digest,
+        manifest.m2_requirement_schema,
+        manifest.m2_bundle_schema,
+        manifest.producer_registry_digest,
+        manifest.pattern_registry_digest,
+        manifest.build_profile,
+        len(records),
+        record_identity_set_digest(
+            [card_source_key(record.source) for record in records]
+        ),
+        record_shards,
+        trace_shards,
+    )
+    (root / "analysis-manifest.json").write_bytes(
+        canonical_json_bytes(manifest.to_wire())
+    )
+    return directory_digest(root)
+
+
+def test_partition_merge_parity_packages_byte_identical_outputs(tmp_path: Path) -> None:
     result, _ = _build(tmp_path)
     expected = [card_source_key(record.source) for record in result.records]
-    reference = merge_partitioned_records(
-        partition_records(result.records, 1), expected
-    )
-    for count in (2, 8, 16):
-        assert (
-            merge_partitioned_records(
-                partition_records(result.records, count), expected
-            )
-            == reference
+    package_digests: dict[int, str] = {}
+    package_bytes: dict[int, dict[str, bytes]] = {}
+    for count in (1, 2, 8, 16):
+        merged = merge_partitioned_records(
+            partition_records(result.records, count), expected
         )
+        package_root = tmp_path / f"package-{count}"
+        package_root.mkdir()
+        package_digests[count] = _package_partition(package_root, result, merged)
+        package_bytes[count] = {
+            path.relative_to(package_root).as_posix(): path.read_bytes()
+            for path in package_root.rglob("*")
+            if path.is_file()
+        }
+    assert len(set(package_digests.values())) == 1
+    assert all(package_bytes[count] == package_bytes[1] for count in (2, 8, 16))
     assert "workers" not in inspect.signature(partition_records).parameters
     assert "workers" not in inspect.signature(merge_partitioned_records).parameters
 
 
-@pytest.mark.parametrize("count", [1, 2])
-def test_closure_rejects_missing_or_extra_source_keys(
-    tmp_path: Path, count: int
-) -> None:
-    m1_root, records, m1_manifest = write_m1_authority(tmp_path / f"m1-{count}", count)
+def test_closure_rejects_missing_source_key(tmp_path: Path) -> None:
+    m1_root, records, m1_manifest = write_m1_authority(tmp_path / "m1", 2)
     m3_root, _ = write_m3_artifact(
-        tmp_path / f"m3-{count}",
+        tmp_path / "m3",
         m1_root,
         m1_manifest,
-        records[:1] if count == 2 else records + [records[0]],
+        records[:1],
     )
-    with pytest.raises(AnalysisClosureError, match="identity|duplicate"):
+    with pytest.raises(AnalysisClosureError, match="missing=1"):
+        validate_analysis_closure(m1_root, m3_root, SOURCE_LOCK_PATH)
+
+
+def test_closure_rejects_extra_unique_source_key(tmp_path: Path) -> None:
+    m1_root, records, m1_manifest = write_m1_authority(tmp_path / "m1")
+    m3_root, cards = write_m3_artifact(tmp_path / "m3", m1_root, m1_manifest, records)
+    extra_source = source_ref(
+        source_lock_digest=cards[0].source.source_lock_digest,
+        oracle_id="eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+        source_card_id="eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeef",
+        source_record_sha256="e" * 64,
+    )
+    extra = CardAnalysisRecordV1(
+        extra_source,
+        AnalysisOutcomeV1.UNRESOLVED_ANALYSIS,
+        None,
+        None,
+    )
+    path = m3_root / "records" / "e.jsonl"
+    path.write_bytes(canonical_json_bytes(extra.to_wire()) + b"\n")
+    manifest_path = m3_root / "analysis-manifest.json"
+    manifest = json.loads(manifest_path.read_bytes())
+    descriptor = manifest["record_shards"][SHARD_NAMES.index("e")]
+    descriptor["sha256"] = hashlib.sha256(path.read_bytes()).hexdigest()
+    descriptor["byte_length"] = path.stat().st_size
+    descriptor["record_count"] = 1
+    manifest["record_count"] = 2
+    manifest["record_identity_set_digest"] = record_identity_set_digest(
+        [card_source_key(cards[0].source), card_source_key(extra.source)]
+    )
+    manifest_path.write_bytes(canonical_json_bytes(manifest))
+    with pytest.raises(AnalysisClosureError, match="missing=0 extra=1"):
         validate_analysis_closure(m1_root, m3_root, SOURCE_LOCK_PATH)
 
 

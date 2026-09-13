@@ -23,6 +23,8 @@ DIFFERENT_IDS_RETAINED_WITHOUT_PRIORITY         = PASS
 EXPLICIT_CONFLICT_RELATIONSHIP_ONLY             = PASS
 REPORT_DOWNSTREAM_OF_ANALYSIS_MANIFEST          = PASS
 PARTITION_COUNTS_1_2_8_16                       = PASS
+PARTITION_CANONICAL_PACKAGE_BYTES              = PASS
+PARTITION_PACKAGE_DIGEST_PARITY                = PASS
 PARTITION_MERGE_PARITY                          = PASS
 PARALLEL_BACKEND                                = NOT_IMPLEMENTED
 MISSING_SOURCE_KEY_CLOSURE_FAILURE              = PASS
@@ -30,8 +32,13 @@ DUPLICATE_SOURCE_KEY_CLOSURE_FAILURE            = PASS
 EXTRA_SOURCE_KEY_CLOSURE_FAILURE                = PASS
 ```
 
-Partition parity is an in-process partition/merge/package seam test. No workers,
-threads, processes, or parallel backend were started.
+Partition parity compares canonical record/trace shard bytes, manifest bytes,
+and the complete package directory digest after in-process partition/merge for
+counts 1, 2, 8, and 16. No workers, threads, processes, or parallel backend
+were started.
+
+The extra-source closure case uses a new validly formed source identity and
+fails with `missing=0 extra=1`; it is distinct from the duplicate-key case.
 
 ## Gates
 
