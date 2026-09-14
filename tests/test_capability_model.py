@@ -1,4 +1,5 @@
 import pytest
+from capability_fixtures import draw_family_key
 
 from manafold_census.capability.model import (
     CapabilityFamilyKeyV1,
@@ -9,7 +10,6 @@ from manafold_census.semantic.kinds import (
     RequirementFamilyV1,
     RequirementKindV1,
 )
-from tests.capability_fixtures import draw_family_key
 
 
 def test_family_id_input_is_stable_for_equal_nuclei() -> None:

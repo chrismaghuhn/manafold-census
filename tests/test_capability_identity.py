@@ -1,6 +1,7 @@
+from capability_fixtures import draw_family_key
+
 from manafold_census.capability.identity import capability_family_id_for
 from manafold_census.capability.model import CapabilityFamilyKeyV1, NucleusKindV1
-from tests.capability_fixtures import draw_family_key
 
 
 def test_family_id_is_derived_only_from_the_stable_nucleus() -> None:
