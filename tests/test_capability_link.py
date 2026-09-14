@@ -104,6 +104,7 @@ from manafold_census.semantic.primitives import (
 )
 
 M3_MANIFEST_SHA256 = "a" * 64
+COMPOSITION_GROUP_ID = "rcg_" + "0" * 64
 ORACLE_ID = "abcdefab-abcd-4abc-8abc-abcdefabcdef"
 SOURCE_CARD_ID = "abcdefab-abcd-4abc-8abc-abcdefabcdea"
 
@@ -414,6 +415,42 @@ def test_link_identity_and_wire_are_canonical_and_schema_valid() -> None:
     assert link.link_id.startswith("rcl_")
     assert len(link.link_claim_digest) == 64
     assert RequirementCapabilityLinkV1.from_wire(link.to_wire()) == link
+    _validated_schema("requirement-capability-link.v1.schema.json", link.to_wire())
+
+
+def test_member_link_binds_the_composition_group_id_into_its_claim() -> None:
+    requirement = _requirement()
+    capability = _capability()
+    link = composition_member_link(
+        requirement=requirement,
+        capability=capability,
+        m3_manifest_sha256=M3_MANIFEST_SHA256,
+        admissibility=_sra(requirement),
+        composition_context=CompositionContextV1(
+            COMPOSITION_GROUP_ID,
+            capability.capability_ref,
+            "component",
+        ),
+    )
+    changed_context = CompositionContextV1(
+        "rcg_" + "1" * 64,
+        capability.capability_ref,
+        "component",
+    )
+    changed = RequirementCapabilityLinkV1.create(
+        m3_analysis_manifest_sha256=link.m3_analysis_manifest_sha256,
+        requirement_id=link.requirement_id,
+        requirement_wire_digest=link.requirement_wire_digest,
+        requirement_reviewed_claim_digest=link.requirement_reviewed_claim_digest,
+        capability=link.capability,
+        relation=link.relation,
+        parameter_bindings=link.parameter_bindings,
+        m4_requirement_admissibility=link.m4_requirement_admissibility,
+        composition_context=changed_context,
+    )
+
+    assert changed.link_id != link.link_id
+    assert changed.link_claim_digest != link.link_claim_digest
     _validated_schema("requirement-capability-link.v1.schema.json", link.to_wire())
 
 
@@ -837,6 +874,7 @@ def test_direct_and_component_links_cannot_be_active_for_one_requirement() -> No
         m3_manifest_sha256=M3_MANIFEST_SHA256,
         admissibility=sra,
         composition_context=CompositionContextV1(
+            COMPOSITION_GROUP_ID,
             capability.capability_ref,
             "component",
         ),
@@ -856,7 +894,11 @@ def test_component_links_require_one_shared_composition_context() -> None:
         capability=capability,
         m3_manifest_sha256=M3_MANIFEST_SHA256,
         admissibility=sra,
-        composition_context=CompositionContextV1(capability.capability_ref, "first"),
+        composition_context=CompositionContextV1(
+            COMPOSITION_GROUP_ID,
+            capability.capability_ref,
+            "first",
+        ),
         parameter_bindings=(_quantity_binding(),),
     )
     second = composition_member_link(
@@ -865,6 +907,7 @@ def test_component_links_require_one_shared_composition_context() -> None:
         m3_manifest_sha256=M3_MANIFEST_SHA256,
         admissibility=sra,
         composition_context=CompositionContextV1(
+            "rcg_" + "1" * 64,
             CapabilityRefV1("capfam_" + "1" * 64, 1, "2" * 64),
             "second",
         ),

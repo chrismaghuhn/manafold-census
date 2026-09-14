@@ -1584,6 +1584,16 @@ m4_requirement_admissibility: basis, record ID, review digest
 composition_context
 ~~~
 
+`CompositionContextV1` contains `composition_group_id`, the exact composite
+CapabilityRefV1, and one component key. `CompositionAssignmentV1` contains the
+exact Requirement ID, Requirement wire digest, component CapabilityRefV1, and
+component key. `composition_group_id` is a domain-separated digest over the
+selected M3 manifest SHA, composite reference, and canonically sorted complete
+assignment set. It is part of the link claim but does not hash link IDs,
+reviews, or the future M4 manifest. A group may span multiple Requirements so
+each member Requirement can independently match its component operation
+anchor.
+
 The link ID is the domain digest of that claim. Review fields and report
 fields are outside the claim. A changed Requirement wire, M3 manifest, or
 Capability claim produces a stale or different link.
@@ -1611,7 +1621,10 @@ else:
 
 The function rejects PARTIAL, UNRESOLVED, stale digests, unknown Capability
 versions, superseded/retired versions, unknown dimensions, and unknown
-binding values. It never changes RequirementV1.
+binding values. For `COMPOSITION_MEMBER`, it additionally requires the exact
+composite definition, recomputes the selected component anchor against the
+Requirement family/kind, and validates the group through the complete link
+set. It never changes RequirementV1.
 
 ### Step 4: Implement mapping dispositions
 
@@ -1698,14 +1711,18 @@ git commit -m "feat: add M4 requirement capability links"
 **Files:**
 
 - Create: src/manafold_census/capability/evolution.py
+- Create: src/manafold_census/capability/composition.py
+- Modify: src/manafold_census/capability/link.py
 - Create: src/manafold_census/capability/relations.py
 - Create: src/manafold_census/capability/relation_validation.py
 - Modify: src/manafold_census/capability/claim.py
 - Modify: src/manafold_census/capability/link_validation.py
+- Modify: schemas/requirement-capability-link.v1.schema.json
 - Create: schemas/capability-evolution.v1.schema.json
 - Create: schemas/capability-relations.v1.schema.json
 - Create: tests/test_capability_evolution.py
 - Modify: tests/test_capability_dimensions.py
+- Modify: tests/test_capability_link.py
 
 **Dependency:** Tasks 1–5.
 
@@ -1777,7 +1794,8 @@ REQUIRES
 SPECIALIZES
 ~~~
 
-Persist each edge as CapabilityRelationV1 in the dedicated relation file:
+Model each edge as a `CapabilityRelationV1`; Task 8 later persists the typed
+records in the dedicated relation file:
 
 ~~~python
 class CapabilityRelationKindV1(StrEnum):
@@ -1903,11 +1921,17 @@ missing/extra-on-disk detection belong to Task 8, which owns the authoritative
 build and manifest publication.
 
 Active `COMPOSITION_MEMBER` links use
-`(requirement_id, composite CapabilityRefV1)` as the mapping-context key.
-`component_key` is the member coordinate inside that context. For one context,
-component keys are unique and all required claim components are covered
-exactly once. Different composite references for one Requirement are rejected;
-the same composite/component key may be reused by another Requirement.
+an explicit `composition_group_id`. The ID is a domain-separated digest of the
+exact M3 manifest SHA, composite CapabilityRefV1, and canonically sorted
+`CompositionAssignmentV1` values containing Requirement ID, Requirement wire
+digest, component CapabilityRefV1, and component key. The context wire carries
+that ID, the composite reference, and the member component key. Active group
+validation recomputes the ID from all participating links, requires each
+member Requirement's family/kind to match its component anchor, enforces
+unique component keys and complete required-key coverage, and allows the same
+composite/component key in another group. Different composite references for
+one Requirement remain rejected. The physical group/relation JSONL files and
+manifest descriptors remain Task-8 responsibilities.
 
 ### Step 5: Run gates and commit
 
@@ -1916,9 +1940,9 @@ python -m pytest tests/test_capability_evolution.py tests/test_capability_link.p
 ruff format --check src/manafold_census/capability tests/test_capability_evolution.py tests/test_capability_link.py
 ruff check src/manafold_census/capability tests/test_capability_evolution.py tests/test_capability_link.py
 mypy src/manafold_census/capability
-git add src/manafold_census/capability tests/test_capability_evolution.py tests/test_capability_dimensions.py schemas/capability-evolution.v1.schema.json schemas/capability-relations.v1.schema.json docs/superpowers/specs/2026-09-14-m4-bottom-up-capability-ontology-design.md
+git add src/manafold_census/capability tests/test_capability_evolution.py tests/test_capability_dimensions.py tests/test_capability_link.py schemas/capability-evolution.v1.schema.json schemas/capability-relations.v1.schema.json schemas/requirement-capability-link.v1.schema.json docs/superpowers/specs/2026-09-14-m4-bottom-up-capability-ontology-design.md
 git diff --cached --check
-git commit -m "feat: add M4 capability evolution relations"
+git commit -m "fix: close M4 composition group context contract"
 ~~~
 
 ## Task 7: Frozen M3 input adapter and Requirement-set identity

@@ -12,6 +12,8 @@ M4_DESIGN_AMENDMENT_01           = PERSIST_SEMANTIC_RELATIONS
 M4_DESIGN_AMENDMENT_01_STATUS    = READY_FOR_INDEPENDENT_REVIEW
 M4_DESIGN_AMENDMENT_02           = COMPOSITION_CLOSURE
 M4_DESIGN_AMENDMENT_02_STATUS    = READY_FOR_INDEPENDENT_REVIEW
+M4_DESIGN_AMENDMENT_03           = COMPOSITION_GROUP_CONTEXT
+M4_DESIGN_AMENDMENT_03_STATUS    = READY_FOR_INDEPENDENT_REVIEW
 ~~~
 
 This document is the M4 architecture and specification only. It creates no
@@ -936,13 +938,40 @@ composite definition.
 component of a reviewed composite Capability use. The composite definition
 lists the component Capability references and component keys. The link points
 to the exact component version and carries a composition context that names
-the composite version and component key. For active-link cardinality, the
-mapping context identity is `(requirement_id, composite CapabilityRefV1)`;
-`component_key` is the member coordinate inside that context, not part of the
-context identity. Thus one Requirement may cover multiple distinct component
-keys exactly once, while the same composite/component key may be reused by a
-different Requirement. Different composite references for one Requirement are
-different mapping contexts and may not be active together.
+the composite version and component key. The context also carries an explicit
+`composition_group_id`. Its identity is derived from the exact M3 manifest,
+composite reference, and the canonically sorted participating assignments:
+
+```text
+CompositionAssignmentV1 =
+    requirement_id
+    requirement_wire_digest
+    component CapabilityRefV1
+    component_key
+
+composition_group_id = "rcg_" + domain_digest(
+    "census.capability-composition-group-id.v1",
+    {
+      "schema": "census.capability-composition-group.v1",
+      "m3_analysis_manifest_sha256": <exact M3 SHA>,
+      "composite": <exact CapabilityRefV1>,
+      "assignments": <sorted exact assignments>
+    }
+)
+```
+
+The group projection excludes link IDs, link digests, review records,
+filesystem paths, timestamps, runtime order, and the future M4 manifest. For
+active-link cardinality, the mapping context identity is
+`(m3_analysis_manifest_sha256, composition_group_id, composite CapabilityRefV1)`;
+`component_key` is the member coordinate inside that group. Every member link
+must independently bind its Requirement family/kind to the exact component
+operation anchor. A multi-anchor composite therefore spans multiple exact
+Requirements when needed; one Requirement cannot stand in for another
+operation. Within one group, component keys are unique and all required keys
+are covered exactly once. The same composite/component key may be reused by a
+different group and Requirement. Different composite references for one
+Requirement may not be active together.
 
 There is no untyped `MAPS_TO`, `SIMILAR_TO`, `DEPENDS_ON`, or catch-all edge.
 
@@ -957,6 +986,8 @@ The model supports many-to-many relationships with explicit rules:
 * multiple active `COMPOSITION_MEMBER` links for one Requirement are allowed
   only when they share a reviewed composition context and the composite
   definition declares every component key;
+* one composition group may span multiple exact Requirements, with each
+  member Requirement matching the operation anchor of its assigned component;
 * a Requirement may not have both an active `DIRECT` link and active component
   links in the same mapping context; and
 * a Capability version with no supporting Requirement that satisfies one of
@@ -1036,6 +1067,9 @@ A link is stale and cannot be active when any of the following is true:
 * an active link claims an M2 reviewed digest that is missing or mismatched;
 * the Capability family/version is absent or its claim digest differs;
 * a required dimension binding is missing, duplicated, unknown, or mismatched;
+* a composition group ID does not recompute from its exact participating
+  Requirement assignments;
+* a composition member's Requirement anchor does not match its component;
 * a retired or superseded Capability is targeted for a new active link; or
 * the relation/composition context no longer matches the Capability definition.
 
@@ -1598,8 +1632,11 @@ The exact dependency rules are:
   manifest, Requirement ID/wire digest, observed M2 review/resolution fields,
   and `reviewed_claim_digest_for(requirement)`, never on the future M4 manifest
   digest;
+* a composition group ID depends on the exact M3 manifest, composite
+  reference, and sorted participating Requirement/component assignments;
 * a link depends on the exact M3 manifest SHA, Requirement ID/wire/review
-  projection, Capability reference, relation, and bindings;
+  projection, Capability reference, relation, bindings, and composition group
+  context;
 * mapping decisions depend on exact Requirement/link claim references but not
   on the M4 manifest digest;
 * evolution depends on exact old/new Capability references and its review;

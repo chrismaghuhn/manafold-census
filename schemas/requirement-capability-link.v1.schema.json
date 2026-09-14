@@ -301,10 +301,15 @@
       "type": "object",
       "additionalProperties": false,
       "required": [
+        "composition_group_id",
         "composite",
         "component_key"
       ],
       "properties": {
+        "composition_group_id": {
+          "type": "string",
+          "pattern": "^rcg_[0-9a-f]{64}$"
+        },
         "composite": {
           "$ref": "#/$defs/capability_ref"
         },

@@ -15,6 +15,10 @@ from manafold_census.capability.claim import (
     CompositionClaimV1,
     CompositionComponentV1,
 )
+from manafold_census.capability.composition import (
+    CompositionAssignmentV1,
+    composition_group_id_for,
+)
 from manafold_census.capability.definition import (
     CapabilityDefinitionV1,
     CapabilityLifecycleStateV1,
@@ -66,6 +70,7 @@ from manafold_census.semantic.evidence import (
     SourceRecordRefV1,
     StructuralFieldEvidenceV1,
 )
+from manafold_census.semantic.identity import wire_digest_for
 from manafold_census.semantic.kind_payloads import (
     DealDamageParametersV1,
     DrawCardsParametersV1,
@@ -291,12 +296,31 @@ def _requirement(
     )
 
 
+def _composition_assignment(
+    requirement: RequirementV1,
+    component: CapabilityDefinitionV1,
+    component_key: str,
+) -> CompositionAssignmentV1:
+    return CompositionAssignmentV1(
+        requirement.requirement_id,
+        wire_digest_for(requirement),
+        component.capability_ref,
+        component_key,
+    )
+
+
 def _active_member_link(
     requirement: RequirementV1,
     component: CapabilityDefinitionV1,
     composite: CapabilityDefinitionV1,
     component_key: str,
+    composition_group_id: str | None = None,
 ) -> RequirementCapabilityLinkV1:
+    group_id = composition_group_id or composition_group_id_for(
+        m3_analysis_manifest_sha256=M3_MANIFEST_SHA256,
+        composite=composite.capability_ref,
+        assignments=(_composition_assignment(requirement, component, component_key),),
+    )
     admissibility = SourceRequirementAdmissibilityV1.for_requirement(
         requirement,
         m3_analysis_manifest_sha256=M3_MANIFEST_SHA256,
@@ -309,6 +333,7 @@ def _active_member_link(
         capability=component,
         m3_manifest_sha256=M3_MANIFEST_SHA256,
         composition_context=CompositionContextV1(
+            group_id,
             composite.capability_ref,
             component_key,
         ),
@@ -538,6 +563,159 @@ def test_all_semantic_relation_kinds_are_typed_and_null_relation_fields_are_exac
     assert specializes.relation_kind is CapabilityRelationKindV1.SPECIALIZES
     assert specializes.component_key is None
     assert requires.to_wire()["schema"] == "census.capability-relations.v1"
+
+
+def test_composition_group_id_binds_snapshot_composite_and_assignments() -> None:
+    composite = composite_capability()
+    draw = active_draw_capability()
+    damage = active_damage_capability()
+    draw_requirement = _requirement(
+        kind=RequirementKindV1.DRAW_CARDS,
+        source_record_sha256="2" * 64,
+    )
+    damage_requirement = _requirement(
+        kind=RequirementKindV1.DEAL_DAMAGE,
+        source_record_sha256="3" * 64,
+    )
+    assignments = (
+        _composition_assignment(draw_requirement, draw, "draw"),
+        _composition_assignment(damage_requirement, damage, "damage"),
+    )
+    group_id = composition_group_id_for(
+        m3_analysis_manifest_sha256=M3_MANIFEST_SHA256,
+        composite=composite.capability_ref,
+        assignments=assignments,
+    )
+
+    assert group_id == composition_group_id_for(
+        m3_analysis_manifest_sha256=M3_MANIFEST_SHA256,
+        composite=composite.capability_ref,
+        assignments=tuple(reversed(assignments)),
+    )
+    assert group_id != composition_group_id_for(
+        m3_analysis_manifest_sha256="e" * 64,
+        composite=composite.capability_ref,
+        assignments=assignments,
+    )
+    context = CompositionContextV1(group_id, composite.capability_ref, "draw")
+    assert CompositionContextV1.from_wire(context.to_wire()) == context
+
+
+def test_group_identity_allows_distinct_component_keys_for_one_requirement() -> None:
+    composite = composite_capability()
+    draw = active_draw_capability()
+    damage = active_damage_capability()
+    requirement = _requirement(
+        kind=RequirementKindV1.DRAW_CARDS,
+        source_record_sha256="2" * 64,
+    )
+
+    group_id = composition_group_id_for(
+        m3_analysis_manifest_sha256=M3_MANIFEST_SHA256,
+        composite=composite.capability_ref,
+        assignments=(
+            _composition_assignment(requirement, draw, "draw"),
+            _composition_assignment(requirement, damage, "damage"),
+        ),
+    )
+
+    assert group_id.startswith("rcg_")
+
+
+def test_active_composition_group_spans_sound_requirements() -> None:
+    composite = composite_capability()
+    draw = active_draw_capability()
+    damage = active_damage_capability()
+    draw_requirement = _requirement(
+        kind=RequirementKindV1.DRAW_CARDS,
+        source_record_sha256="2" * 64,
+    )
+    damage_requirement = _requirement(
+        kind=RequirementKindV1.DEAL_DAMAGE,
+        source_record_sha256="3" * 64,
+    )
+    group_id = composition_group_id_for(
+        m3_analysis_manifest_sha256=M3_MANIFEST_SHA256,
+        composite=composite.capability_ref,
+        assignments=(
+            _composition_assignment(draw_requirement, draw, "draw"),
+            _composition_assignment(damage_requirement, damage, "damage"),
+        ),
+    )
+    draw_link = _active_member_link(draw_requirement, draw, composite, "draw", group_id)
+    damage_link = _active_member_link(
+        damage_requirement, damage, composite, "damage", group_id
+    )
+
+    validate_active_links(
+        (draw_link, damage_link),
+        capabilities=(composite, draw, damage),
+        requirements={
+            draw_requirement.requirement_id: draw_requirement,
+            damage_requirement.requirement_id: damage_requirement,
+        },
+    )
+
+
+def test_active_composition_group_rejects_a_missing_member_assignment() -> None:
+    composite = composite_capability()
+    draw = active_draw_capability()
+    damage = active_damage_capability()
+    draw_requirement = _requirement(
+        kind=RequirementKindV1.DRAW_CARDS,
+        source_record_sha256="2" * 64,
+    )
+    damage_requirement = _requirement(
+        kind=RequirementKindV1.DEAL_DAMAGE,
+        source_record_sha256="3" * 64,
+    )
+    complete_group_id = composition_group_id_for(
+        m3_analysis_manifest_sha256=M3_MANIFEST_SHA256,
+        composite=composite.capability_ref,
+        assignments=(
+            _composition_assignment(draw_requirement, draw, "draw"),
+            _composition_assignment(damage_requirement, damage, "damage"),
+        ),
+    )
+    draw_link = _active_member_link(
+        draw_requirement, draw, composite, "draw", complete_group_id
+    )
+
+    with pytest.raises(ValueError, match="group ID"):
+        validate_active_links(
+            (draw_link,),
+            capabilities=(composite, draw, damage),
+            requirements={draw_requirement.requirement_id: draw_requirement},
+        )
+
+
+def test_same_requirement_cannot_supply_different_operation_components() -> None:
+    composite = composite_capability()
+    draw = active_draw_capability()
+    damage = active_damage_capability()
+    requirement = _requirement(
+        kind=RequirementKindV1.DRAW_CARDS,
+        source_record_sha256="2" * 64,
+    )
+    group_id = composition_group_id_for(
+        m3_analysis_manifest_sha256=M3_MANIFEST_SHA256,
+        composite=composite.capability_ref,
+        assignments=(
+            _composition_assignment(requirement, draw, "draw"),
+            _composition_assignment(requirement, damage, "damage"),
+        ),
+    )
+    draw_link = _active_member_link(requirement, draw, composite, "draw", group_id)
+    damage_link = _active_member_link(
+        requirement, damage, composite, "damage", group_id
+    )
+
+    with pytest.raises(ValueError, match="operation anchor"):
+        validate_active_links(
+            (draw_link, damage_link),
+            capabilities=(composite, draw, damage),
+            requirements={requirement.requirement_id: requirement},
+        )
 
 
 def test_split_preserves_old_references_and_requires_two_targets() -> None:
@@ -771,11 +949,12 @@ def test_active_composition_context_must_cover_required_components() -> None:
     composite = composite_capability()
     draw = active_draw_capability()
     damage = active_damage_capability()
+    requirement = _requirement(
+        kind=RequirementKindV1.DRAW_CARDS,
+        source_record_sha256="2" * 64,
+    )
     draw_link = _active_member_link(
-        _requirement(
-            kind=RequirementKindV1.DRAW_CARDS,
-            source_record_sha256="2" * 64,
-        ),
+        requirement,
         draw,
         composite,
         "draw",
@@ -785,24 +964,8 @@ def test_active_composition_context_must_cover_required_components() -> None:
         validate_active_links(
             (draw_link,),
             capabilities=(composite, draw, damage),
+            requirements={requirement.requirement_id: requirement},
         )
-
-
-def test_same_requirement_and_composite_can_cover_two_distinct_components() -> None:
-    composite = composite_capability()
-    draw = active_draw_capability()
-    damage = active_damage_capability()
-    requirement = _requirement(
-        kind=RequirementKindV1.DRAW_CARDS,
-        source_record_sha256="2" * 64,
-    )
-    draw_link = _active_member_link(requirement, draw, composite, "draw")
-    damage_link = _active_member_link(requirement, damage, composite, "damage")
-
-    validate_active_links(
-        (draw_link, damage_link),
-        capabilities=(composite, draw, damage),
-    )
 
 
 def test_same_requirement_cannot_mix_different_composite_contexts() -> None:
@@ -835,34 +998,68 @@ def test_same_composite_component_can_be_reused_by_different_requirements() -> N
         kind=RequirementKindV1.DRAW_CARDS,
         source_record_sha256="3" * 64,
     )
+    first_damage_requirement = _requirement(
+        kind=RequirementKindV1.DEAL_DAMAGE,
+        source_record_sha256="4" * 64,
+    )
+    second_damage_requirement = _requirement(
+        kind=RequirementKindV1.DEAL_DAMAGE,
+        source_record_sha256="5" * 64,
+    )
+    first_group_id = composition_group_id_for(
+        m3_analysis_manifest_sha256=M3_MANIFEST_SHA256,
+        composite=composite.capability_ref,
+        assignments=(
+            _composition_assignment(first_requirement, draw, "draw"),
+            _composition_assignment(first_damage_requirement, damage, "damage"),
+        ),
+    )
+    second_group_id = composition_group_id_for(
+        m3_analysis_manifest_sha256=M3_MANIFEST_SHA256,
+        composite=composite.capability_ref,
+        assignments=(
+            _composition_assignment(second_requirement, draw, "draw"),
+            _composition_assignment(second_damage_requirement, damage, "damage"),
+        ),
+    )
     first = _active_member_link(
         first_requirement,
         draw,
         composite,
         "draw",
+        first_group_id,
     )
     first_damage = _active_member_link(
-        first_requirement,
+        first_damage_requirement,
         damage,
         composite,
         "damage",
+        first_group_id,
     )
     second = _active_member_link(
         second_requirement,
         draw,
         composite,
         "draw",
+        second_group_id,
     )
     second_damage = _active_member_link(
-        second_requirement,
+        second_damage_requirement,
         damage,
         composite,
         "damage",
+        second_group_id,
     )
 
     validate_active_links(
         (first, first_damage, second, second_damage),
         capabilities=(composite, draw, damage),
+        requirements={
+            first_requirement.requirement_id: first_requirement,
+            first_damage_requirement.requirement_id: first_damage_requirement,
+            second_requirement.requirement_id: second_requirement,
+            second_damage_requirement.requirement_id: second_damage_requirement,
+        },
     )
 
 
@@ -885,34 +1082,8 @@ def test_active_composition_links_match_declared_component_references() -> None:
         validate_active_links(
             (bad_link,),
             capabilities=(composite, draw, damage),
+            requirements={draw_requirement.requirement_id: draw_requirement},
         )
-
-
-def test_active_composition_context_accepts_each_required_component_once() -> None:
-    composite = composite_capability()
-    draw = active_draw_capability()
-    damage = active_damage_capability()
-    requirement = _requirement(
-        kind=RequirementKindV1.DRAW_CARDS,
-        source_record_sha256="2" * 64,
-    )
-    draw_link = _active_member_link(
-        requirement,
-        draw,
-        composite,
-        "draw",
-    )
-    damage_link = _active_member_link(
-        requirement,
-        damage,
-        composite,
-        "damage",
-    )
-
-    validate_active_links(
-        (draw_link, damage_link),
-        capabilities=(composite, draw, damage),
-    )
 
 
 def test_active_component_link_requires_the_selected_composite_definition() -> None:
@@ -965,10 +1136,10 @@ def test_empty_explicit_capability_set_cannot_validate_active_composition() -> N
         "draw",
     )
 
-    with pytest.raises(ValueError, match="composition .* Capability"):
+    with pytest.raises(ValueError, match="composition .* (Capability|Requirement)"):
         validate_active_links((link,), capabilities=())
 
-    with pytest.raises(ValueError, match="composition .* Capability"):
+    with pytest.raises(ValueError, match="composition .* (Capability|Requirement)"):
         validate_active_links((link,))
 
 
@@ -977,11 +1148,12 @@ def test_active_composition_link_rejects_a_retired_component_definition() -> Non
     retired_draw = replace(
         active_draw_capability(), lifecycle=CapabilityLifecycleStateV1.RETIRED
     )
+    requirement = _requirement(
+        kind=RequirementKindV1.DRAW_CARDS,
+        source_record_sha256="2" * 64,
+    )
     link = _active_member_link(
-        _requirement(
-            kind=RequirementKindV1.DRAW_CARDS,
-            source_record_sha256="2" * 64,
-        ),
+        requirement,
         retired_draw,
         composite,
         "draw",
@@ -991,4 +1163,5 @@ def test_active_composition_link_rejects_a_retired_component_definition() -> Non
         validate_active_links(
             (link,),
             capabilities=(composite, retired_draw, active_damage_capability()),
+            requirements={requirement.requirement_id: requirement},
         )

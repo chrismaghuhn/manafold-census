@@ -13,6 +13,15 @@ from ..digest import domain_digest
 from ..semantic.primitives import _require_enum, _require_object, _require_text
 from .admissibility import SourceRequirementAdmissibilityV1
 from .binding import ParameterBindingV1
+from .composition import (
+    CompositionAssignmentV1 as CompositionAssignmentV1,
+)
+from .composition import (
+    CompositionContextV1 as CompositionContextV1,
+)
+from .composition import (
+    composition_group_id_for as composition_group_id_for,
+)
 from .identity import (
     LINK_CLAIM_DOMAIN,
     LINK_ID_DOMAIN,
@@ -117,35 +126,6 @@ class M4RequirementAdmissibilityV1:
 
 
 LinkAdmissibilityV1 = M4RequirementAdmissibilityV1
-
-
-@dataclass(frozen=True, slots=True)
-class CompositionContextV1:
-    composite: CapabilityRefV1
-    component_key: str
-
-    _WIRE_KEYS: ClassVar[set[str]] = {"composite", "component_key"}
-
-    def __post_init__(self) -> None:
-        if not isinstance(self.composite, CapabilityRefV1):
-            raise TypeError("composite must be CapabilityRefV1")
-        object.__setattr__(
-            self, "component_key", _require_text("component_key", self.component_key)
-        )
-
-    def to_wire(self) -> dict[str, JSONValue]:
-        return {
-            "composite": self.composite.to_wire(),
-            "component_key": self.component_key,
-        }
-
-    @classmethod
-    def from_wire(cls, value: object) -> CompositionContextV1:
-        document = _require_object(value, cls._WIRE_KEYS, "composition context")
-        return cls(
-            CapabilityRefV1.from_wire(document["composite"]),
-            cast(str, document["component_key"]),
-        )
 
 
 def _binding_values(value: object) -> tuple[ParameterBindingV1, ...]:

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import cast
 
@@ -18,6 +18,7 @@ from .binding import (
     validate_binding_against_requirement,
 )
 from .claim import CompositionClaimV1
+from .composition import CompositionAssignmentV1, composition_group_id_for
 from .definition import CapabilityDefinitionV1, CapabilityLifecycleStateV1
 from .dimensions import CapabilityDimensionV1, DimensionDomainKindV1, dimension_spec_for
 from .link import (
@@ -175,6 +176,7 @@ def _validate_composition_member_link(
     link: RequirementCapabilityLinkV1,
     component: CapabilityDefinitionV1,
     composite: CapabilityDefinitionV1,
+    requirement: RequirementV1 | None = None,
 ) -> None:
     if link.relation is not LinkRelationV1.COMPOSITION_MEMBER:
         raise ValueError("composition validation requires a COMPOSITION_MEMBER link")
@@ -203,6 +205,12 @@ def _validate_composition_member_link(
         raise ValueError(
             "active composition link requires an active component Capability"
         )
+    if requirement is not None and component.claim.family_key.operation_anchor != (
+        (requirement.family, requirement.kind),
+    ):
+        raise ValueError(
+            "composition component operation anchor does not match Requirement"
+        )
 
 
 def _capability_index(
@@ -223,6 +231,8 @@ def _capability_index(
 def validate_composition_links(
     links: Sequence[RequirementCapabilityLinkV1],
     capabilities: Sequence[CapabilityDefinitionV1],
+    *,
+    requirements: Mapping[str, RequirementV1] | None = None,
 ) -> None:
     """Validate active component links against their reviewed composite claim."""
 
@@ -236,7 +246,13 @@ def validate_composition_links(
         if link.review_ref is not None
         and link.relation is LinkRelationV1.COMPOSITION_MEMBER
     )
-    by_context: dict[tuple[str, CapabilityRefV1], list[str]] = {}
+    if active_members and requirements is None:
+        raise ValueError(
+            "active composition group requires the selected Requirement set"
+        )
+    by_context: dict[
+        tuple[str, str, CapabilityRefV1], list[CompositionAssignmentV1]
+    ] = {}
     by_requirement: dict[str, set[CapabilityRefV1]] = {}
     for link in active_members:
         component = definitions.get(link.capability)
@@ -248,21 +264,51 @@ def validate_composition_links(
         composite = definitions.get(context.composite)
         if composite is None:
             raise ValueError("composition composite Capability does not exist exactly")
-        _validate_composition_member_link(link, component, composite)
-        by_requirement.setdefault(link.requirement_id, set()).add(context.composite)
-        by_context.setdefault((link.requirement_id, context.composite), []).append(
-            context.component_key
+        requirement = requirements.get(link.requirement_id) if requirements else None
+        if requirements is not None:
+            if requirement is None:
+                raise ValueError("composition link Requirement does not exist exactly")
+            if not isinstance(requirement, RequirementV1):
+                raise TypeError("requirements must map IDs to RequirementV1 values")
+            if (
+                requirement.requirement_id != link.requirement_id
+                or wire_digest_for(requirement) != link.requirement_wire_digest
+            ):
+                raise ValueError("composition link Requirement wire is stale")
+        _validate_composition_member_link(link, component, composite, requirement)
+        assignment = CompositionAssignmentV1(
+            link.requirement_id,
+            link.requirement_wire_digest,
+            link.capability,
+            context.component_key,
         )
+        by_requirement.setdefault(link.requirement_id, set()).add(context.composite)
+        by_context.setdefault(
+            (
+                link.m3_analysis_manifest_sha256,
+                context.composition_group_id,
+                context.composite,
+            ),
+            [],
+        ).append(assignment)
 
     if any(len(composites) > 1 for composites in by_requirement.values()):
         raise ValueError(
-            "multiple COMPOSITION_MEMBER links require the same composition context"
+            "multiple COMPOSITION_MEMBER links require the same composite context"
         )
 
-    for (_, composite_ref), component_keys in by_context.items():
+    for (manifest, group_id, composite_ref), assignments in by_context.items():
         composite = definitions[composite_ref]
         composition = composite.claim.composition
         assert composition is not None
+        expected_group_id = composition_group_id_for(
+            m3_analysis_manifest_sha256=manifest,
+            composite=composite_ref,
+            assignments=assignments,
+        )
+        if expected_group_id != group_id:
+            raise ValueError("composition group ID does not match its assignments")
+        component_keys = [item.component_key for item in assignments]
         if len(component_keys) != len(set(component_keys)):
             raise ValueError("duplicate active composition component key")
         required_keys = {
@@ -354,7 +400,9 @@ def validate_active_link(
             )
         if not isinstance(composite_capability, CapabilityDefinitionV1):
             raise TypeError("composite_capability must be CapabilityDefinitionV1")
-        _validate_composition_member_link(link, capability, composite_capability)
+        _validate_composition_member_link(
+            link, capability, composite_capability, requirement
+        )
 
     _validate_active_bindings(link, requirement, capability)
     _validate_link_review(link, reviews)
@@ -376,7 +424,7 @@ def validate_mapping_candidates(
             context = link.composition_context
             if context is None:
                 raise ValueError("COMPOSITION_MEMBER link requires composition context")
-            candidate = canonical_json_bytes(context.composite.to_wire())
+            candidate = canonical_json_bytes(context.composition_group_id)
         else:
             candidate = canonical_json_bytes(link.capability.to_wire())
         groups.setdefault(link.requirement_id, set()).add(candidate)
@@ -387,6 +435,7 @@ def validate_active_links(
     links: Sequence[RequirementCapabilityLinkV1],
     *,
     capabilities: Sequence[CapabilityDefinitionV1] | None = None,
+    requirements: Mapping[str, RequirementV1] | None = None,
 ) -> None:
     values = tuple(links)
     if any(not isinstance(link, RequirementCapabilityLinkV1) for link in values):
@@ -418,16 +467,28 @@ def validate_active_links(
         ]
         if len(component_keys) != len(set(component_keys)):
             raise ValueError("duplicate active composition component")
-    if (
-        any(
-            link.review_ref is not None
-            and link.relation is LinkRelationV1.COMPOSITION_MEMBER
-            for link in active
-        )
-        and capabilities is None
-    ):
+        group_ids = {
+            cast(CompositionContextV1, link.composition_context).composition_group_id
+            for link in members
+        }
+        if len(group_ids) > 1:
+            raise ValueError(
+                "multiple COMPOSITION_MEMBER links require the same composition group"
+            )
+    has_active_members = any(
+        link.relation is LinkRelationV1.COMPOSITION_MEMBER for link in active
+    )
+    if has_active_members and capabilities is None:
         raise ValueError(
             "active composition link requires a composite Capability definition"
         )
+    if has_active_members and requirements is None:
+        raise ValueError(
+            "active composition link requires the selected Requirement set"
+        )
     if capabilities is not None:
-        validate_composition_links(active, capabilities)
+        validate_composition_links(
+            active,
+            capabilities,
+            requirements=requirements,
+        )
