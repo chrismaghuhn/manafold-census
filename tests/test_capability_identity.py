@@ -10,6 +10,7 @@ from manafold_census.capability.dimensions import (
 from manafold_census.capability.identity import (
     capability_claim_digest_for,
     capability_family_id_for,
+    capability_ref_for,
 )
 from manafold_census.capability.model import (
     CapabilityFamilyKeyV1,
@@ -106,3 +107,13 @@ def test_changed_operation_anchor_changes_family_id() -> None:
     )
 
     assert capability_family_id_for(first) != capability_family_id_for(second)
+
+
+def test_capability_ref_binds_the_exact_claim_version_and_digest() -> None:
+    claim = _draw_claim()
+
+    reference = capability_ref_for(claim)
+
+    assert reference.capability_family_id == capability_family_id_for(claim.family_key)
+    assert reference.capability_version == claim.capability_version
+    assert reference.claim_digest == capability_claim_digest_for(claim)
