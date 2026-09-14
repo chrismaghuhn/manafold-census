@@ -599,6 +599,71 @@ def test_active_link_enforces_capability_exclusions() -> None:
         )
 
 
+def test_active_link_rejects_an_any_typed_exclusion_with_a_non_null_value() -> None:
+    requirement = _requirement()
+    exclusion = ExclusionV1(
+        M2DimensionPathV1.DRAW_CARDS_QUANTITY,
+        DimensionDomainKindV1.ANY_TYPED_VALUE,
+    )
+    claim = CapabilityClaimV1(
+        family_key=draw_family_key(),
+        capability_version=1,
+        m2_requirement_schema="census.semantic-requirement.v1",
+        m2_interpretation_version="1",
+        m4_dimension_registry_version="1",
+        dimensions=(),
+        exclusions=(exclusion,),
+        composition=None,
+    )
+    capability = CapabilityDefinitionV1(
+        capability_family_id=capability_family_id_for(claim.family_key),
+        capability_version=claim.capability_version,
+        claim_digest=capability_claim_digest_for(claim),
+        claim=claim,
+        display_name="Draw cards with excluded values",
+        lifecycle=CapabilityLifecycleStateV1.ACTIVE,
+        provenance=CapabilityProvenanceV1("b" * 64, ("ccg_" + "e" * 64,), ()),
+        review_ref="mrv_" + "f" * 64,
+    )
+    link = direct_link(
+        requirement=requirement,
+        capability=capability,
+        m3_manifest_sha256=M3_MANIFEST_SHA256,
+        admissibility=_sra(requirement),
+    )
+    review = _link_review(link)
+
+    with pytest.raises(ValueError, match="exclusion"):
+        validate_active_link(
+            replace(link, review_ref=review.record_id),
+            requirement,
+            capability,
+            reviews=(review,),
+            admissibility_record=_sra(requirement),
+        )
+
+
+def test_active_link_rejects_omitted_optional_dimension_with_a_value() -> None:
+    requirement = _requirement()
+    capability = _capability(required=False)
+    link = direct_link(
+        requirement=requirement,
+        capability=capability,
+        m3_manifest_sha256=M3_MANIFEST_SHA256,
+        admissibility=_sra(requirement),
+    )
+    review = _link_review(link)
+
+    with pytest.raises(ValueError, match="optional dimension"):
+        validate_active_link(
+            replace(link, review_ref=review.record_id),
+            requirement,
+            capability,
+            reviews=(review,),
+            admissibility_record=_sra(requirement),
+        )
+
+
 @pytest.mark.parametrize(
     "requirement",
     [

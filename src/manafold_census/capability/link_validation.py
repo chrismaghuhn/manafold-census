@@ -121,6 +121,8 @@ def _validate_exclusions(
             raise ValueError("active link cannot validate an unknown excluded value")
         if actual_wire is None:
             continue
+        if exclusion.domain_kind is DimensionDomainKindV1.ANY_TYPED_VALUE:
+            raise ValueError("Requirement value matches a Capability exclusion")
         if exclusion.domain_kind is DimensionDomainKindV1.M2_ENUM_SUBSET:
             if actual_wire in exclusion.excluded_enum_values:
                 raise ValueError("Requirement value matches a Capability exclusion")
@@ -154,6 +156,17 @@ def _validate_active_bindings(
         for binding in link.parameter_bindings
     ):
         raise ValueError("active link is missing a required dimension binding")
+    for path_key, dimension in declared.items():
+        if path_key in bound or dimension.required:
+            continue
+        spec = dimension_spec_for(path_key)
+        if (spec.family, spec.kind) != (requirement.family, requirement.kind):
+            continue
+        _, actual_wire = _requirement_value(requirement, path_key)
+        if actual_wire is not None:
+            raise ValueError(
+                "optional dimension may be omitted only for an explicit null M2 value"
+            )
     _validate_exclusions(requirement, capability)
 
 
