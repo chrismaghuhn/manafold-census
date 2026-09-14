@@ -1,0 +1,123 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://manafold-census.invalid/schemas/capability-relations.v1.schema.json",
+  "title": "Manafold Census Capability Relations V1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "relation_id",
+    "relation_kind",
+    "from_capability",
+    "to_capability",
+    "component_key",
+    "ordinal",
+    "required"
+  ],
+  "properties": {
+    "schema": {
+      "const": "census.capability-relations.v1"
+    },
+    "relation_id": {
+      "type": "string",
+      "pattern": "^crl_[0-9a-f]{64}$"
+    },
+    "relation_kind": {
+      "enum": [
+        "COMPOSES",
+        "REQUIRES",
+        "SPECIALIZES"
+      ]
+    },
+    "from_capability": {
+      "$ref": "#/$defs/capability_ref"
+    },
+    "to_capability": {
+      "$ref": "#/$defs/capability_ref"
+    },
+    "component_key": {},
+    "ordinal": {},
+    "required": {}
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "relation_kind": {
+            "const": "COMPOSES"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "component_key": {
+            "type": "string",
+            "minLength": 1
+          },
+          "ordinal": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9223372036854775807
+          },
+          "required": {
+            "type": "boolean"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "relation_kind": {
+            "enum": [
+              "REQUIRES",
+              "SPECIALIZES"
+            ]
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "component_key": {
+            "type": "null"
+          },
+          "ordinal": {
+            "type": "null"
+          },
+          "required": {
+            "type": "null"
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "digest": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "capability_ref": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "capability_family_id",
+        "capability_version",
+        "claim_digest"
+      ],
+      "properties": {
+        "capability_family_id": {
+          "type": "string",
+          "pattern": "^capfam_[0-9a-f]{64}$"
+        },
+        "capability_version": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9223372036854775807
+        },
+        "claim_digest": {
+          "$ref": "#/$defs/digest"
+        }
+      }
+    }
+  }
+}

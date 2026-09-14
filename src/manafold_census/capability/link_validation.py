@@ -17,6 +17,7 @@ from .binding import (
     _contains_unknown,
     validate_binding_against_requirement,
 )
+from .claim import CompositionClaimV1
 from .definition import CapabilityDefinitionV1, CapabilityLifecycleStateV1
 from .dimensions import CapabilityDimensionV1, DimensionDomainKindV1, dimension_spec_for
 from .link import (
@@ -26,7 +27,7 @@ from .link import (
     M4RequirementAdmissibilityV1,
     RequirementCapabilityLinkV1,
 )
-from .model import NucleusKindV1
+from .model import CapabilityRefV1, NucleusKindV1
 from .review import (
     CapabilityLinkReviewSubjectV1,
     CapabilityReviewRecordV1,
@@ -170,6 +171,98 @@ def _validate_active_bindings(
     _validate_exclusions(requirement, capability)
 
 
+def _validate_composition_member_link(
+    link: RequirementCapabilityLinkV1,
+    component: CapabilityDefinitionV1,
+    composite: CapabilityDefinitionV1,
+) -> None:
+    if link.relation is not LinkRelationV1.COMPOSITION_MEMBER:
+        raise ValueError("composition validation requires a COMPOSITION_MEMBER link")
+    context = link.composition_context
+    if context is None:
+        raise ValueError("COMPOSITION_MEMBER link requires composition context")
+    if context.composite != composite.capability_ref:
+        raise ValueError("composition context does not match the composite Capability")
+    if composite.lifecycle is not CapabilityLifecycleStateV1.ACTIVE:
+        raise ValueError("composition context requires an ACTIVE composite Capability")
+    if composite.claim.family_key.nucleus_kind is not NucleusKindV1.COMPOSITE:
+        raise ValueError("composition context requires a composite Capability")
+    composition = composite.claim.composition
+    if not isinstance(composition, CompositionClaimV1):
+        raise ValueError("composite Capability must declare a composition claim")
+    matches = tuple(
+        item
+        for item in composition.components
+        if item.component_key == context.component_key
+    )
+    if len(matches) != 1:
+        raise ValueError("composition context component key is not declared")
+    if matches[0].capability != component.capability_ref:
+        raise ValueError("composition context does not match the declared component")
+    if component.lifecycle is not CapabilityLifecycleStateV1.ACTIVE:
+        raise ValueError(
+            "active composition link requires an active component Capability"
+        )
+
+
+def _capability_index(
+    capabilities: Sequence[CapabilityDefinitionV1],
+) -> dict[CapabilityRefV1, CapabilityDefinitionV1]:
+    values = tuple(capabilities)
+    if any(not isinstance(item, CapabilityDefinitionV1) for item in values):
+        raise TypeError("capabilities must contain CapabilityDefinitionV1 values")
+    result: dict[CapabilityRefV1, CapabilityDefinitionV1] = {}
+    for capability in values:
+        reference = capability.capability_ref
+        if reference in result:
+            raise ValueError("duplicate Capability reference")
+        result[reference] = capability
+    return result
+
+
+def validate_composition_links(
+    links: Sequence[RequirementCapabilityLinkV1],
+    capabilities: Sequence[CapabilityDefinitionV1],
+) -> None:
+    """Validate active component links against their reviewed composite claim."""
+
+    values = tuple(links)
+    if any(not isinstance(link, RequirementCapabilityLinkV1) for link in values):
+        raise TypeError("links must contain RequirementCapabilityLinkV1 values")
+    definitions = _capability_index(capabilities)
+    active_members = tuple(
+        link
+        for link in values
+        if link.review_ref is not None
+        and link.relation is LinkRelationV1.COMPOSITION_MEMBER
+    )
+    by_composite: dict[CapabilityRefV1, list[str]] = {}
+    for link in active_members:
+        component = definitions.get(link.capability)
+        if component is None:
+            raise ValueError("composition component Capability does not exist exactly")
+        context = link.composition_context
+        if context is None:
+            raise ValueError("COMPOSITION_MEMBER link requires composition context")
+        composite = definitions.get(context.composite)
+        if composite is None:
+            raise ValueError("composition composite Capability does not exist exactly")
+        _validate_composition_member_link(link, component, composite)
+        by_composite.setdefault(context.composite, []).append(context.component_key)
+
+    for composite_ref, component_keys in by_composite.items():
+        composite = definitions[composite_ref]
+        composition = composite.claim.composition
+        assert composition is not None
+        if len(component_keys) != len(set(component_keys)):
+            raise ValueError("duplicate active composition component key")
+        required_keys = {
+            item.component_key for item in composition.components if item.required
+        }
+        if not required_keys.issubset(set(component_keys)):
+            raise ValueError("required component keys are not covered exactly once")
+
+
 def validate_active_link(
     link: RequirementCapabilityLinkV1,
     requirement: RequirementV1,
@@ -177,6 +270,7 @@ def validate_active_link(
     *,
     reviews: Sequence[CapabilityReviewRecordV1],
     admissibility_record: SourceRequirementAdmissibilityV1 | None = None,
+    composite_capability: CapabilityDefinitionV1 | None = None,
 ) -> None:
     if not isinstance(link, RequirementCapabilityLinkV1):
         raise TypeError("link must be RequirementCapabilityLinkV1")
@@ -244,6 +338,15 @@ def validate_active_link(
     else:
         raise ValueError("M2 REJECTED requirement is not admissible")
 
+    if link.relation is LinkRelationV1.COMPOSITION_MEMBER:
+        if composite_capability is None:
+            raise ValueError(
+                "active composition link requires a composite Capability definition"
+            )
+        if not isinstance(composite_capability, CapabilityDefinitionV1):
+            raise TypeError("composite_capability must be CapabilityDefinitionV1")
+        _validate_composition_member_link(link, capability, composite_capability)
+
     _validate_active_bindings(link, requirement, capability)
     _validate_link_review(link, reviews)
 
@@ -269,7 +372,11 @@ def validate_mapping_candidates(
     return MappingCandidateValidationV1(any(len(ids) > 1 for ids in groups.values()))
 
 
-def validate_active_links(links: Sequence[RequirementCapabilityLinkV1]) -> None:
+def validate_active_links(
+    links: Sequence[RequirementCapabilityLinkV1],
+    *,
+    capabilities: Sequence[CapabilityDefinitionV1] | None = None,
+) -> None:
     values = tuple(links)
     if any(not isinstance(link, RequirementCapabilityLinkV1) for link in values):
         raise TypeError("links must contain RequirementCapabilityLinkV1 values")
@@ -302,3 +409,16 @@ def validate_active_links(links: Sequence[RequirementCapabilityLinkV1]) -> None:
         ]
         if len(component_keys) != len(set(component_keys)):
             raise ValueError("duplicate active composition component")
+    if (
+        any(
+            link.review_ref is not None
+            and link.relation is LinkRelationV1.COMPOSITION_MEMBER
+            for link in active
+        )
+        and capabilities is None
+    ):
+        raise ValueError(
+            "active composition link requires a composite Capability definition"
+        )
+    if capabilities is not None:
+        validate_composition_links(active, capabilities)

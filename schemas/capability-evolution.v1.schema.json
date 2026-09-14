@@ -1,0 +1,180 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://manafold-census.invalid/schemas/capability-evolution.v1.schema.json",
+  "title": "Manafold Census Capability Evolution V1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "event_id",
+    "operation",
+    "from",
+    "to",
+    "review_ref"
+  ],
+  "properties": {
+    "schema": {
+      "const": "census.capability-evolution.v1"
+    },
+    "event_id": {
+      "type": "string",
+      "pattern": "^cev_[0-9a-f]{64}$"
+    },
+    "operation": {
+      "enum": [
+        "ADDITION",
+        "SPLIT",
+        "MERGE",
+        "SUPERSESSION",
+        "RETIREMENT"
+      ]
+    },
+    "from": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/capability_ref"
+      }
+    },
+    "to": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/capability_ref"
+      }
+    },
+    "review_ref": {
+      "type": "string",
+      "pattern": "^mrv_[0-9a-f]{64}$"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "operation": {
+            "const": "ADDITION"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "from": {
+            "maxItems": 0
+          },
+          "to": {
+            "minItems": 1,
+            "maxItems": 1
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "operation": {
+            "const": "SPLIT"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "from": {
+            "minItems": 1,
+            "maxItems": 1
+          },
+          "to": {
+            "minItems": 2
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "operation": {
+            "const": "MERGE"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "from": {
+            "minItems": 2
+          },
+          "to": {
+            "minItems": 1,
+            "maxItems": 1
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "operation": {
+            "const": "SUPERSESSION"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "from": {
+            "minItems": 1,
+            "maxItems": 1
+          },
+          "to": {
+            "minItems": 1,
+            "maxItems": 1
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "operation": {
+            "const": "RETIREMENT"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "from": {
+            "minItems": 1,
+            "maxItems": 1
+          },
+          "to": {
+            "maxItems": 0
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "capability_ref": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "capability_family_id",
+        "capability_version",
+        "claim_digest"
+      ],
+      "properties": {
+        "capability_family_id": {
+          "type": "string",
+          "pattern": "^capfam_[0-9a-f]{64}$"
+        },
+        "capability_version": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9223372036854775807
+        },
+        "claim_digest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      }
+    }
+  }
+}
