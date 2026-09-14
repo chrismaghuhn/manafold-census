@@ -22,6 +22,7 @@ dev = [
 "share/manafold-census/fixtures/source" = ["fixtures/source/example.txt"]
 "share/manafold-census/fixtures/specs" = ["fixtures/specs/*.json"]
 "share/manafold-census/fixtures/analysis" = ["fixtures/analysis/*.json"]
+"share/manafold-census/fixtures/capability" = ["fixtures/capability/*.json"]
 "share/manafold-census/config/sources" = ["config/sources/*.json"]
 
 [tool.pytest.ini_options]

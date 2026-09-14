@@ -1,0 +1,116 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://manafold-census.invalid/schemas/candidate-grouping-policy.v1.schema.json",
+  "title": "Manafold Census M4 Candidate Grouping Policy V1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "policy_version", "rules"],
+  "properties": {
+    "schema": {"const": "census.candidate-grouping-policy.v1"},
+    "policy_version": {"type": "string", "minLength": 1},
+    "rules": {
+      "type": "array",
+      "minItems": 16,
+      "maxItems": 16,
+      "uniqueItems": true,
+      "items": {"$ref": "#/$defs/rule"}
+    }
+  },
+  "$defs": {
+    "family": {
+      "enum": ["effect", "event", "choice", "cost", "control", "reference"]
+    },
+    "kind": {
+      "enum": [
+        "move_between_zones",
+        "create_object",
+        "select",
+        "modify_characteristic",
+        "apply_continuous_effect",
+        "search_zone",
+        "draw_cards",
+        "deal_damage",
+        "create_delayed_effect",
+        "trigger_from_event",
+        "replace_event",
+        "pay_cost",
+        "modify_cost",
+        "choose_mode",
+        "conditional_effect",
+        "keyword_reference"
+      ]
+    },
+    "path": {
+      "enum": [
+        "DRAW_CARDS_DRAWER",
+        "DRAW_CARDS_QUANTITY",
+        "MOVE_BETWEEN_ZONES_SUBJECT",
+        "MOVE_BETWEEN_ZONES_FROM_ZONE",
+        "MOVE_BETWEEN_ZONES_TO_ZONE",
+        "MOVE_BETWEEN_ZONES_QUANTITY",
+        "MOVE_BETWEEN_ZONES_CAUSE",
+        "CREATE_OBJECT_OBJECT_CLASS",
+        "CREATE_OBJECT_QUANTITY",
+        "CREATE_OBJECT_DURATION",
+        "SELECT_CHOOSER",
+        "SELECT_SUBJECT_KIND",
+        "SELECT_QUANTITY",
+        "SELECT_RESTRICTION",
+        "SELECT_TARGETING",
+        "MODIFY_CHARACTERISTIC_SUBJECT",
+        "MODIFY_CHARACTERISTIC_CHARACTERISTIC",
+        "MODIFY_CHARACTERISTIC_OPERATION",
+        "MODIFY_CHARACTERISTIC_VALUE",
+        "APPLY_CONTINUOUS_EFFECT_SUBJECT",
+        "APPLY_CONTINUOUS_EFFECT_DURATION",
+        "APPLY_CONTINUOUS_EFFECT_EFFECT",
+        "SEARCH_ZONE_SEARCHER",
+        "SEARCH_ZONE_ZONE",
+        "SEARCH_ZONE_SELECTION",
+        "SEARCH_ZONE_DESTINATION",
+        "SEARCH_ZONE_REVEAL",
+        "DEAL_DAMAGE_SOURCE",
+        "DEAL_DAMAGE_RECIPIENT",
+        "DEAL_DAMAGE_AMOUNT",
+        "CREATE_DELAYED_EFFECT_DELAY",
+        "CREATE_DELAYED_EFFECT_EFFECT",
+        "TRIGGER_FROM_EVENT_EVENT",
+        "TRIGGER_FROM_EVENT_CONTROLLER",
+        "TRIGGER_FROM_EVENT_CONDITION",
+        "REPLACE_EVENT_EVENT",
+        "REPLACE_EVENT_REPLACEMENT",
+        "PAY_COST_PAYER",
+        "PAY_COST_COST",
+        "MODIFY_COST_SUBJECT",
+        "MODIFY_COST_COST",
+        "MODIFY_COST_OPERATION",
+        "CHOOSE_MODE_CHOOSER",
+        "CHOOSE_MODE_MINIMUM",
+        "CHOOSE_MODE_MAXIMUM",
+        "CONDITIONAL_EFFECT_CONDITION",
+        "CONDITIONAL_EFFECT_THEN_EFFECT",
+        "CONDITIONAL_EFFECT_ELSE_EFFECT",
+        "KEYWORD_REFERENCE_EXPANSION"
+      ]
+    },
+    "rule": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["family", "kind", "dimension_paths", "partition_paths"],
+      "properties": {
+        "family": {"$ref": "#/$defs/family"},
+        "kind": {"$ref": "#/$defs/kind"},
+        "dimension_paths": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/path"}
+        },
+        "partition_paths": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/path"}
+        }
+      }
+    }
+  }
+}

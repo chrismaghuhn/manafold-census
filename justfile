@@ -44,4 +44,13 @@ m3-check:
 m3-report:
     python -m manafold_census.cli m3-report --synthetic
 
+m4-build:
+    python -m manafold_census.cli m4-build --synthetic
+
+m4-check:
+    python -m manafold_census.cli m4-check --synthetic
+
+m4-report:
+    python -m manafold_census.cli m4-report --synthetic
+
 check: doctor lint typecheck test reproduce corpus-check structural-check

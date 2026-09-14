@@ -1,0 +1,193 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://manafold-census.invalid/schemas/capability-candidate-cluster.v1.schema.json",
+  "title": "Manafold Census M4 Capability Candidate Cluster V1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "m3_analysis_manifest_sha256",
+    "requirement_set_digest",
+    "policy_version",
+    "policy_digest",
+    "generator_id",
+    "generator_version",
+    "candidate_id",
+    "group_signature_digest",
+    "requirement_ids",
+    "requirement_count",
+    "distinct_source_count",
+    "parameter_variations",
+    "proposed_claim",
+    "status"
+  ],
+  "properties": {
+    "schema": {"const": "census.capability-candidate-cluster.v1"},
+    "m3_analysis_manifest_sha256": {"$ref": "#/$defs/digest"},
+    "requirement_set_digest": {"$ref": "#/$defs/digest"},
+    "policy_version": {"type": "string", "minLength": 1},
+    "policy_digest": {"$ref": "#/$defs/digest"},
+    "generator_id": {"type": "string", "minLength": 1},
+    "generator_version": {"type": "string", "minLength": 1},
+    "candidate_id": {
+      "type": "string",
+      "pattern": "^ccg_[0-9a-f]{64}$"
+    },
+    "group_signature_digest": {"$ref": "#/$defs/digest"},
+    "requirement_ids": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "pattern": "^srq_[0-9a-f]{64}$"
+      }
+    },
+    "requirement_count": {"$ref": "#/$defs/count"},
+    "distinct_source_count": {"$ref": "#/$defs/count"},
+    "parameter_variations": {"$ref": "#/$defs/parameter_variations"},
+    "proposed_claim": {"$ref": "#/$defs/proposed_claim"},
+    "status": {"const": "PROPOSED"}
+  },
+  "$defs": {
+    "digest": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "count": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 9223372036854775807
+    },
+    "path": {
+      "enum": [
+        "DRAW_CARDS_DRAWER",
+        "DRAW_CARDS_QUANTITY",
+        "MOVE_BETWEEN_ZONES_SUBJECT",
+        "MOVE_BETWEEN_ZONES_FROM_ZONE",
+        "MOVE_BETWEEN_ZONES_TO_ZONE",
+        "MOVE_BETWEEN_ZONES_QUANTITY",
+        "MOVE_BETWEEN_ZONES_CAUSE",
+        "CREATE_OBJECT_OBJECT_CLASS",
+        "CREATE_OBJECT_QUANTITY",
+        "CREATE_OBJECT_DURATION",
+        "SELECT_CHOOSER",
+        "SELECT_SUBJECT_KIND",
+        "SELECT_QUANTITY",
+        "SELECT_RESTRICTION",
+        "SELECT_TARGETING",
+        "MODIFY_CHARACTERISTIC_SUBJECT",
+        "MODIFY_CHARACTERISTIC_CHARACTERISTIC",
+        "MODIFY_CHARACTERISTIC_OPERATION",
+        "MODIFY_CHARACTERISTIC_VALUE",
+        "APPLY_CONTINUOUS_EFFECT_SUBJECT",
+        "APPLY_CONTINUOUS_EFFECT_DURATION",
+        "APPLY_CONTINUOUS_EFFECT_EFFECT",
+        "SEARCH_ZONE_SEARCHER",
+        "SEARCH_ZONE_ZONE",
+        "SEARCH_ZONE_SELECTION",
+        "SEARCH_ZONE_DESTINATION",
+        "SEARCH_ZONE_REVEAL",
+        "DEAL_DAMAGE_SOURCE",
+        "DEAL_DAMAGE_RECIPIENT",
+        "DEAL_DAMAGE_AMOUNT",
+        "CREATE_DELAYED_EFFECT_DELAY",
+        "CREATE_DELAYED_EFFECT_EFFECT",
+        "TRIGGER_FROM_EVENT_EVENT",
+        "TRIGGER_FROM_EVENT_CONTROLLER",
+        "TRIGGER_FROM_EVENT_CONDITION",
+        "REPLACE_EVENT_EVENT",
+        "REPLACE_EVENT_REPLACEMENT",
+        "PAY_COST_PAYER",
+        "PAY_COST_COST",
+        "MODIFY_COST_SUBJECT",
+        "MODIFY_COST_COST",
+        "MODIFY_COST_OPERATION",
+        "CHOOSE_MODE_CHOOSER",
+        "CHOOSE_MODE_MINIMUM",
+        "CHOOSE_MODE_MAXIMUM",
+        "CONDITIONAL_EFFECT_CONDITION",
+        "CONDITIONAL_EFFECT_THEN_EFFECT",
+        "CONDITIONAL_EFFECT_ELSE_EFFECT",
+        "KEYWORD_REFERENCE_EXPANSION"
+      ]
+    },
+    "family": {
+      "enum": [
+        "effect",
+        "event",
+        "choice",
+        "cost",
+        "control",
+        "reference",
+        "unknown"
+      ]
+    },
+    "kind": {
+      "enum": [
+        "move_between_zones",
+        "create_object",
+        "select",
+        "modify_characteristic",
+        "apply_continuous_effect",
+        "search_zone",
+        "draw_cards",
+        "deal_damage",
+        "create_delayed_effect",
+        "trigger_from_event",
+        "replace_event",
+        "pay_cost",
+        "modify_cost",
+        "choose_mode",
+        "conditional_effect",
+        "keyword_reference",
+        "unresolved"
+      ]
+    },
+    "parameter_variation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["distinct_count", "values"],
+      "properties": {
+        "distinct_count": {"$ref": "#/$defs/count"},
+        "values": {"type": "array", "uniqueItems": true}
+      }
+    },
+    "parameter_variations": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "dimensions",
+        "unknown_requirement_count",
+        "unresolved_requirement_count"
+      ],
+      "properties": {
+        "dimensions": {
+          "type": "object",
+          "additionalProperties": {"$ref": "#/$defs/parameter_variation"}
+        },
+        "unknown_requirement_count": {"$ref": "#/$defs/count"},
+        "unresolved_requirement_count": {"$ref": "#/$defs/count"}
+      }
+    },
+    "proposed_claim": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["family", "kind", "dimension_paths", "partition_paths"],
+      "properties": {
+        "family": {"$ref": "#/$defs/family"},
+        "kind": {"$ref": "#/$defs/kind"},
+        "dimension_paths": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/path"}
+        },
+        "partition_paths": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/path"}
+        }
+      }
+    }
+  }
+}

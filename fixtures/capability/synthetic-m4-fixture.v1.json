@@ -1,0 +1,10 @@
+{
+  "fixture_schema": "census.m4-synthetic-fixture.v1",
+  "fixture_id": "empty-m4-publication",
+  "purpose": "Task 10 offline report and CLI smoke",
+  "m3_record_mode": "UNRESOLVED_ANALYSIS_WITHOUT_BUNDLE",
+  "capability_definition_count": 0,
+  "real_corpus": false,
+  "real_requirement_mapping": false,
+  "real_capability_activation": false
+}

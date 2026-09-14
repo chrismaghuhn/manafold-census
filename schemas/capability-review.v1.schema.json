@@ -1,0 +1,252 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://manafold-census.invalid/schemas/capability-review.v1.schema.json",
+  "title": "Manafold Census Capability Review Authority V1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "authority_id",
+    "authority_version",
+    "record_id",
+    "subject",
+    "decision",
+    "reviewer_id",
+    "generalization_basis",
+    "review_digest"
+  ],
+  "properties": {
+    "schema": {
+      "const": "census.capability-review.v1"
+    },
+    "authority_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "authority_version": {
+      "type": "string",
+      "minLength": 1
+    },
+    "record_id": {
+      "type": "string",
+      "pattern": "^mrv_[0-9a-f]{64}$"
+    },
+    "subject": {
+      "$ref": "#/$defs/subject"
+    },
+    "decision": {
+      "enum": [
+        "ACCEPTED",
+        "REJECTED"
+      ]
+    },
+    "reviewer_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "generalization_basis": {
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "enum": [
+            "MULTI_SOURCE_REUSE",
+            "SINGLE_OBSERVATION_GENERALIZATION"
+          ]
+        }
+      ]
+    },
+    "review_digest": {
+      "$ref": "#/$defs/digest"
+    }
+  },
+  "oneOf": [
+    {
+      "properties": {
+        "subject": {
+          "$ref": "#/$defs/capability_definition_subject"
+        },
+        "decision": {
+          "const": "ACCEPTED"
+        },
+        "generalization_basis": {
+          "enum": [
+            "MULTI_SOURCE_REUSE",
+            "SINGLE_OBSERVATION_GENERALIZATION"
+          ]
+        }
+      }
+    },
+    {
+      "properties": {
+        "subject": {
+          "$ref": "#/$defs/capability_definition_subject"
+        },
+        "decision": {
+          "const": "REJECTED"
+        },
+        "generalization_basis": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "enum": [
+                "MULTI_SOURCE_REUSE",
+                "SINGLE_OBSERVATION_GENERALIZATION"
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "properties": {
+        "subject": {
+          "$ref": "#/$defs/non_definition_subject"
+        },
+        "decision": {
+          "enum": [
+            "ACCEPTED",
+            "REJECTED"
+          ]
+        },
+        "generalization_basis": {
+          "type": "null"
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "digest": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "capability_family_id": {
+      "type": "string",
+      "pattern": "^capfam_[0-9a-f]{64}$"
+    },
+    "positive_integer": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 9223372036854775807
+    },
+    "capability_definition_subject": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "capability_family_id",
+        "capability_version",
+        "claim_digest"
+      ],
+      "properties": {
+        "type": {
+          "const": "CAPABILITY_DEFINITION"
+        },
+        "capability_family_id": {
+          "$ref": "#/$defs/capability_family_id"
+        },
+        "capability_version": {
+          "$ref": "#/$defs/positive_integer"
+        },
+        "claim_digest": {
+          "$ref": "#/$defs/digest"
+        }
+      }
+    },
+    "capability_link_subject": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "link_id",
+        "link_claim_digest"
+      ],
+      "properties": {
+        "type": {
+          "const": "CAPABILITY_LINK"
+        },
+        "link_id": {
+          "type": "string",
+          "pattern": "^rcl_[0-9a-f]{64}$"
+        },
+        "link_claim_digest": {
+          "$ref": "#/$defs/digest"
+        }
+      }
+    },
+    "mapping_decision_subject": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "mapping_decision_id",
+        "mapping_decision_claim_digest"
+      ],
+      "properties": {
+        "type": {
+          "const": "MAPPING_DECISION"
+        },
+        "mapping_decision_id": {
+          "type": "string",
+          "pattern": "^rmd_[0-9a-f]{64}$"
+        },
+        "mapping_decision_claim_digest": {
+          "$ref": "#/$defs/digest"
+        }
+      }
+    },
+    "evolution_subject": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "event_id",
+        "evolution_claim_digest"
+      ],
+      "properties": {
+        "type": {
+          "const": "EVOLUTION"
+        },
+        "event_id": {
+          "type": "string",
+          "pattern": "^cev_[0-9a-f]{64}$"
+        },
+        "evolution_claim_digest": {
+          "$ref": "#/$defs/digest"
+        }
+      }
+    },
+    "non_definition_subject": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/capability_link_subject"
+        },
+        {
+          "$ref": "#/$defs/mapping_decision_subject"
+        },
+        {
+          "$ref": "#/$defs/evolution_subject"
+        }
+      ]
+    },
+    "subject": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/capability_definition_subject"
+        },
+        {
+          "$ref": "#/$defs/capability_link_subject"
+        },
+        {
+          "$ref": "#/$defs/mapping_decision_subject"
+        },
+        {
+          "$ref": "#/$defs/evolution_subject"
+        }
+      ]
+    }
+  }
+}

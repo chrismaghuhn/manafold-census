@@ -46,6 +46,91 @@ def test_m3_analysis_modules_stay_below_maintainability_budget() -> None:
         )
 
 
+def test_m4_capability_modules_stay_small_and_offline() -> None:
+    modules = sorted(
+        (REPOSITORY_ROOT / "src" / "manafold_census" / "capability").glob("*.py")
+    )
+    assert modules
+    forbidden = (
+        (
+            re.compile(
+                r"(?<!\.)\b(?:eval|exec|compile|__import__)\s*\(|"
+                r"\b(?:importlib|pickle|subprocess)\b"
+            ),
+            "dynamic execution",
+        ),
+        (
+            re.compile(
+                r"\b(?:requests|urllib|httpx|aiohttp|boto3|urlopen)\b",
+                re.IGNORECASE,
+            ),
+            "live network dependency",
+        ),
+        (
+            re.compile(
+                r"\b(?:openai|anthropic|transformers|torch|tensorflow|llm|model_api)\b",
+                re.IGNORECASE,
+            ),
+            "live model dependency",
+        ),
+        (
+            re.compile(
+                r"\b(?:sqlite3|sqlalchemy|psycopg|asyncpg|postgres(?:ql)?)\b",
+                re.IGNORECASE,
+            ),
+            "database dependency",
+        ),
+        (
+            re.compile(
+                r"\b(?:forge|xmage|manafold[ _-]*engine|engine_support|"
+                r"card_executor|implement_card)\b",
+                re.IGNORECASE,
+            ),
+            "engine or card execution",
+        ),
+        (
+            re.compile(
+                r"\b(?:source-refresh|source-fetch-pinned|source-acquire|"
+                r"download_source|refresh_current_source|discover_oracle_cards)\b",
+                re.IGNORECASE,
+            ),
+            "source acquisition",
+        ),
+        (re.compile(r"\b38,?740\b"), "hard-coded global card count"),
+        (
+            re.compile(r"\b(?:artifact[_ -]?callbacks?|callbacks?)\b", re.IGNORECASE),
+            "artifact callback",
+        ),
+    )
+    for module in modules:
+        line_count = len(module.read_text(encoding="utf-8").splitlines())
+        assert line_count <= MAX_PRODUCTION_MODULE_LINES, (
+            f"{module.relative_to(REPOSITORY_ROOT)} has {line_count} lines; "
+            f"split it before extending it past {MAX_PRODUCTION_MODULE_LINES}"
+        )
+        text = module.read_text(encoding="utf-8")
+        for pattern, label in forbidden:
+            assert pattern.search(text) is None, (
+                f"{module.relative_to(REPOSITORY_ROOT)} contains forbidden {label}"
+            )
+
+    identity_text = (
+        REPOSITORY_ROOT / "src" / "manafold_census" / "capability" / "identity.py"
+    ).read_text(encoding="utf-8")
+    capability_identity_block = identity_text.split(
+        "def capability_family_id_for", maxsplit=1
+    )[1].split("def requirement_set_digest_for", maxsplit=1)[0]
+    assert (
+        re.search(
+            r"\b(?:source|card|pattern|producer)"
+            r"(?:[_ -]?(?:id|path|name|ref|digest))?\b",
+            capability_identity_block,
+            re.IGNORECASE,
+        )
+        is None
+    )
+
+
 def test_m3_analysis_scope_forbids_later_milestone_and_dynamic_execution_logic() -> (
     None
 ):
@@ -139,6 +224,32 @@ def test_ci_contains_fresh_non_editable_wheel_smoke_path() -> None:
     assert "python -m venv" in workflow
     assert "non-editable" in workflow
     assert "corpus-check --synthetic" in workflow
+
+
+def test_ci_fresh_wheel_probe_covers_all_m4_resources() -> None:
+    workflow = (REPOSITORY_ROOT / ".github" / "workflows" / "ci.yml").read_text(
+        encoding="utf-8"
+    )
+
+    for schema in (
+        "capability-claim.v1.schema.json",
+        "capability-definition.v1.schema.json",
+        "capability-evolution.v1.schema.json",
+        "capability-ontology-manifest.v1.schema.json",
+        "capability-relations.v1.schema.json",
+        "capability-review.v1.schema.json",
+        "capability-candidate-cluster.v1.schema.json",
+        "candidate-grouping-policy.v1.schema.json",
+        "requirement-capability-link.v1.schema.json",
+        "requirement-mapping-decision.v1.schema.json",
+        "source-requirement-admissibility.v1.schema.json",
+        "capability-report.v1.schema.json",
+    ):
+        assert schema in workflow
+    assert "synthetic-m4-fixture.v1.json" in workflow
+    assert "['real_corpus'] is False" in workflow
+    assert "['real_requirement_mapping'] is False" in workflow
+    assert "['real_capability_activation'] is False" in workflow
 
 
 def test_ci_contains_offline_structural_gate_and_all_m1_schema_smoke() -> None:

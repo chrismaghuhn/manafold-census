@@ -14,6 +14,11 @@ from typing import cast
 
 from .analysis.cli_support import m3_command
 from .canonical import JSONValue, canonical_json_bytes
+from .capability.commands import (
+    build_synthetic_m4_command,
+    check_synthetic_m4_command,
+    report_synthetic_m4_command,
+)
 from .corpus.build import (
     build_pinned_corpus,
     load_source_lock,
@@ -288,6 +293,40 @@ def structural_check(
     return 0
 
 
+def m4_command(
+    command: str,
+    repository_root: str | Path,
+    output: str | Path | None,
+    synthetic: bool,
+) -> int:
+    """Run one bounded synthetic-only M4 command."""
+
+    if not synthetic:
+        raise ValueError("M4 commands require --synthetic until separately authorized")
+    if output is None:
+        raise ValueError(f"m4-{command} requires --output or --synthetic")
+    root = Path(repository_root)
+    output_path = Path(output)
+    if not output_path.is_absolute():
+        output_path = root / output_path
+    if command == "build":
+        build_result = build_synthetic_m4_command(output_path)
+        print(f"m4_manifest_sha256={build_result.manifest.digest()}")
+    elif command == "check":
+        check_result = check_synthetic_m4_command(output_path)
+        print(f"m4_manifest_sha256={check_result.manifest.digest()}")
+    elif command == "report":
+        report_result = report_synthetic_m4_command(output_path)
+        print(f"m4_manifest_sha256={report_result.m4_manifest_sha256}")
+        print(
+            f"report_descriptor_count={len(report_result.report_index.report_descriptors)}"
+        )
+    else:
+        raise ValueError("unsupported M4 command")
+    print(f"m4-{command}=PASS")
+    return 0
+
+
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="manafold_census")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -341,6 +380,12 @@ def _parser() -> argparse.ArgumentParser:
     m3_parent.add_argument("--synthetic", action="store_true")
     for command in ("m3-build", "m3-check", "m3-report"):
         subparsers.add_parser(command, parents=[m3_parent])
+    m4_parent = argparse.ArgumentParser(add_help=False)
+    m4_parent.add_argument("--repository-root", default=".")
+    m4_parent.add_argument("--output", default="dist/capability/m4-synthetic")
+    m4_parent.add_argument("--synthetic", action="store_true")
+    for command in ("m4-build", "m4-check", "m4-report"):
+        subparsers.add_parser(command, parents=[m4_parent])
     return parser
 
 
@@ -395,6 +440,13 @@ def main(argv: Sequence[str] | None = None) -> int:
             return structural_check(root, structural_check_output, args.synthetic)
         if args.command in {"m3-build", "m3-check", "m3-report"}:
             return m3_command(args.command[3:], args)
+        if args.command in {"m4-build", "m4-check", "m4-report"}:
+            return m4_command(
+                args.command[3:],
+                args.repository_root,
+                args.output,
+                args.synthetic,
+            )
     except (OSError, RuntimeError, TypeError, ValueError) as error:
         print(f"{args.command}=FAIL: {error}", file=sys.stderr)
         return 1

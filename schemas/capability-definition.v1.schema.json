@@ -1,0 +1,141 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://manafold-census.invalid/schemas/capability-definition.v1.schema.json",
+  "title": "Manafold Census Capability Definition V1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "capability_family_id",
+    "capability_version",
+    "claim_digest",
+    "claim",
+    "display_name",
+    "lifecycle",
+    "provenance",
+    "review_ref"
+  ],
+  "properties": {
+    "schema": {
+      "const": "census.capability-definition.v1"
+    },
+    "capability_family_id": {
+      "type": "string",
+      "pattern": "^capfam_[0-9a-f]{64}$"
+    },
+    "capability_version": {
+      "$ref": "#/$defs/positive_integer"
+    },
+    "claim_digest": {
+      "$ref": "#/$defs/digest"
+    },
+    "claim": {
+      "$ref": "capability-claim.v1.schema.json"
+    },
+    "display_name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "lifecycle": {
+      "enum": [
+        "PROPOSED",
+        "ACTIVE",
+        "SUPERSEDED",
+        "RETIRED"
+      ]
+    },
+    "provenance": {
+      "$ref": "#/$defs/provenance"
+    },
+    "review_ref": {
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "string",
+          "pattern": "^mrv_[0-9a-f]{64}$"
+        }
+      ]
+    }
+  },
+  "$defs": {
+    "digest": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "positive_integer": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 9223372036854775807
+    },
+    "candidate_id": {
+      "type": "string",
+      "pattern": "^ccg_[0-9a-f]{64}$"
+    },
+    "requirement_id": {
+      "type": "string",
+      "pattern": "^srq_[0-9a-f]{64}$"
+    },
+    "requirement_ref": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "requirement_id",
+        "requirement_wire_digest"
+      ],
+      "properties": {
+        "requirement_id": {
+          "$ref": "#/$defs/requirement_id"
+        },
+        "requirement_wire_digest": {
+          "$ref": "#/$defs/digest"
+        }
+      }
+    },
+    "provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "m3_analysis_manifest_sha256",
+        "candidate_cluster_ids",
+        "requirement_refs"
+      ],
+      "properties": {
+        "m3_analysis_manifest_sha256": {
+          "$ref": "#/$defs/digest"
+        },
+        "candidate_cluster_ids": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/candidate_id"
+          }
+        },
+        "requirement_refs": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/requirement_ref"
+          }
+        }
+      },
+      "anyOf": [
+        {
+          "properties": {
+            "candidate_cluster_ids": {
+              "minItems": 1
+            }
+          }
+        },
+        {
+          "properties": {
+            "requirement_refs": {
+              "minItems": 1
+            }
+          }
+        }
+      ]
+    }
+  }
+}
