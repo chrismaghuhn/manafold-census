@@ -37,6 +37,8 @@ DESIGN_HEAD                       = 0f787e7807dad3f730b4013e6a768616000666c2
 DESIGN_STATE                      = FROZEN_BY_INDEPENDENT_REVIEW
 PLAN_ARTIFACT                     = docs/superpowers/plans/2026-09-14-bottom-up-capability-ontology.md
 M4_IMPLEMENTATION_PLAN_AUTHORIZED = YES
+M4_IMPLEMENTATION_PLAN_REVIEW     = NOT_RUN
+M4_IMPLEMENTATION_PLAN            = NOT_FROZEN
 M4_IMPLEMENTATION_AUTHORIZED      = NO
 REAL_REQUIREMENT_MAPPING_STARTED  = NO
 REAL_CAPABILITY_ACTIVATION        = NO
@@ -84,6 +86,38 @@ if ($forbidden) {
     throw 'M1, M2, or M3 authority changed'
 }
 ~~~
+
+The implementation branch is separate from this design/plan branch:
+
+~~~text
+IMPLEMENTATION_BRANCH = feat/m4-bottom-up-capability-ontology
+IMPLEMENTATION_BASE   = final approved plan HEAD
+~~~
+
+Create IMPLEMENTATION_BRANCH from the final approved plan commit only after
+the plan review passes and M4 implementation authorization is granted. Do not
+place production M4 code on design/m4-bottom-up-capability-ontology-20260914.
+
+### Per-task delivery checkpoint
+
+Every separately authorized task ends at this checkpoint before the next task
+is considered:
+
+~~~text
+implement declared slice
+-> run focused RED/GREEN checks and the complete local gates
+-> inspect tracked, staged, and untracked scope
+-> stage only the task's declared paths
+-> git diff --cached --check
+-> create the task's standalone commit
+-> push feat/m4-bottom-up-capability-ontology
+-> verify REMOTE_HEAD == LOCAL_HEAD
+-> verify WORKTREE = CLEAN
+-> stop for independent review
+~~~
+
+The next task cannot consume an unpushed or unreviewed task commit. A push is
+not a PR, and a PR is not merge authorization.
 
 Every implementation task requires explicit authorization for its exact task
 number. A task may use synthetic M3 artifacts only. It must not enumerate,
@@ -134,6 +168,11 @@ CapabilityFamilyKeyV1 contains only a stable semantic nucleus:
 nucleus_kind
 operation_anchor: sorted exact M2 family/kind anchors
 nucleus_contract_version
+
+ATOMIC
+    -> exactly one operation anchor
+COMPOSITE
+    -> at least two sorted operation anchors
 ~~~
 
 It does not contain dimension path keys, dimensions, requiredness, domains,
@@ -290,6 +329,9 @@ names and meanings are fixed:
 
 ~~~text
 draw_family_key
+proposed_draw_definition
+accepted_capability_review
+definition_with_lifecycle
 proposed_complete_requirement
 accepted_complete_requirement
 requirement_with_status_and_resolution
@@ -310,15 +352,27 @@ direct_link
 proposed_direct_link
 activate
 mapping_decision
+corpus_for_requirements
+validate_mapping_candidates
+validate_active_links
+composes_edge
+requires_edge
+split_event
+links_for_two_distinct_m1_sources
+links_for_one_m1_source
+build_synthetic_m4
+build_synthetic_m4_with_stale_link
+build_capability_reports
+report_for_synthetic_sparse_m3
 ~~~
 
 Each factory returns a complete typed value with deterministic fixture IDs,
 source references, evidence, and digests. The fixture module includes the
 relative-bytes helper used by build/reproduction tests. The separate
 tests/capability_m3_fixtures.py module exposes write_synthetic_m3 and returns
-the temporary root plus its actual canonical manifest SHA. A factory name in a
-test always refers to one of these fixed meanings; it is not an implicit
-production API.
+one FrozenM3InputV1 descriptor with the temporary M1 root, M3 root, source-lock
+path, and actual canonical manifest SHA. A factory name in a test always refers
+to one of these fixed meanings; it is not an implicit production API.
 
 ## Task 1: Stable Capability nucleus and reference identity
 
@@ -342,6 +396,8 @@ The plan does not provide it.
 Add this test contract:
 
 ~~~python
+import pytest
+
 from manafold_census.capability.identity import capability_family_id_for
 from manafold_census.capability.model import (
     CapabilityFamilyKeyV1,
@@ -386,7 +442,7 @@ def test_family_id_is_derived_only_from_the_stable_nucleus() -> None:
 def test_operation_anchor_order_is_canonical() -> None:
     first = CapabilityFamilyKeyV1(
         nucleus_contract_version="1",
-        nucleus_kind=NucleusKindV1.ATOMIC,
+        nucleus_kind=NucleusKindV1.COMPOSITE,
         operation_anchor=(
             (RequirementFamilyV1.EFFECT, RequirementKindV1.DRAW_CARDS),
             (RequirementFamilyV1.EFFECT, RequirementKindV1.DEAL_DAMAGE),
@@ -394,7 +450,7 @@ def test_operation_anchor_order_is_canonical() -> None:
     )
     second = CapabilityFamilyKeyV1(
         nucleus_contract_version="1",
-        nucleus_kind=NucleusKindV1.ATOMIC,
+        nucleus_kind=NucleusKindV1.COMPOSITE,
         operation_anchor=(
             (RequirementFamilyV1.EFFECT, RequirementKindV1.DEAL_DAMAGE),
             (RequirementFamilyV1.EFFECT, RequirementKindV1.DRAW_CARDS),
@@ -402,6 +458,41 @@ def test_operation_anchor_order_is_canonical() -> None:
     )
 
     assert capability_family_id_for(first) == capability_family_id_for(second)
+
+
+def test_atomic_requires_exactly_one_operation_anchor() -> None:
+    with pytest.raises(ValueError, match="exactly one operation anchor"):
+        CapabilityFamilyKeyV1(
+            nucleus_contract_version="1",
+            nucleus_kind=NucleusKindV1.ATOMIC,
+            operation_anchor=(
+                (RequirementFamilyV1.EFFECT, RequirementKindV1.DRAW_CARDS),
+                (RequirementFamilyV1.EFFECT, RequirementKindV1.DEAL_DAMAGE),
+            ),
+        )
+
+
+def test_composite_requires_multiple_operation_anchors() -> None:
+    with pytest.raises(ValueError, match="at least two operation anchors"):
+        CapabilityFamilyKeyV1(
+            nucleus_contract_version="1",
+            nucleus_kind=NucleusKindV1.COMPOSITE,
+            operation_anchor=(
+                (RequirementFamilyV1.EFFECT, RequirementKindV1.DRAW_CARDS),
+            ),
+        )
+
+
+def test_duplicate_operation_anchor_is_rejected() -> None:
+    with pytest.raises(ValueError, match="duplicate operation anchor"):
+        CapabilityFamilyKeyV1(
+            nucleus_contract_version="1",
+            nucleus_kind=NucleusKindV1.COMPOSITE,
+            operation_anchor=(
+                (RequirementFamilyV1.EFFECT, RequirementKindV1.DRAW_CARDS),
+                (RequirementFamilyV1.EFFECT, RequirementKindV1.DRAW_CARDS),
+            ),
+        )
 
 
 def test_changed_nucleus_contract_version_changes_family_id() -> None:
@@ -438,9 +529,7 @@ class NucleusKindV1(StrEnum):
 class CapabilityFamilyKeyV1:
     nucleus_contract_version: str
     nucleus_kind: NucleusKindV1
-    operation_anchor: tuple[
-        tuple[RequirementFamilyV1, RequirementKindV1], ...
-    ]
+    operation_anchor: tuple[tuple[RequirementFamilyV1, RequirementKindV1], ...]
 
     SCHEMA: ClassVar[str] = "census.capability-family-key.v1"
 ~~~
@@ -449,7 +538,10 @@ The constructor must:
 
 * accept only NucleusKindV1;
 * require a non-empty operation anchor;
-* normalize anchor pairs to sorted unique family/kind wire values;
+* sort anchor pairs into canonical family/kind wire order without normalizing
+  duplicates;
+* require exactly one anchor for ATOMIC and at least two anchors for COMPOSITE;
+* reject duplicate anchors fail-closed;
 * validate every pair with the existing validate_kind_family;
 * accept only a stable non-empty version identifier; and
 * reject unknown fields when reading wire data.
@@ -533,8 +625,9 @@ git diff --cached --check
 git commit -m "feat: add M4 capability nucleus identity"
 ~~~
 
-Do not push or start Task 2 without separate authorization and the repository
-scope report.
+After separate authorization, apply the per-task delivery checkpoint above:
+push the Task 1 commit to feat/m4-bottom-up-capability-ontology, verify the
+remote SHA and clean worktree, and stop for independent review before Task 2.
 
 ## Task 2: Typed M2 dimension paths, domains, and bindings
 
@@ -544,7 +637,6 @@ scope report.
 - Modify: src/manafold_census/capability/model.py
 - Modify: src/manafold_census/capability/identity.py
 - Create: schemas/capability-claim.v1.schema.json
-- Modify: schemas/capability-definition.v1.schema.json
 - Create: tests/test_capability_dimensions.py
 - Modify: tests/test_capability_model.py
 - Modify: tests/test_capability_identity.py
@@ -824,7 +916,7 @@ Expected: focused tests and all static checks PASS.
 ### Step 6: Commit the dimension slice
 
 ~~~powershell
-git add src/manafold_census/capability tests/test_capability_dimensions.py tests/test_capability_model.py tests/test_capability_identity.py schemas/capability-claim.v1.schema.json schemas/capability-definition.v1.schema.json
+git add src/manafold_census/capability tests/test_capability_dimensions.py tests/test_capability_model.py tests/test_capability_identity.py schemas/capability-claim.v1.schema.json
 git diff --cached --check
 git commit -m "feat: add typed M4 capability dimensions"
 ~~~
@@ -836,7 +928,7 @@ git commit -m "feat: add typed M4 capability dimensions"
 - Modify: src/manafold_census/capability/model.py
 - Modify: src/manafold_census/capability/identity.py
 - Create: src/manafold_census/capability/review.py
-- Modify: schemas/capability-definition.v1.schema.json
+- Create: schemas/capability-definition.v1.schema.json
 - Create: schemas/capability-review.v1.schema.json
 - Create: tests/test_capability_review.py
 - Modify: tests/test_capability_model.py
@@ -873,6 +965,20 @@ def test_superseded_and_retired_definitions_cannot_receive_new_active_links() ->
 
     assert can_receive_active_link(superseded) is False
     assert can_receive_active_link(retired) is False
+
+
+def test_definition_review_requires_a_closed_generalization_basis() -> None:
+    review = accepted_capability_review(
+        proposed_draw_definition(),
+        generalization_basis=GeneralizationBasisV1.MULTI_SOURCE_REUSE,
+    )
+
+    assert review.generalization_basis is GeneralizationBasisV1.MULTI_SOURCE_REUSE
+    with pytest.raises(ValueError, match="generalization_basis"):
+        accepted_capability_review(
+            proposed_draw_definition(),
+            generalization_basis="CARD_SPECIFIC_EXCEPTION",
+        )
 ~~~
 
 Run:
@@ -935,6 +1041,11 @@ class ReviewDecisionV1(StrEnum):
     REJECTED = "REJECTED"
 
 
+class GeneralizationBasisV1(StrEnum):
+    MULTI_SOURCE_REUSE = "MULTI_SOURCE_REUSE"
+    SINGLE_OBSERVATION_GENERALIZATION = "SINGLE_OBSERVATION_GENERALIZATION"
+
+
 @dataclass(frozen=True, slots=True)
 class CapabilityReviewRecordV1:
     authority_id: str
@@ -943,6 +1054,7 @@ class CapabilityReviewRecordV1:
     subject: ReviewSubjectV1
     decision: ReviewDecisionV1
     reviewer_id: str
+    generalization_basis: GeneralizationBasisV1 | None
     review_digest: str
 
 
@@ -958,6 +1070,11 @@ def review_claim_payload(record: CapabilityReviewRecordV1) -> dict[str, JSONValu
         "subject": record.subject.to_wire(),
         "decision": record.decision.value,
         "reviewer_id": record.reviewer_id,
+        "generalization_basis": (
+            None
+            if record.generalization_basis is None
+            else record.generalization_basis.value
+        ),
     }
 
 
@@ -975,9 +1092,11 @@ branch has fixed fields and a to_wire method; an arbitrary subject dictionary
 is invalid.
 
 The full wire carries record_id and review_digest, but review_claim_payload
-excludes both. It also excludes future manifest digests, filesystem paths,
-timestamps, and runtime order. The review decision is exactly ACCEPTED or
-REJECTED; absence of a record means pending.
+excludes both. It also carries generalization_basis, which is null for
+CAPABILITY_LINK, MAPPING_DECISION, and EVOLUTION subjects and is required for
+an ACCEPTED CAPABILITY_DEFINITION review. The projection excludes future
+manifest digests, filesystem paths, timestamps, and runtime order. The review
+decision is exactly ACCEPTED or REJECTED; absence of a record means pending.
 
 Review subjects are a closed tagged union:
 
@@ -992,6 +1111,13 @@ The subject carries the exact Capability or link claim digest. A review for a
 different claim is invalid. Conflicting accepted and rejected decisions for
 one subject abort active publication.
 
+For a CAPABILITY_DEFINITION subject, an ACCEPTED review must carry exactly one
+generalization_basis value: MULTI_SOURCE_REUSE or
+SINGLE_OBSERVATION_GENERALIZATION. Other subject types must carry null. The
+basis is review metadata, not Capability identity. Task 3 validates that the
+field is closed; Task 8 checks its supporting Requirement evidence during
+activation.
+
 ### Step 4: Add active-definition preconditions
 
 Implement validate_active_definition with these checks:
@@ -1001,8 +1127,6 @@ claim digest recomputes
 family ID recomputes from the stable family key
 review_ref points to an ACCEPTED exact capability review
 definition lifecycle is ACTIVE
-default reuse has two distinct M1 source identities
-or an explicit SINGLE_OBSERVATION_GENERALIZATION review exists
 ~~~
 
 No function in this task reads a card name, source phrase, M3 pattern, engine
@@ -1591,13 +1715,28 @@ git commit -m "feat: add M4 capability evolution relations"
 only temporary synthetic M3 artifacts assembled by test helpers. Do not use
 ignored real Run-A/Run-B directories and do not run the full corpus.
 
+The input seam is explicit:
+
+~~~python
+@dataclass(frozen=True, slots=True)
+class FrozenM3InputV1:
+    structural_output_directory: Path
+    analysis_output_directory: Path
+    source_lock_path: Path
+    expected_analysis_manifest_sha256: str
+~~~
+
+The descriptor is the only input to load_m3_requirement_corpus and the same
+descriptor is passed through build_reference_m4. It supplies all three inputs
+required by the existing validate_analysis_closure function.
+
 ### Step 1: Add input-boundary tests
 
 Build synthetic M3 artifacts with the existing M3 model helpers and add:
 
 ~~~python
 def test_input_collects_only_requirements_in_nonempty_bundles(tmp_path: Path) -> None:
-    m3_root, manifest_sha = write_synthetic_m3(
+    m3_input = write_synthetic_m3(
         tmp_path / "m3",
         records=(
             record_with_proposed_requirement(),
@@ -1606,38 +1745,39 @@ def test_input_collects_only_requirements_in_nonempty_bundles(tmp_path: Path) ->
         ),
     )
 
-    loaded = load_m3_requirement_corpus(
-        m3_root,
-        expected_manifest_sha256=manifest_sha,
-    )
+    loaded = load_m3_requirement_corpus(m3_input)
 
     assert len(loaded.requirements) == 1
     assert loaded.unresolved_analysis_count == 1
     assert loaded.no_requirements_applicable_count == 1
 
 
-def test_changed_m3_manifest_sha_fails_before_requirement_mapping(tmp_path: Path) -> None:
-    m3_root, _ = write_synthetic_m3(
+def test_changed_m3_manifest_sha_fails_before_requirement_mapping(
+    tmp_path: Path,
+) -> None:
+    m3_input = write_synthetic_m3(
         tmp_path / "m3",
         records=(record_with_requirement(),),
     )
 
     with pytest.raises(ValueError, match="M3 manifest SHA"):
-        load_m3_requirement_corpus(m3_root, expected_manifest_sha256="f" * 64)
+        load_m3_requirement_corpus(
+            replace(m3_input, expected_analysis_manifest_sha256="f" * 64)
+        )
 
 
 def test_requirement_set_digest_is_order_independent(tmp_path: Path) -> None:
-    first_root, first_sha = write_synthetic_m3(
+    first_input = write_synthetic_m3(
         tmp_path / "first",
         records=(record_with_requirement(), record_with_other_requirement()),
     )
-    second_root, second_sha = write_synthetic_m3(
+    second_input = write_synthetic_m3(
         tmp_path / "second",
         records=(record_with_other_requirement(), record_with_requirement()),
     )
 
-    first = load_m3_requirement_corpus(first_root, first_sha)
-    second = load_m3_requirement_corpus(second_root, second_sha)
+    first = load_m3_requirement_corpus(first_input)
+    second = load_m3_requirement_corpus(second_input)
 
     assert first.requirement_set_digest == second.requirement_set_digest
 ~~~
@@ -1655,6 +1795,9 @@ Expected: the first run fails because the input adapter does not exist.
 Implement:
 
 ~~~python
+from dataclasses import replace
+
+
 @dataclass(frozen=True, slots=True)
 class M3RequirementCorpusV1:
     m3_analysis_manifest_sha256: str
@@ -1669,12 +1812,15 @@ class M3RequirementCorpusV1:
     unresolved_analysis_count: int
 ~~~
 
-load_m3_requirement_corpus must:
+load_m3_requirement_corpus(input_descriptor: FrozenM3InputV1) must:
 
 * read canonical analysis-manifest.json;
 * calculate its raw SHA-256 with the existing helper;
-* require the caller's expected SHA to match;
-* invoke the existing M3 validate_analysis_closure for independent
+* require input_descriptor.expected_analysis_manifest_sha256 to match;
+* invoke the existing M3 validate_analysis_closure with
+  input_descriptor.structural_output_directory,
+  input_descriptor.analysis_output_directory, and
+  input_descriptor.source_lock_path for independent
   record/trace/manifest/source binding;
 * collect Requirements only from non-null bundles;
 * preserve M3 outcome counts;
@@ -1768,7 +1914,13 @@ Add:
 
 ~~~python
 def test_m4_manifest_binds_m3_and_all_authoritative_files(tmp_path: Path) -> None:
-    result = build_synthetic_m4(tmp_path / "output")
+    m3_input = write_synthetic_m3(tmp_path / "m3")
+    result = build_synthetic_m4(
+        tmp_path / "output",
+        m3_input=m3_input,
+        parent_m4_manifest_sha256=None,
+        parent_m4_manifest=None,
+    )
 
     assert result.manifest.m3_analysis_manifest_sha256
     assert result.manifest.requirement_set_digest
@@ -1781,17 +1933,106 @@ def test_failed_build_never_publishes_manifest(tmp_path: Path) -> None:
     output = tmp_path / "output"
 
     with pytest.raises(CapabilityBuildError, match="stale Capability"):
-        build_synthetic_m4_with_stale_link(output)
+        build_synthetic_m4_with_stale_link(
+            output,
+            m3_input=write_synthetic_m3(tmp_path / "m3"),
+            parent_m4_manifest_sha256=None,
+            parent_m4_manifest=None,
+        )
 
     assert not (output / "m4-ontology-manifest.json").exists()
 
 
 def test_same_synthetic_inputs_produce_identical_bytes(tmp_path: Path) -> None:
-    first = build_synthetic_m4(tmp_path / "first")
-    second = build_synthetic_m4(tmp_path / "second")
+    m3_input = write_synthetic_m3(tmp_path / "m3")
+    first = build_synthetic_m4(
+        tmp_path / "first",
+        m3_input=m3_input,
+        parent_m4_manifest_sha256=None,
+        parent_m4_manifest=None,
+    )
+    second = build_synthetic_m4(
+        tmp_path / "second",
+        m3_input=m3_input,
+        parent_m4_manifest_sha256=None,
+        parent_m4_manifest=None,
+    )
 
     assert relative_bytes(first.output_dir) == relative_bytes(second.output_dir)
     assert directory_digest(first.output_dir) == directory_digest(second.output_dir)
+
+
+def test_parent_manifest_is_explicit_and_genesis_is_null(tmp_path: Path) -> None:
+    m3_input = write_synthetic_m3(tmp_path / "m3")
+    genesis = build_synthetic_m4(
+        tmp_path / "genesis",
+        m3_input=m3_input,
+        parent_m4_manifest_sha256=None,
+        parent_m4_manifest=None,
+    )
+    child = build_synthetic_m4(
+        tmp_path / "child",
+        m3_input=m3_input,
+        parent_m4_manifest_sha256=genesis.manifest.digest(),
+        parent_m4_manifest=genesis.manifest,
+    )
+
+    assert genesis.manifest.parent_m4_manifest_sha256 is None
+    assert child.manifest.parent_m4_manifest_sha256 == genesis.manifest.digest()
+
+
+def test_parent_manifest_cannot_be_inferred_or_mismatched(tmp_path: Path) -> None:
+    m3_input = write_synthetic_m3(tmp_path / "m3")
+    genesis = build_synthetic_m4(
+        tmp_path / "genesis",
+        m3_input=m3_input,
+        parent_m4_manifest_sha256=None,
+        parent_m4_manifest=None,
+    )
+
+    with pytest.raises(ValueError, match="parent M4 manifest"):
+        build_synthetic_m4(
+            tmp_path / "mismatched",
+            m3_input=m3_input,
+            parent_m4_manifest_sha256="f" * 64,
+            parent_m4_manifest=genesis.manifest,
+        )
+
+
+def test_activation_checks_multi_source_generalization_basis(tmp_path: Path) -> None:
+    m3_input = write_synthetic_m3(tmp_path / "m3")
+    definition = active_draw_capability()
+    review = accepted_capability_review(
+        definition,
+        generalization_basis=GeneralizationBasisV1.MULTI_SOURCE_REUSE,
+    )
+    links = links_for_two_distinct_m1_sources(definition, m3_input)
+
+    validate_activation_eligibility(
+        definition,
+        review,
+        load_m3_requirement_corpus(m3_input),
+        links,
+    )
+
+
+def test_singleton_activation_requires_explicit_generalization_basis(
+    tmp_path: Path,
+) -> None:
+    m3_input = write_synthetic_m3(tmp_path / "m3")
+    definition = active_draw_capability()
+    review = accepted_capability_review(
+        definition,
+        generalization_basis=GeneralizationBasisV1.SINGLE_OBSERVATION_GENERALIZATION,
+    )
+    links = links_for_one_m1_source(definition, m3_input)
+
+    validate_activation_eligibility(
+        definition,
+        review,
+        load_m3_requirement_corpus(m3_input),
+        links,
+    )
 ~~~
 
 Run:
@@ -1905,8 +2146,9 @@ class M4BuildResultV1:
 
 
 def build_reference_m4(
-    m3_artifact_root: str | Path,
-    expected_m3_manifest_sha256: str,
+    m3_input: FrozenM3InputV1,
+    parent_m4_manifest_sha256: str | None,
+    parent_m4_manifest: M4OntologyManifestV1 | None,
     capability_definitions: Sequence[CapabilityDefinitionV1],
     reviews: Sequence[CapabilityReviewRecordV1],
     admissibility_records: Sequence[SourceRequirementAdmissibilityV1],
@@ -1915,12 +2157,11 @@ def build_reference_m4(
     evolution_records: Sequence[CapabilityEvolutionV1],
     output_dir: str | Path,
 ) -> M4BuildResultV1:
-    input_corpus = load_m3_requirement_corpus(
-        m3_artifact_root,
-        expected_m3_manifest_sha256,
-    )
+    input_corpus = load_m3_requirement_corpus(m3_input)
     validate_m4_inputs(
         input_corpus,
+        parent_m4_manifest_sha256,
+        parent_m4_manifest,
         capability_definitions,
         reviews,
         admissibility_records,
@@ -1937,6 +2178,7 @@ def build_reference_m4(
         mapping_decisions,
         evolution_records,
         output_dir,
+        parent_m4_manifest_sha256,
     )
 ~~~
 
@@ -1963,6 +2205,47 @@ The implementation body must:
 Exceptions are classified as invalid M3 input, invalid wire, stale link,
 review disagreement, graph failure, digest failure, or publication failure.
 They never become an unresolved semantic disposition.
+
+The parent input is explicit: for the genesis snapshot,
+parent_m4_manifest_sha256 and parent_m4_manifest are both null. For every
+later snapshot, both are required; the supplied parent manifest is reread and
+its canonical digest must equal parent_m4_manifest_sha256. The builder never
+discovers a parent from a directory, branch, timestamp, or latest-file rule.
+The M4 manifest stores the exact parent SHA without mutating the parent.
+
+Define the global activation seam separately from intrinsic definition
+validation:
+
+~~~python
+def validate_activation_eligibility(
+    definition: CapabilityDefinitionV1,
+    definition_review: CapabilityReviewRecordV1,
+    corpus: M3RequirementCorpusV1,
+    supporting_links: Sequence[RequirementCapabilityLinkV1],
+) -> None:
+    validate_active_definition(definition, definition_review)
+    admitted = admitted_requirements(corpus, supporting_links)
+    basis = definition_review.generalization_basis
+    if basis is GeneralizationBasisV1.MULTI_SOURCE_REUSE:
+        if distinct_m1_source_count(admitted) < 2:
+            raise ValueError("multi-source reuse requires two M1 sources")
+    elif basis is GeneralizationBasisV1.SINGLE_OBSERVATION_GENERALIZATION:
+        if len(admitted) != 1:
+            raise ValueError("singleton generalization requires one M1 source")
+    else:
+        raise ValueError("active definition requires generalization_basis")
+~~~
+
+This is the only seam that may use supporting Requirements to evaluate the
+multi-source versus singleton rule. It verifies that every supporting link
+uses an active Capability, a complete Requirement, and either terminal M2
+acceptance or an accepted exact SOURCE_REQUIREMENT_ADMISSIBILITY record. The
+single-observation path is valid only with the exact closed review basis; it is
+never inferred from a one-row count.
+
+admitted_requirements and distinct_m1_source_count are private pure helpers in
+validate.py. They return only Requirements already validated by the M3 input
+and link seams.
 
 ### Step 5: Add closure and deterministic ordering tests
 
@@ -2017,8 +2300,9 @@ Add:
 def test_quantity_variants_share_one_candidate_signature() -> None:
     first = proposed_draw_requirement(quantity=2)
     second = proposed_draw_requirement(quantity=3, other_source=True)
+    corpus = corpus_for_requirements((first, second))
 
-    result = group_requirement_candidates((first, second))
+    result = group_requirement_candidates(corpus)
 
     assert len(result.clusters) == 1
     assert result.clusters[0].distinct_source_count == 2
@@ -2028,19 +2312,24 @@ def test_quantity_variants_share_one_candidate_signature() -> None:
 def test_different_operation_kinds_do_not_share_signature() -> None:
     draw = proposed_draw_requirement(quantity=2)
     damage = proposed_damage_requirement()
+    corpus = corpus_for_requirements((draw, damage))
 
-    result = group_requirement_candidates((draw, damage))
+    result = group_requirement_candidates(corpus)
 
     assert len(result.clusters) == 2
 
 
 def test_cluster_is_not_a_capability_definition() -> None:
-    cluster = group_requirement_candidates(
-        (proposed_draw_requirement(quantity=2),)
-    ).clusters[0]
+    corpus = corpus_for_requirements((proposed_draw_requirement(quantity=2),))
+    cluster = group_requirement_candidates(corpus).clusters[0]
 
     assert cluster.status is CandidateClusterStatusV1.PROPOSED
     assert cluster.capability_definition is None
+
+
+def test_candidate_identity_requires_the_frozen_m3_corpus() -> None:
+    with pytest.raises(TypeError, match="M3RequirementCorpusV1"):
+        group_requirement_candidates((proposed_draw_requirement(quantity=2),))
 ~~~
 
 Run:
@@ -2059,6 +2348,22 @@ Implement the proposal-only state:
 class CandidateClusterStatusV1(StrEnum):
     PROPOSED = "PROPOSED"
 ~~~
+
+The public grouping interface accepts only the validated M3 corpus envelope:
+
+~~~python
+def group_requirement_candidates(
+    corpus: M3RequirementCorpusV1,
+) -> CandidateGroupingResultV1:
+    if not isinstance(corpus, M3RequirementCorpusV1):
+        raise TypeError("grouping requires M3RequirementCorpusV1")
+    return group_validated_requirements(corpus)
+~~~
+
+group_validated_requirements is a private deterministic seam in candidates.py;
+it reads corpus.requirements, corpus.m3_analysis_manifest_sha256, and
+corpus.requirement_set_digest. There is no public overload that accepts a raw
+Requirement sequence without the M3 envelope.
 
 The grouping signature contains:
 
@@ -2082,7 +2387,8 @@ candidate_id is:
 ccg_ + domain_digest(
     "census.capability-candidate-cluster.v1",
     {
-        "m3_analysis_manifest_sha256": exact_m3_sha,
+        "m3_analysis_manifest_sha256": corpus.m3_analysis_manifest_sha256,
+        "requirement_set_digest": corpus.requirement_set_digest,
         "generator_id": generator_id,
         "generator_version": generator_version,
         "group_signature": canonical_group_signature,
@@ -2239,9 +2545,7 @@ def m4_command(
     synthetic: bool,
 ) -> int:
     if not synthetic:
-        raise ValueError(
-            "M4 commands require --synthetic until separately authorized"
-        )
+        raise ValueError("M4 commands require --synthetic until separately authorized")
     if command == "build":
         build_synthetic_m4_command(repository_root, output)
     elif command == "check":
@@ -2471,8 +2775,14 @@ real ontology, or real mapping changes.
 
 ### Step 7: Commit the conformance slice
 
+After the tests pass, verify the staged name set is exactly the four Task 11
+paths below. Do not stage earlier Task 1–10 files through a package/schema
+glob.
+
 ~~~powershell
-git add src/manafold_census/capability schemas fixtures/capability tests/test_capability* tests/test_maintainability.py src/manafold_census/cli.py justfile pyproject.toml .github/workflows/ci.yml
+git add tests/test_capability_reproduction.py tests/test_capability_conformance.py tests/test_maintainability.py .github/workflows/ci.yml
+if (@(git diff --cached --name-only).Count -ne 4) { throw 'Task 11 staged scope is not exact' }
+git diff --cached --name-only
 git diff --cached --check
 git commit -m "test: close M4 ontology conformance gates"
 ~~~
