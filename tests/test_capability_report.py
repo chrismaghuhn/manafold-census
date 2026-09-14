@@ -13,6 +13,11 @@ from capability_m3_fixtures import (
     write_synthetic_m3,
 )
 
+import manafold_census.analysis.build as analysis_build
+import manafold_census.analysis.cli_support as analysis_cli_support
+import manafold_census.source.scryfall as source_scryfall
+import manafold_census.source.transfer as source_transfer
+from manafold_census import cli
 from manafold_census.canonical import canonical_json_bytes
 from manafold_census.capability.build import M4BuildResultV1, build_reference_m4
 from manafold_census.capability.input import (
@@ -270,3 +275,30 @@ def test_m4_report_wire_is_canonical(tmp_path: Path) -> None:
 
     raw = report_path.read_bytes()
     assert raw == canonical_json_bytes(json.loads(raw))
+
+
+def test_synthetic_m4_commands_never_enter_forbidden_boundaries(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def forbidden(*_args: object, **_kwargs: object) -> None:
+        raise AssertionError("forbidden boundary entered by synthetic M4 command")
+
+    for module, name in (
+        (cli, "discover_oracle_cards"),
+        (cli, "refresh_current_source"),
+        (cli, "fetch_pinned_source"),
+        (cli, "m3_command"),
+        (analysis_cli_support, "m3_command"),
+        (analysis_build, "execute_producer"),
+        (source_scryfall, "discover_oracle_cards"),
+        (source_scryfall, "refresh_current_source"),
+        (source_transfer, "fetch_pinned_source"),
+        (source_transfer, "download_source"),
+    ):
+        monkeypatch.setattr(module, name, forbidden)
+
+    output = tmp_path / "m4"
+    assert cli.main(["m4-build", "--synthetic", "--output", str(output)]) == 0
+    assert cli.main(["m4-check", "--synthetic", "--output", str(output)]) == 0
+    assert cli.main(["m4-report", "--synthetic", "--output", str(output)]) == 0
