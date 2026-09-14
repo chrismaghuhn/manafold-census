@@ -190,6 +190,9 @@ def _choose_mode_requirement(
 def _unresolved_requirement(
     question: str,
     *,
+    fragment: str | None = None,
+    observed_shape: SemanticShapeV1 = SemanticShapeV1.UNKNOWN,
+    candidate_kinds: tuple[RequirementKindV1, ...] = (),
     other_source: bool = False,
 ) -> RequirementV1:
     source = source_ref(
@@ -204,7 +207,7 @@ def _unresolved_requirement(
         family=RequirementFamilyV1.UNKNOWN,
         kind=RequirementKindV1.UNRESOLVED,
         parameters=UnresolvedParametersV1(
-            "oracle_text", SemanticShapeV1.UNKNOWN, question, (), None
+            "oracle_text", observed_shape, question, candidate_kinds, fragment
         ),
         evidence=(StructuralFieldEvidenceV1(source, "oracle_text", None, "Unknown"),),
         provenance=ProvenanceV1(
@@ -391,22 +394,54 @@ def test_unregistered_resolution_unknown_paths_are_partitions() -> None:
     assert len(result.clusters) == 2
 
 
-def test_unresolved_kind_uses_exact_opaque_partitioning() -> None:
+def test_unresolved_free_text_is_not_candidate_identity() -> None:
     result = group_requirement_candidates(
         corpus_for_requirements(
             (
-                _unresolved_requirement("first question"),
-                _unresolved_requirement("second question", other_source=True),
+                _unresolved_requirement("first question", fragment="first fragment"),
+                _unresolved_requirement(
+                    "second question",
+                    fragment="second fragment",
+                    other_source=True,
+                ),
+            )
+        ),
+        candidate_grouping_policy(),
+    )
+
+    assert len(result.clusters) == 1
+    for cluster in result.clusters:
+        validate_document(
+            cluster.to_wire(), "capability-candidate-cluster.v1.schema.json"
+        )
+
+
+def test_unresolved_structural_semantics_remain_candidate_identity() -> None:
+    result = group_requirement_candidates(
+        corpus_for_requirements(
+            (
+                _unresolved_requirement("same question"),
+                _unresolved_requirement(
+                    "different question",
+                    observed_shape=SemanticShapeV1.EFFECT,
+                    candidate_kinds=(RequirementKindV1.DRAW_CARDS,),
+                    other_source=True,
+                ),
             )
         ),
         candidate_grouping_policy(),
     )
 
     assert len(result.clusters) == 2
-    for cluster in result.clusters:
-        validate_document(
-            cluster.to_wire(), "capability-candidate-cluster.v1.schema.json"
-        )
+
+
+def test_known_opaque_fields_are_not_counted_as_unknown() -> None:
+    cluster = group_requirement_candidates(
+        corpus_for_requirements((_choose_mode_requirement(),)),
+        candidate_grouping_policy(),
+    ).clusters[0]
+
+    assert cluster.parameter_variations["unknown_requirement_count"] == 0
 
 
 def test_policy_rejects_duplicate_or_overlapping_paths() -> None:

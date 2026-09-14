@@ -4,14 +4,16 @@ from __future__ import annotations
 
 import json
 from collections.abc import Mapping, Sequence
-from typing import cast
+from dataclasses import fields
+from enum import StrEnum
+from typing import Any, cast
 
 from ..canonical import JSONValue, canonical_json_bytes
 from ..digest import domain_digest, sha256_bytes
 from ..semantic.kind_payloads import payload_to_wire
 from ..semantic.kinds import RequirementFamilyV1, RequirementKindV1
 from ..semantic.model import RequirementV1, _semantic_flags
-from ..semantic.primitives import _require_text
+from ..semantic.primitives import _require_text, _WireModel
 from .candidate_model import (
     CANDIDATE_ID_DOMAIN,
     CANDIDATE_ID_PREFIX,
@@ -88,14 +90,42 @@ def _path_feature(
     )
 
 
+def _structural_projection(value: object, *, preserve_text: bool = False) -> JSONValue:
+    if value is None:
+        return {"present": False}
+    if isinstance(value, StrEnum):
+        return {"enum": value.value}
+    if isinstance(value, _WireModel):
+        return {
+            "fields": {
+                item.name: _structural_projection(getattr(value, item.name))
+                for item in fields(cast(Any, value))
+            }
+        }
+    if isinstance(value, tuple | list):
+        return {
+            "count": len(value),
+            "items": [_structural_projection(item) for item in value],
+        }
+    if isinstance(value, bool):
+        return {"type": "boolean"}
+    if isinstance(value, int):
+        return {"type": "integer"}
+    if isinstance(value, str):
+        return {"text": value} if preserve_text else {"type": "text"}
+    return {"type": type(value).__name__}
+
+
 def _opaque_partition(
-    path: str, value: JSONValue, *, unknown: bool
+    path: str, value: JSONValue, typed: object, *, unknown: bool
 ) -> dict[str, JSONValue]:
     return {
         "path": path,
         "mode": "OPAQUE_PARTITION",
         "state": "UNKNOWN" if unknown else "ABSENT" if value is None else "KNOWN",
-        "value": value,
+        "value": _structural_projection(
+            typed, preserve_text=path == "/parameters/observed_field"
+        ),
     }
 
 
@@ -137,6 +167,7 @@ def _opaque_features(
             _opaque_partition(
                 path,
                 payload[field],
+                typed,
                 unknown=_semantic_flags(typed)[0] or path in resolution_unknown_paths,
             )
         )
@@ -146,7 +177,7 @@ def _opaque_features(
             continue
         tokens.append(_opaque_unknown_path(path))
     tokens.sort(key=lambda item: (str(item["path"]), canonical_json_bytes(item)))
-    return tokens, bool(tokens)
+    return tokens, any(item["state"] == "UNKNOWN" for item in tokens)
 
 
 def _signature(
