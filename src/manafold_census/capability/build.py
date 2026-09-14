@@ -79,9 +79,14 @@ def _definition_key(value: object) -> tuple[str, str, str]:
     )
 
 
-def _review_key(value: object) -> tuple[str, str]:
+def _review_key(value: object) -> tuple[str, str, str]:
     item = cast(CapabilityReviewRecordV1, value)
-    return (canonical_json_bytes(item.subject.to_wire()).decode(), item.record_id)
+    subject_wire = item.subject.to_wire()
+    return (
+        cast(str, subject_wire["type"]),
+        canonical_json_bytes(subject_wire).decode(),
+        item.record_id,
+    )
 
 
 def _admissibility_key(value: object) -> tuple[str, str]:

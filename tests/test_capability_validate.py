@@ -23,7 +23,7 @@ from manafold_census.capability.identity import (
     capability_family_id_for,
 )
 from manafold_census.capability.input import load_m3_requirement_corpus
-from manafold_census.capability.link_build import direct_link
+from manafold_census.capability.link_build import composition_member_link, direct_link
 from manafold_census.capability.mapping import (
     MappingDispositionV1,
     MappingReasonV1,
@@ -229,6 +229,38 @@ def test_capability_claim_registry_must_match_m4_manifest(tmp_path: Path) -> Non
         )
 
 
+def test_definition_family_and_version_must_be_unique(tmp_path: Path) -> None:
+    from dataclasses import replace
+
+    from test_capability_definition import _definition, _draw_claim
+
+    corpus = load_m3_requirement_corpus(
+        write_synthetic_m3(
+            tmp_path / "m3",
+            records=(unresolved_record_without_bundle(),),
+        )
+    )
+    first = _definition()
+    second = _definition(
+        claim=replace(_draw_claim(), m2_interpretation_version="2"),
+        display_name="Same family and version, different claim",
+    )
+
+    with pytest.raises(ValueError, match="family.*version"):
+        validate_m4_inputs(
+            corpus,
+            None,
+            None,
+            (first, second),
+            (),
+            (),
+            (),
+            (),
+            (),
+            (),
+        )
+
+
 def test_build_reference_m4_has_explicit_output_contract(tmp_path: Path) -> None:
     m3_input = write_synthetic_m3(
         tmp_path / "m3",
@@ -351,3 +383,105 @@ def test_validate_m4_inputs_runs_active_definition_eligibility(
     )
     assert result.definitions == (definition,)
     assert len(result.links) == 2
+
+
+def test_composite_activation_uses_member_links_as_supporting_evidence(
+    tmp_path: Path,
+) -> None:
+    from dataclasses import replace
+
+    from test_capability_definition import _definition
+    from test_capability_evolution import _claim
+
+    from manafold_census.capability.claim import (
+        CompositionClaimV1,
+        CompositionComponentV1,
+    )
+    from manafold_census.capability.composition import CompositionContextV1
+    from manafold_census.capability.definition import CapabilityDefinitionV1
+    from manafold_census.capability.identity import (
+        capability_claim_digest_for,
+        capability_family_id_for,
+    )
+    from manafold_census.capability.model import CapabilityFamilyKeyV1, NucleusKindV1
+    from manafold_census.semantic.kinds import RequirementFamilyV1, RequirementKindV1
+
+    m3_input = write_synthetic_m3(
+        tmp_path / "m3",
+        records=(record_with_proposed_requirement(),),
+    )
+    corpus = load_m3_requirement_corpus(m3_input)
+    requirement = corpus.requirements[0]
+    draw = _definition(claim=_claim(kind=RequirementKindV1.DRAW_CARDS))
+    damage = _definition(claim=_claim(kind=RequirementKindV1.DEAL_DAMAGE))
+    family_key = CapabilityFamilyKeyV1(
+        "1",
+        NucleusKindV1.COMPOSITE,
+        (
+            (RequirementFamilyV1.EFFECT, RequirementKindV1.DRAW_CARDS),
+            (RequirementFamilyV1.EFFECT, RequirementKindV1.DEAL_DAMAGE),
+        ),
+    )
+    claim = _claim(
+        kind=RequirementKindV1.DRAW_CARDS,
+        family_key=family_key,
+        composition=CompositionClaimV1(
+            (
+                CompositionComponentV1("draw", draw.capability_ref, True, 0),
+                CompositionComponentV1("damage", damage.capability_ref, True, 1),
+            )
+        ),
+    )
+    composite = CapabilityDefinitionV1(
+        capability_family_id=capability_family_id_for(claim.family_key),
+        capability_version=claim.capability_version,
+        claim_digest=capability_claim_digest_for(claim),
+        claim=claim,
+        display_name="Synthetic composite Capability",
+        lifecycle=CapabilityLifecycleStateV1.ACTIVE,
+        provenance=CapabilityProvenanceV1(
+            corpus.m3_analysis_manifest_sha256,
+            (),
+            (CapabilityRequirementProvenanceV1.from_requirement(requirement),),
+        ),
+        review_ref="mrv_" + "0" * 64,
+    )
+    composite_review = CapabilityReviewRecordV1.create(
+        authority_id="m4.capability-review",
+        authority_version="1",
+        subject=CapabilityDefinitionReviewSubjectV1(
+            composite.capability_family_id,
+            composite.capability_version,
+            composite.claim_digest,
+        ),
+        decision=ReviewDecisionV1.ACCEPTED,
+        reviewer_id="maintainer:test",
+        generalization_basis=GeneralizationBasisV1.SINGLE_OBSERVATION_GENERALIZATION,
+    )
+    composite = replace(composite, review_ref=composite_review.record_id)
+    admissibility = SourceRequirementAdmissibilityV1.for_requirement(
+        requirement,
+        m3_analysis_manifest_sha256=corpus.m3_analysis_manifest_sha256,
+        authority_id="m4.source-requirement-admissibility",
+        authority_version="1",
+        reviewer_id="maintainer:test",
+    )
+    member = composition_member_link(
+        requirement=requirement,
+        capability=draw,
+        m3_manifest_sha256=corpus.m3_analysis_manifest_sha256,
+        admissibility=admissibility,
+        composition_context=CompositionContextV1(
+            "rcg_" + "a" * 64,
+            composite.capability_ref,
+            "draw",
+        ),
+    )
+    member = replace(member, review_ref="mrv_" + "f" * 64)
+
+    validate_activation_eligibility(
+        composite,
+        composite_review,
+        corpus,
+        (member,),
+    )

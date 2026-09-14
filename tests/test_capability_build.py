@@ -193,6 +193,35 @@ def test_existing_output_is_never_overwritten(tmp_path: Path) -> None:
     assert sentinel.read_bytes() == b"keep"
 
 
+def test_review_sort_key_places_subject_type_before_subject_wire_fields() -> None:
+    from manafold_census.capability.build import _review_key
+    from manafold_census.capability.review import (
+        CapabilityLinkReviewSubjectV1,
+        CapabilityReviewRecordV1,
+        EvolutionReviewSubjectV1,
+        ReviewDecisionV1,
+    )
+
+    link_review = CapabilityReviewRecordV1.create(
+        authority_id="m4.capability-review",
+        authority_version="1",
+        subject=CapabilityLinkReviewSubjectV1("rcl_" + "a" * 64, "b" * 64),
+        decision=ReviewDecisionV1.ACCEPTED,
+        reviewer_id="maintainer:test",
+        generalization_basis=None,
+    )
+    evolution_review = CapabilityReviewRecordV1.create(
+        authority_id="m4.capability-review",
+        authority_version="1",
+        subject=EvolutionReviewSubjectV1("cev_" + "c" * 64, "d" * 64),
+        decision=ReviewDecisionV1.ACCEPTED,
+        reviewer_id="maintainer:test",
+        generalization_basis=None,
+    )
+
+    assert _review_key(link_review) < _review_key(evolution_review)
+
+
 def test_semantic_relations_are_persisted_and_reread(tmp_path: Path) -> None:
     from dataclasses import replace
 

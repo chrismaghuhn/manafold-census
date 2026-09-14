@@ -56,6 +56,7 @@ def _capability_index(
     definitions: Sequence[CapabilityDefinitionV1],
 ) -> dict[CapabilityRefV1, CapabilityDefinitionV1]:
     result: dict[CapabilityRefV1, CapabilityDefinitionV1] = {}
+    family_versions: set[tuple[str, int]] = set()
     for definition in _typed(
         definitions, CapabilityDefinitionV1, "capability_definitions"
     ):
@@ -64,6 +65,10 @@ def _capability_index(
         reference = definition.capability_ref
         if reference in result:
             raise ValueError("duplicate Capability reference")
+        family_version = definition.capability_family_id, definition.capability_version
+        if family_version in family_versions:
+            raise ValueError("duplicate Capability family and version")
+        family_versions.add(family_version)
         result[reference] = definition
     return result
 
@@ -332,13 +337,11 @@ def validate_m4_inputs(
             review = review_by_id.get(definition.review_ref)
             if review is None or review.subject != subject:
                 raise ValueError("Capability definition review reference is invalid")
-        if definition.lifecycle is CapabilityLifecycleStateV1.ACTIVE:
-            validate_active_definition(
-                definition,
-                review_values,
-                selected_m3_manifest_sha256=corpus.m3_analysis_manifest_sha256,
-                selected_requirements=corpus.requirements,
-            )
+        if (
+            definition.lifecycle is CapabilityLifecycleStateV1.ACTIVE
+            and definition.review_ref is None
+        ):
+            raise ValueError("active definition requires accepted review")
     relations = sort_capability_relations(semantic_relations)
     for relation in relations:
         if CapabilityRelationV1.from_wire(relation.to_wire()) != relation:
@@ -359,8 +362,16 @@ def validate_m4_inputs(
         supporting = tuple(
             link
             for link in link_index.values()
-            if link.capability == definition.capability_ref
-            and link.review_ref is not None
+            if link.review_ref is not None
+            and (
+                link.capability == definition.capability_ref
+                if definition.claim.family_key.nucleus_kind is NucleusKindV1.ATOMIC
+                else (
+                    link.relation is LinkRelationV1.COMPOSITION_MEMBER
+                    and link.composition_context is not None
+                    and link.composition_context.composite == definition.capability_ref
+                )
+            )
         )
         validate_activation_eligibility(definition, review, corpus, supporting)
     decisions = _validate_decisions(
@@ -423,8 +434,18 @@ def validate_activation_eligibility(
             raise TypeError(
                 "supporting_links must contain RequirementCapabilityLinkV1 values"
             )
-        if link.capability != definition.capability_ref or link.review_ref is None:
-            raise ValueError("supporting link does not bind the active definition")
+        if definition.claim.family_key.nucleus_kind is NucleusKindV1.ATOMIC:
+            if link.capability != definition.capability_ref or link.review_ref is None:
+                raise ValueError("supporting link does not bind the active definition")
+        else:
+            context = link.composition_context
+            if (
+                link.relation is not LinkRelationV1.COMPOSITION_MEMBER
+                or context is None
+                or context.composite != definition.capability_ref
+                or link.review_ref is None
+            ):
+                raise ValueError("supporting link does not bind the active definition")
         requirement = requirements.get(link.requirement_id)
         if (
             requirement is None

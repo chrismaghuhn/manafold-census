@@ -38,22 +38,83 @@
       "anyOf": [{"type": "null"}, {"$ref": "#/$defs/digest"}]
     },
     "requirement_set_digest": {"$ref": "#/$defs/digest"},
-    "capability_file": {"$ref": "#/$defs/file_descriptor"},
-    "review_file": {"$ref": "#/$defs/file_descriptor"},
-    "relation_file": {"$ref": "#/$defs/file_descriptor"},
-    "admissibility_file": {"$ref": "#/$defs/file_descriptor"},
-    "evolution_file": {"$ref": "#/$defs/file_descriptor"},
+    "capability_file": {
+      "allOf": [
+        {"$ref": "#/$defs/file_descriptor"},
+        {"properties": {"relative_path": {"const": "capabilities.jsonl"}}}
+      ]
+    },
+    "review_file": {
+      "allOf": [
+        {"$ref": "#/$defs/file_descriptor"},
+        {"properties": {"relative_path": {"const": "review-authority.jsonl"}}}
+      ]
+    },
+    "relation_file": {
+      "allOf": [
+        {"$ref": "#/$defs/file_descriptor"},
+        {"properties": {"relative_path": {"const": "capability-relations.jsonl"}}}
+      ]
+    },
+    "admissibility_file": {
+      "allOf": [
+        {"$ref": "#/$defs/file_descriptor"},
+        {"properties": {"relative_path": {"const": "requirement-admissibility.jsonl"}}}
+      ]
+    },
+    "evolution_file": {
+      "allOf": [
+        {"$ref": "#/$defs/file_descriptor"},
+        {"properties": {"relative_path": {"const": "evolution.jsonl"}}}
+      ]
+    },
     "link_shards": {
       "type": "array",
       "minItems": 16,
       "maxItems": 16,
-      "items": {"$ref": "#/$defs/file_descriptor"}
+      "prefixItems": [
+        {"allOf": [{"$ref": "#/$defs/file_descriptor"}, {"properties": {"relative_path": {"const": "links/0.jsonl"}}}]},
+        {"allOf": [{"$ref": "#/$defs/file_descriptor"}, {"properties": {"relative_path": {"const": "links/1.jsonl"}}}]},
+        {"allOf": [{"$ref": "#/$defs/file_descriptor"}, {"properties": {"relative_path": {"const": "links/2.jsonl"}}}]},
+        {"allOf": [{"$ref": "#/$defs/file_descriptor"}, {"properties": {"relative_path": {"const": "links/3.jsonl"}}}]},
+        {"allOf": [{"$ref": "#/$defs/file_descriptor"}, {"properties": {"relative_path": {"const": "links/4.jsonl"}}}]},
+        {"allOf": [{"$ref": "#/$defs/file_descriptor"}, {"properties": {"relative_path": {"const": "links/5.jsonl"}}}]},
+        {"allOf": [{"$ref": "#/$defs/file_descriptor"}, {"properties": {"relative_path": {"const": "links/6.jsonl"}}}]},
+        {"allOf": [{"$ref": "#/$defs/file_descriptor"}, {"properties": {"relative_path": {"const": "links/7.jsonl"}}}]},
+        {"allOf": [{"$ref": "#/$defs/file_descriptor"}, {"properties": {"relative_path": {"const": "links/8.jsonl"}}}]},
+        {"allOf": [{"$ref": "#/$defs/file_descriptor"}, {"properties": {"relative_path": {"const": "links/9.jsonl"}}}]},
+        {"allOf": [{"$ref": "#/$defs/file_descriptor"}, {"properties": {"relative_path": {"const": "links/a.jsonl"}}}]},
+        {"allOf": [{"$ref": "#/$defs/file_descriptor"}, {"properties": {"relative_path": {"const": "links/b.jsonl"}}}]},
+        {"allOf": [{"$ref": "#/$defs/file_descriptor"}, {"properties": {"relative_path": {"const": "links/c.jsonl"}}}]},
+        {"allOf": [{"$ref": "#/$defs/file_descriptor"}, {"properties": {"relative_path": {"const": "links/d.jsonl"}}}]},
+        {"allOf": [{"$ref": "#/$defs/file_descriptor"}, {"properties": {"relative_path": {"const": "links/e.jsonl"}}}]},
+        {"allOf": [{"$ref": "#/$defs/file_descriptor"}, {"properties": {"relative_path": {"const": "links/f.jsonl"}}}]}
+      ],
+      "items": false
     },
     "mapping_decision_shards": {
       "type": "array",
       "minItems": 16,
       "maxItems": 16,
-      "items": {"$ref": "#/$defs/file_descriptor"}
+      "prefixItems": [
+        {"allOf": [{"$ref": "#/$defs/file_descriptor"}, {"properties": {"relative_path": {"const": "mapping-decisions/0.jsonl"}}}]},
+        {"allOf": [{"$ref": "#/$defs/file_descriptor"}, {"properties": {"relative_path": {"const": "mapping-decisions/1.jsonl"}}}]},
+        {"allOf": [{"$ref": "#/$defs/file_descriptor"}, {"properties": {"relative_path": {"const": "mapping-decisions/2.jsonl"}}}]},
+        {"allOf": [{"$ref": "#/$defs/file_descriptor"}, {"properties": {"relative_path": {"const": "mapping-decisions/3.jsonl"}}}]},
+        {"allOf": [{"$ref": "#/$defs/file_descriptor"}, {"properties": {"relative_path": {"const": "mapping-decisions/4.jsonl"}}}]},
+        {"allOf": [{"$ref": "#/$defs/file_descriptor"}, {"properties": {"relative_path": {"const": "mapping-decisions/5.jsonl"}}}]},
+        {"allOf": [{"$ref": "#/$defs/file_descriptor"}, {"properties": {"relative_path": {"const": "mapping-decisions/6.jsonl"}}}]},
+        {"allOf": [{"$ref": "#/$defs/file_descriptor"}, {"properties": {"relative_path": {"const": "mapping-decisions/7.jsonl"}}}]},
+        {"allOf": [{"$ref": "#/$defs/file_descriptor"}, {"properties": {"relative_path": {"const": "mapping-decisions/8.jsonl"}}}]},
+        {"allOf": [{"$ref": "#/$defs/file_descriptor"}, {"properties": {"relative_path": {"const": "mapping-decisions/9.jsonl"}}}]},
+        {"allOf": [{"$ref": "#/$defs/file_descriptor"}, {"properties": {"relative_path": {"const": "mapping-decisions/a.jsonl"}}}]},
+        {"allOf": [{"$ref": "#/$defs/file_descriptor"}, {"properties": {"relative_path": {"const": "mapping-decisions/b.jsonl"}}}]},
+        {"allOf": [{"$ref": "#/$defs/file_descriptor"}, {"properties": {"relative_path": {"const": "mapping-decisions/c.jsonl"}}}]},
+        {"allOf": [{"$ref": "#/$defs/file_descriptor"}, {"properties": {"relative_path": {"const": "mapping-decisions/d.jsonl"}}}]},
+        {"allOf": [{"$ref": "#/$defs/file_descriptor"}, {"properties": {"relative_path": {"const": "mapping-decisions/e.jsonl"}}}]},
+        {"allOf": [{"$ref": "#/$defs/file_descriptor"}, {"properties": {"relative_path": {"const": "mapping-decisions/f.jsonl"}}}]}
+      ],
+      "items": false
     }
   },
   "$defs": {
