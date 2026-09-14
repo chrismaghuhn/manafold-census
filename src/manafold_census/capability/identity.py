@@ -2,7 +2,14 @@
 
 from __future__ import annotations
 
+import re
+from collections.abc import Sequence
+from typing import cast
+
+from ..canonical import JSONValue
 from ..digest import domain_digest
+from ..semantic.identity import wire_digest_for
+from ..semantic.model import RequirementV1
 from .claim import CapabilityClaimV1
 from .model import CapabilityFamilyKeyV1, CapabilityRefV1
 
@@ -14,6 +21,8 @@ ADMISSIBILITY_PREFIX = "sra_"
 LINK_CLAIM_DOMAIN = "census.requirement-capability-link.v1"
 LINK_ID_DOMAIN = "census.requirement-capability-link-id.v1"
 LINK_ID_PREFIX = "rcl_"
+REQUIREMENT_SET_DOMAIN = "census.m4-requirement-set.v1"
+_DIGEST_PATTERN = re.compile(r"^[0-9a-f]{64}$")
 
 
 def capability_family_id_for(key: CapabilityFamilyKeyV1) -> str:
@@ -44,6 +53,51 @@ def capability_ref_for(claim: CapabilityClaimV1) -> CapabilityRefV1:
     )
 
 
+def requirement_set_digest_for(
+    m3_manifest_sha256: str,
+    requirements: Sequence[RequirementV1],
+) -> str:
+    """Digest one exact frozen M3 snapshot and its consumed Requirement wires."""
+
+    if (
+        not isinstance(m3_manifest_sha256, str)
+        or _DIGEST_PATTERN.fullmatch(m3_manifest_sha256) is None
+    ):
+        raise ValueError("m3_manifest_sha256 must be a lowercase SHA-256 digest")
+    if not isinstance(requirements, Sequence) or isinstance(requirements, str | bytes):
+        raise TypeError("requirements must be a sequence")
+    entries: list[dict[str, JSONValue]] = []
+    seen: dict[str, str] = {}
+    for requirement in requirements:
+        if not isinstance(requirement, RequirementV1):
+            raise TypeError("requirements must contain RequirementV1 values")
+        requirement_id = requirement.requirement_id
+        requirement_wire_digest = wire_digest_for(requirement)
+        previous = seen.get(requirement_id)
+        if previous is not None:
+            if previous != requirement_wire_digest:
+                raise ValueError("duplicate Requirement ID has a different wire digest")
+            raise ValueError("requirement set contains a duplicate Requirement ID")
+        seen[requirement_id] = requirement_wire_digest
+        entries.append(
+            {
+                "requirement_id": requirement_id,
+                "requirement_wire_digest": requirement_wire_digest,
+            }
+        )
+    entries.sort(key=lambda item: cast(str, item["requirement_id"]))
+    return domain_digest(
+        REQUIREMENT_SET_DOMAIN,
+        cast(
+            JSONValue,
+            {
+                "m3_analysis_manifest_sha256": m3_manifest_sha256,
+                "requirements": entries,
+            },
+        ),
+    )
+
+
 __all__ = [
     "CLAIM_DIGEST_DOMAIN",
     "ADMISSIBILITY_DOMAIN",
@@ -53,7 +107,9 @@ __all__ = [
     "LINK_CLAIM_DOMAIN",
     "LINK_ID_DOMAIN",
     "LINK_ID_PREFIX",
+    "REQUIREMENT_SET_DOMAIN",
     "capability_claim_digest_for",
     "capability_family_id_for",
     "capability_ref_for",
+    "requirement_set_digest_for",
 ]
