@@ -142,6 +142,20 @@ def test_known_binding_is_canonicalized_as_the_typed_m2_value() -> None:
     assert binding.value == {"mode": "exact", "value": 2}
 
 
+def test_known_binding_rejects_a_semantically_unknown_m2_value() -> None:
+    with pytest.raises(ValueError, match="unknown M2 value"):
+        ParameterBindingV1.known(
+            M2DimensionPathV1.DRAW_CARDS_QUANTITY,
+            {
+                "mode": "unknown",
+                "value": {
+                    "reason": "UNKNOWN_SEMANTICS",
+                    "hint": None,
+                },
+            },
+        )
+
+
 def test_binding_recompute_matches_the_exact_requirement_value() -> None:
     requirement = _draw_requirement(QuantityV1(QuantityModeV1.EXACT, 2))
     matching = ParameterBindingV1.known(
@@ -156,6 +170,17 @@ def test_binding_recompute_matches_the_exact_requirement_value() -> None:
     )
     with pytest.raises(ValueError, match="does not match"):
         validate_binding_against_requirement(requirement, stale)
+
+
+def test_known_binding_cannot_bind_an_unknown_requirement_value() -> None:
+    requirement = _unknown_draw_requirement()
+    binding = ParameterBindingV1.known(
+        M2DimensionPathV1.DRAW_CARDS_QUANTITY,
+        {"mode": "exact", "value": 2},
+    )
+
+    with pytest.raises(ValueError, match="unknown Requirement value"):
+        validate_binding_against_requirement(requirement, binding)
 
 
 def test_binding_recompute_rejects_a_cross_kind_path() -> None:

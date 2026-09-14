@@ -33,14 +33,18 @@ def _typed_known_value(path_key: M2DimensionPathV1, value: object) -> JSONValue:
     spec = dimension_spec_for(path_key)
     value_type = spec.value_type
     if value_type is bool:
-        canonical: JSONValue = _require_bool("binding.value", value)
+        parsed_value: object = _require_bool("binding.value", value)
+        canonical: JSONValue = cast(bool, parsed_value)
     elif isinstance(value_type, type) and issubclass(value_type, StrEnum):
-        canonical = _require_enum("binding.value", value, value_type).value
+        parsed_value = _require_enum("binding.value", value, value_type)
+        canonical = cast(StrEnum, parsed_value).value
     elif isinstance(value_type, type) and issubclass(value_type, _WireModel):
-        parsed = value_type.from_wire(value)
-        canonical = cast(JSONValue, parsed.to_wire())
+        parsed_value = value_type.from_wire(value)
+        canonical = cast(JSONValue, parsed_value.to_wire())
     else:
         raise TypeError("registered M2 value type is not supported")
+    if _contains_unknown(parsed_value):
+        raise ValueError("KNOWN binding cannot contain an unknown M2 value")
     if canonical_json_bytes(canonical) != canonical_json_bytes(value):
         raise ValueError("binding value is not canonical for the registered M2 path")
     return canonical
@@ -181,6 +185,8 @@ def validate_binding_against_requirement(
     actual_value = parameters[field]
     actual_typed_value = getattr(requirement.parameters, field)
     if binding.state is BindingStateV1.KNOWN:
+        if _contains_unknown(actual_typed_value):
+            raise ValueError("KNOWN binding cannot bind an unknown Requirement value")
         if actual_value is None:
             raise ValueError("KNOWN binding cannot represent an M2 null value")
         expected = _typed_known_value(binding.path_key, actual_value)
