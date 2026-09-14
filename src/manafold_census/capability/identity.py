@@ -9,6 +9,8 @@ from .model import CapabilityFamilyKeyV1, CapabilityRefV1
 FAMILY_ID_DOMAIN = "census.capability-family-id.v1"
 FAMILY_ID_PREFIX = "capfam_"
 CLAIM_DIGEST_DOMAIN = "census.capability-claim.v1"
+ADMISSIBILITY_DOMAIN = "census.source-requirement-admissibility.v1"
+ADMISSIBILITY_PREFIX = "sra_"
 
 
 def capability_family_id_for(key: CapabilityFamilyKeyV1) -> str:
@@ -41,6 +43,8 @@ def capability_ref_for(claim: CapabilityClaimV1) -> CapabilityRefV1:
 
 __all__ = [
     "CLAIM_DIGEST_DOMAIN",
+    "ADMISSIBILITY_DOMAIN",
+    "ADMISSIBILITY_PREFIX",
     "FAMILY_ID_DOMAIN",
     "FAMILY_ID_PREFIX",
     "capability_claim_digest_for",

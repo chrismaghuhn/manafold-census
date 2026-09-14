@@ -1,0 +1,114 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://manafold-census.invalid/schemas/source-requirement-admissibility.v1.schema.json",
+  "title": "Manafold Census Source Requirement Admissibility V1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "authority_id",
+    "authority_version",
+    "record_id",
+    "review_digest",
+    "m3_analysis_manifest_sha256",
+    "requirement_id",
+    "requirement_wire_digest",
+    "m2_review_status_observed",
+    "m2_resolution_state_observed",
+    "m2_reviewed_claim_digest",
+    "decision",
+    "reviewer_id"
+  ],
+  "properties": {
+    "schema": {
+      "const": "census.source-requirement-admissibility.v1"
+    },
+    "authority_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "authority_version": {
+      "type": "string",
+      "minLength": 1
+    },
+    "record_id": {
+      "type": "string",
+      "pattern": "^sra_[0-9a-f]{64}$"
+    },
+    "review_digest": {
+      "$ref": "#/$defs/digest"
+    },
+    "m3_analysis_manifest_sha256": {
+      "$ref": "#/$defs/digest"
+    },
+    "requirement_id": {
+      "$ref": "#/$defs/requirement_id"
+    },
+    "requirement_wire_digest": {
+      "$ref": "#/$defs/digest"
+    },
+    "m2_review_status_observed": {
+      "enum": [
+        "PROPOSED",
+        "IN_REVIEW",
+        "ACCEPTED",
+        "REJECTED"
+      ]
+    },
+    "m2_resolution_state_observed": {
+      "enum": [
+        "COMPLETE",
+        "PARTIAL",
+        "UNRESOLVED"
+      ]
+    },
+    "m2_reviewed_claim_digest": {
+      "$ref": "#/$defs/digest"
+    },
+    "decision": {
+      "enum": [
+        "ACCEPTED_FOR_CAPABILITY_MAPPING",
+        "REJECTED_FOR_CAPABILITY_MAPPING"
+      ]
+    },
+    "reviewer_id": {
+      "type": "string",
+      "minLength": 1
+    }
+  },
+  "oneOf": [
+    {
+      "properties": {
+        "decision": {
+          "const": "ACCEPTED_FOR_CAPABILITY_MAPPING"
+        },
+        "m2_review_status_observed": {
+          "enum": [
+            "PROPOSED",
+            "IN_REVIEW"
+          ]
+        },
+        "m2_resolution_state_observed": {
+          "const": "COMPLETE"
+        }
+      }
+    },
+    {
+      "properties": {
+        "decision": {
+          "const": "REJECTED_FOR_CAPABILITY_MAPPING"
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "digest": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "requirement_id": {
+      "type": "string",
+      "pattern": "^srq_[0-9a-f]{64}$"
+    }
+  }
+}

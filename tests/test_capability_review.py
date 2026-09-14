@@ -188,3 +188,16 @@ def test_review_subject_rejects_wrong_capability_ref_shape() -> None:
         1,
         CLAIM_DIGEST,
     )
+
+
+def test_source_requirement_admissibility_is_not_a_capability_review_subject() -> None:
+    assert "SOURCE_REQUIREMENT_ADMISSIBILITY" not in {
+        kind.value for kind in ReviewSubjectKindV1
+    }
+    wire = _record().to_wire()
+    subject = wire["subject"]
+    assert isinstance(subject, dict)
+    subject["type"] = "SOURCE_REQUIREMENT_ADMISSIBILITY"
+
+    with pytest.raises(ValueError, match="subject type"):
+        CapabilityReviewRecordV1.from_wire(wire)
