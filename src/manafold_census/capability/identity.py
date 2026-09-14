@@ -11,6 +11,9 @@ FAMILY_ID_PREFIX = "capfam_"
 CLAIM_DIGEST_DOMAIN = "census.capability-claim.v1"
 ADMISSIBILITY_DOMAIN = "census.source-requirement-admissibility.v1"
 ADMISSIBILITY_PREFIX = "sra_"
+LINK_CLAIM_DOMAIN = "census.requirement-capability-link.v1"
+LINK_ID_DOMAIN = "census.requirement-capability-link-id.v1"
+LINK_ID_PREFIX = "rcl_"
 
 
 def capability_family_id_for(key: CapabilityFamilyKeyV1) -> str:
@@ -47,6 +50,9 @@ __all__ = [
     "ADMISSIBILITY_PREFIX",
     "FAMILY_ID_DOMAIN",
     "FAMILY_ID_PREFIX",
+    "LINK_CLAIM_DOMAIN",
+    "LINK_ID_DOMAIN",
+    "LINK_ID_PREFIX",
     "capability_claim_digest_for",
     "capability_family_id_for",
     "capability_ref_for",

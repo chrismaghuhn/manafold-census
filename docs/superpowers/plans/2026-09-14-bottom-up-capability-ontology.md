@@ -249,7 +249,8 @@ by this planning task.
 | src/manafold_census/capability/definition.py | Future Capability definition lifecycle and activation seam |
 | src/manafold_census/capability/review.py | Generic M4 review authority and closed review subjects |
 | src/manafold_census/capability/admissibility.py | SOURCE_REQUIREMENT_ADMISSIBILITY authority and exact M3/M2 binding |
-| src/manafold_census/capability/link.py | Exact Requirement-to-Capability links and one-row mapping dispositions |
+| src/manafold_census/capability/link.py | Exact Requirement-to-Capability link wire, identity, and construction |
+| src/manafold_census/capability/mapping.py | Active-link validation, cardinality, and one-row mapping dispositions |
 | src/manafold_census/capability/evolution.py | Composition, dependency, specialization, and append-only evolution records |
 | src/manafold_census/capability/input.py | Frozen M3 manifest loading and actual Requirement extraction |
 | src/manafold_census/capability/manifest.py | M4 file descriptors, shard identity, and ontology manifest |
@@ -259,8 +260,8 @@ by this planning task.
 | src/manafold_census/capability/report.py | Derived reports only; never an authority input |
 
 Every production module remains at or below the existing 500-line budget.
-identity.py, dimensions.py, claim.py, binding.py, link.py, and validate.py are
-deep module seams:
+identity.py, dimensions.py, claim.py, binding.py, link.py, mapping.py, and
+validate.py are deep module seams:
 callers provide typed values and frozen inputs, while canonicalization,
 binding, and failure rules remain behind small interfaces.
 
@@ -1477,6 +1478,7 @@ Expected: no real M3 file, Requirement, or authority record is created.
 **Files:**
 
 - Create: src/manafold_census/capability/link.py
+- Create: src/manafold_census/capability/mapping.py
 - Modify: src/manafold_census/capability/identity.py
 - Create: schemas/requirement-capability-link.v1.schema.json
 - Create: schemas/requirement-mapping-decision.v1.schema.json
@@ -1543,7 +1545,8 @@ Expected: collection fails because link and mapping modules do not exist.
 
 ### Step 2: Implement link identity and relation values
 
-Implement:
+Implement the link wire and identity in link.py; implement active-link
+validation and mapping dispositions in mapping.py:
 
 ~~~python
 class LinkRelationV1(StrEnum):
@@ -1665,7 +1668,7 @@ python -m pytest tests/test_capability_link.py -q
 ruff format --check src/manafold_census/capability tests/test_capability_link.py
 ruff check src/manafold_census/capability tests/test_capability_link.py
 mypy src/manafold_census/capability
-git add src/manafold_census/capability/link.py src/manafold_census/capability/identity.py tests/test_capability_link.py schemas/requirement-capability-link.v1.schema.json schemas/requirement-mapping-decision.v1.schema.json
+git add src/manafold_census/capability/link.py src/manafold_census/capability/mapping.py src/manafold_census/capability/identity.py tests/test_capability_link.py schemas/requirement-capability-link.v1.schema.json schemas/requirement-mapping-decision.v1.schema.json
 git diff --cached --check
 git commit -m "feat: add M4 requirement capability links"
 ~~~

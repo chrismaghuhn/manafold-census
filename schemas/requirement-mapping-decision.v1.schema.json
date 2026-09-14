@@ -1,0 +1,165 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://manafold-census.invalid/schemas/requirement-mapping-decision.v1.schema.json",
+  "title": "Manafold Census Requirement Mapping Decision V1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "m3_analysis_manifest_sha256",
+    "requirement_id",
+    "requirement_wire_digest",
+    "disposition",
+    "active_link_ids",
+    "candidate_link_claims",
+    "reason",
+    "review_ref"
+  ],
+  "properties": {
+    "schema": {
+      "const": "census.requirement-mapping-decision.v1"
+    },
+    "m3_analysis_manifest_sha256": {
+      "$ref": "#/$defs/digest"
+    },
+    "requirement_id": {
+      "$ref": "#/$defs/requirement_id"
+    },
+    "requirement_wire_digest": {
+      "$ref": "#/$defs/digest"
+    },
+    "disposition": {
+      "enum": [
+        "MAPPED",
+        "UNMAPPED",
+        "AMBIGUOUS",
+        "OUTLIER",
+        "INSUFFICIENT_EVIDENCE"
+      ]
+    },
+    "active_link_ids": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "pattern": "^rcl_[0-9a-f]{64}$"
+      }
+    },
+    "candidate_link_claims": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/digest"
+      }
+    },
+    "reason": {
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "enum": [
+            "NO_REVIEWED_CAPABILITY",
+            "M2_REVIEW_NOT_TERMINAL",
+            "M4_ADMISSIBILITY_REVIEW_PENDING",
+            "M2_RESOLUTION_INCOMPLETE",
+            "MULTIPLE_PLAUSIBLE_CAPABILITIES",
+            "NO_REUSABLE_GENERALIZATION",
+            "SPECIAL_CASE",
+            "EXPLICIT_REVIEW_CONFLICT"
+          ]
+        }
+      ]
+    },
+    "review_ref": {
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "string",
+          "pattern": "^mrv_[0-9a-f]{64}$"
+        }
+      ]
+    }
+  },
+  "oneOf": [
+    {
+      "properties": {
+        "disposition": {
+          "const": "MAPPED"
+        },
+        "active_link_ids": {
+          "minItems": 1
+        },
+        "reason": {
+          "type": "null"
+        }
+      }
+    },
+    {
+      "properties": {
+        "disposition": {
+          "enum": [
+            "UNMAPPED",
+            "INSUFFICIENT_EVIDENCE"
+          ]
+        },
+        "active_link_ids": {
+          "const": []
+        },
+        "reason": {
+          "enum": [
+            "NO_REVIEWED_CAPABILITY",
+            "M2_REVIEW_NOT_TERMINAL",
+            "M4_ADMISSIBILITY_REVIEW_PENDING",
+            "M2_RESOLUTION_INCOMPLETE",
+            "MULTIPLE_PLAUSIBLE_CAPABILITIES",
+            "NO_REUSABLE_GENERALIZATION",
+            "SPECIAL_CASE",
+            "EXPLICIT_REVIEW_CONFLICT"
+          ]
+        }
+      }
+    },
+    {
+      "properties": {
+        "disposition": {
+          "enum": [
+            "AMBIGUOUS",
+            "OUTLIER"
+          ]
+        },
+        "active_link_ids": {
+          "const": []
+        },
+        "reason": {
+          "enum": [
+            "NO_REVIEWED_CAPABILITY",
+            "M2_REVIEW_NOT_TERMINAL",
+            "M4_ADMISSIBILITY_REVIEW_PENDING",
+            "M2_RESOLUTION_INCOMPLETE",
+            "MULTIPLE_PLAUSIBLE_CAPABILITIES",
+            "NO_REUSABLE_GENERALIZATION",
+            "SPECIAL_CASE",
+            "EXPLICIT_REVIEW_CONFLICT"
+          ]
+        },
+        "review_ref": {
+          "type": "string",
+          "pattern": "^mrv_[0-9a-f]{64}$"
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "digest": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "requirement_id": {
+      "type": "string",
+      "pattern": "^srq_[0-9a-f]{64}$"
+    }
+  }
+}

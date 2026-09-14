@@ -1,0 +1,297 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://manafold-census.invalid/schemas/requirement-capability-link.v1.schema.json",
+  "title": "Manafold Census Requirement Capability Link V1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "link_id",
+    "link_claim_digest",
+    "link_schema",
+    "m3_analysis_manifest_sha256",
+    "requirement_id",
+    "requirement_wire_digest",
+    "requirement_reviewed_claim_digest",
+    "capability",
+    "relation",
+    "parameter_bindings",
+    "m4_requirement_admissibility",
+    "composition_context",
+    "review_ref"
+  ],
+  "properties": {
+    "link_id": {
+      "type": "string",
+      "pattern": "^rcl_[0-9a-f]{64}$"
+    },
+    "link_claim_digest": {
+      "$ref": "#/$defs/digest"
+    },
+    "link_schema": {
+      "const": "census.requirement-capability-link.v1"
+    },
+    "m3_analysis_manifest_sha256": {
+      "$ref": "#/$defs/digest"
+    },
+    "requirement_id": {
+      "$ref": "#/$defs/requirement_id"
+    },
+    "requirement_wire_digest": {
+      "$ref": "#/$defs/digest"
+    },
+    "requirement_reviewed_claim_digest": {
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "$ref": "#/$defs/digest"
+        }
+      ]
+    },
+    "capability": {
+      "$ref": "#/$defs/capability_ref"
+    },
+    "relation": {
+      "enum": [
+        "DIRECT",
+        "COMPOSITION_MEMBER"
+      ]
+    },
+    "parameter_bindings": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/parameter_binding"
+      }
+    },
+    "m4_requirement_admissibility": {
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "$ref": "#/$defs/link_admissibility"
+        }
+      ]
+    },
+    "composition_context": {
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "$ref": "#/$defs/composition_context"
+        }
+      ]
+    },
+    "review_ref": {
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "string",
+          "pattern": "^mrv_[0-9a-f]{64}$"
+        }
+      ]
+    }
+  },
+  "$defs": {
+    "digest": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "requirement_id": {
+      "type": "string",
+      "pattern": "^srq_[0-9a-f]{64}$"
+    },
+    "capability_ref": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "capability_family_id",
+        "capability_version",
+        "claim_digest"
+      ],
+      "properties": {
+        "capability_family_id": {
+          "type": "string",
+          "pattern": "^capfam_[0-9a-f]{64}$"
+        },
+        "capability_version": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9223372036854775807
+        },
+        "claim_digest": {
+          "$ref": "#/$defs/digest"
+        }
+      }
+    },
+    "parameter_binding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path_key",
+        "binding"
+      ],
+      "properties": {
+        "path_key": {
+          "type": "string",
+          "pattern": "^[A-Z0-9_]+$"
+        },
+        "binding": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/known_binding"
+            },
+            {
+              "$ref": "#/$defs/unknown_binding"
+            },
+            {
+              "$ref": "#/$defs/not_applicable_binding"
+            }
+          ]
+        }
+      }
+    },
+    "known_binding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "state",
+        "value"
+      ],
+      "properties": {
+        "state": {
+          "const": "KNOWN"
+        },
+        "value": {}
+      }
+    },
+    "unknown_binding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "state",
+        "reason",
+        "m2_unknown_path"
+      ],
+      "properties": {
+        "state": {
+          "const": "UNKNOWN"
+        },
+        "reason": {
+          "enum": [
+            "INSUFFICIENT_EVIDENCE",
+            "AMBIGUOUS_SOURCE",
+            "UNSUPPORTED_SHAPE",
+            "CONFLICTING_INTERPRETATIONS",
+            "UNKNOWN_SEMANTICS"
+          ]
+        },
+        "m2_unknown_path": {
+          "type": "string",
+          "pattern": "^/(?:kind|parameters(?:[./].*)?)$"
+        }
+      }
+    },
+    "not_applicable_binding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "state"
+      ],
+      "properties": {
+        "state": {
+          "const": "NOT_APPLICABLE"
+        }
+      }
+    },
+    "link_admissibility": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "basis",
+        "record_id",
+        "review_digest"
+      ],
+      "properties": {
+        "basis": {
+          "enum": [
+            "M2_TERMINAL_ACCEPTANCE",
+            "SOURCE_REQUIREMENT_ADMISSIBILITY"
+          ]
+        },
+        "record_id": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "string",
+              "pattern": "^sra_[0-9a-f]{64}$"
+            }
+          ]
+        },
+        "review_digest": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/digest"
+            }
+          ]
+        }
+      },
+      "oneOf": [
+        {
+          "properties": {
+            "basis": {
+              "const": "M2_TERMINAL_ACCEPTANCE"
+            },
+            "record_id": {
+              "type": "null"
+            },
+            "review_digest": {
+              "type": "null"
+            }
+          }
+        },
+        {
+          "properties": {
+            "basis": {
+              "const": "SOURCE_REQUIREMENT_ADMISSIBILITY"
+            },
+            "record_id": {
+              "type": "string",
+              "pattern": "^sra_[0-9a-f]{64}$"
+            },
+            "review_digest": {
+              "$ref": "#/$defs/digest"
+            }
+          }
+        }
+      ]
+    },
+    "composition_context": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "composite",
+        "component_key"
+      ],
+      "properties": {
+        "composite": {
+          "$ref": "#/$defs/capability_ref"
+        },
+        "component_key": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    }
+  }
+}
