@@ -452,8 +452,6 @@ def validate_activation_eligibility(
             or wire_digest_for(requirement) != link.requirement_wire_digest
         ):
             raise ValueError("supporting link Requirement is stale or unknown")
-        if requirement.requirement_id in seen:
-            raise ValueError("supporting links contain a duplicate Requirement")
         if requirement.resolution.state is not ResolutionStateV1.COMPLETE:
             raise ValueError("supporting Requirement is not complete")
         route = link.m4_requirement_admissibility
@@ -475,8 +473,9 @@ def validate_activation_eligibility(
                 raise ValueError("supporting link lacks source admissibility")
         else:
             raise ValueError("supporting Requirement is rejected")
-        seen.add(requirement.requirement_id)
-        admitted.append(requirement)
+        if requirement.requirement_id not in seen:
+            seen.add(requirement.requirement_id)
+            admitted.append(requirement)
     basis = definition_review.generalization_basis
     if basis is None:
         raise ValueError("active definition requires generalization_basis")
