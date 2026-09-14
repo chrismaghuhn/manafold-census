@@ -51,3 +51,39 @@ def test_project_data_root_contains_all_required_m3_analysis_fixtures() -> None:
         path = root / "fixtures" / "analysis" / fixture_name
         assert path.is_file()
         assert isinstance(json.loads(path.read_text(encoding="utf-8")), object)
+
+
+def test_project_data_root_contains_all_m4_schema_resources() -> None:
+    root = project_data_root()
+    for schema_name in (
+        "capability-claim.v1.schema.json",
+        "capability-definition.v1.schema.json",
+        "capability-evolution.v1.schema.json",
+        "capability-ontology-manifest.v1.schema.json",
+        "capability-relations.v1.schema.json",
+        "capability-review.v1.schema.json",
+        "capability-candidate-cluster.v1.schema.json",
+        "candidate-grouping-policy.v1.schema.json",
+        "requirement-capability-link.v1.schema.json",
+        "requirement-mapping-decision.v1.schema.json",
+        "source-requirement-admissibility.v1.schema.json",
+        "capability-report.v1.schema.json",
+    ):
+        path = root / "schemas" / schema_name
+        assert path.is_file()
+        assert json.loads(path.read_text(encoding="utf-8"))["$schema"] == (
+            "https://json-schema.org/draft/2020-12/schema"
+        )
+
+
+def test_project_data_root_contains_synthetic_m4_fixtures() -> None:
+    root = project_data_root()
+    fixtures = sorted((root / "fixtures" / "capability").glob("*.json"))
+
+    assert fixtures
+    for path in fixtures:
+        document = json.loads(path.read_text(encoding="utf-8"))
+        assert isinstance(document, dict)
+        assert document["real_corpus"] is False
+        assert document["real_requirement_mapping"] is False
+        assert document["real_capability_activation"] is False

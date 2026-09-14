@@ -1,0 +1,379 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://manafold-census.invalid/schemas/capability-report.v1.schema.json",
+  "title": "Manafold Census M4 Capability Report and Report Index V1",
+  "oneOf": [
+    {"$ref": "#/$defs/report"},
+    {"$ref": "#/$defs/report_index"}
+  ],
+  "$defs": {
+    "digest": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "count": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 9223372036854775807
+    },
+    "nullable_count": {
+      "anyOf": [
+        {"$ref": "#/$defs/count"},
+        {"type": "null"}
+      ]
+    },
+    "capability_ref": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "capability_family_id",
+        "capability_version",
+        "claim_digest"
+      ],
+      "properties": {
+        "capability_family_id": {
+          "type": "string",
+          "pattern": "^capfam_[0-9a-f]{64}$"
+        },
+        "capability_version": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9223372036854775807
+        },
+        "claim_digest": {"$ref": "#/$defs/digest"}
+      }
+    },
+    "report_descriptor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["relative_path", "sha256", "byte_length"],
+      "properties": {
+        "relative_path": {
+          "type": "string",
+          "pattern": "^reports/[^/]+\\.json$"
+        },
+        "sha256": {"$ref": "#/$defs/digest"},
+        "byte_length": {"$ref": "#/$defs/count"}
+      }
+    },
+    "m3_context": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "m3_analysis_manifest_sha256",
+        "requirement_set_digest",
+        "m3_record_count",
+        "requirements_produced_card_count",
+        "no_requirements_applicable_count",
+        "unresolved_analysis_count",
+        "persisted_requirement_count",
+        "complete"
+      ],
+      "properties": {
+        "m3_analysis_manifest_sha256": {"$ref": "#/$defs/digest"},
+        "requirement_set_digest": {"$ref": "#/$defs/digest"},
+        "m3_record_count": {"$ref": "#/$defs/nullable_count"},
+        "requirements_produced_card_count": {
+          "$ref": "#/$defs/nullable_count"
+        },
+        "no_requirements_applicable_count": {
+          "$ref": "#/$defs/nullable_count"
+        },
+        "unresolved_analysis_count": {"$ref": "#/$defs/nullable_count"},
+        "persisted_requirement_count": {"$ref": "#/$defs/count"},
+        "complete": {"type": "boolean"}
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"complete": {"const": true}}},
+          "then": {
+            "properties": {
+              "m3_record_count": {"$ref": "#/$defs/count"},
+              "requirements_produced_card_count": {"$ref": "#/$defs/count"},
+              "no_requirements_applicable_count": {"$ref": "#/$defs/count"},
+              "unresolved_analysis_count": {"$ref": "#/$defs/count"}
+            }
+          }
+        },
+        {
+          "if": {"properties": {"complete": {"const": false}}},
+          "then": {
+            "properties": {
+              "m3_record_count": {"const": null},
+              "requirements_produced_card_count": {"const": null},
+              "no_requirements_applicable_count": {"const": null},
+              "unresolved_analysis_count": {"const": null}
+            }
+          }
+        }
+      ]
+    },
+    "path_key": {
+      "enum": [
+        "DRAW_CARDS_DRAWER",
+        "DRAW_CARDS_QUANTITY",
+        "MOVE_BETWEEN_ZONES_SUBJECT",
+        "MOVE_BETWEEN_ZONES_FROM_ZONE",
+        "MOVE_BETWEEN_ZONES_TO_ZONE",
+        "MOVE_BETWEEN_ZONES_QUANTITY",
+        "MOVE_BETWEEN_ZONES_CAUSE",
+        "CREATE_OBJECT_OBJECT_CLASS",
+        "CREATE_OBJECT_QUANTITY",
+        "CREATE_OBJECT_DURATION",
+        "SELECT_CHOOSER",
+        "SELECT_SUBJECT_KIND",
+        "SELECT_QUANTITY",
+        "SELECT_RESTRICTION",
+        "SELECT_TARGETING",
+        "MODIFY_CHARACTERISTIC_SUBJECT",
+        "MODIFY_CHARACTERISTIC_CHARACTERISTIC",
+        "MODIFY_CHARACTERISTIC_OPERATION",
+        "MODIFY_CHARACTERISTIC_VALUE",
+        "APPLY_CONTINUOUS_EFFECT_SUBJECT",
+        "APPLY_CONTINUOUS_EFFECT_DURATION",
+        "APPLY_CONTINUOUS_EFFECT_EFFECT",
+        "SEARCH_ZONE_SEARCHER",
+        "SEARCH_ZONE_ZONE",
+        "SEARCH_ZONE_SELECTION",
+        "SEARCH_ZONE_DESTINATION",
+        "SEARCH_ZONE_REVEAL",
+        "DEAL_DAMAGE_SOURCE",
+        "DEAL_DAMAGE_RECIPIENT",
+        "DEAL_DAMAGE_AMOUNT",
+        "CREATE_DELAYED_EFFECT_DELAY",
+        "CREATE_DELAYED_EFFECT_EFFECT",
+        "TRIGGER_FROM_EVENT_EVENT",
+        "TRIGGER_FROM_EVENT_CONTROLLER",
+        "TRIGGER_FROM_EVENT_CONDITION",
+        "REPLACE_EVENT_EVENT",
+        "REPLACE_EVENT_REPLACEMENT",
+        "PAY_COST_PAYER",
+        "PAY_COST_COST",
+        "MODIFY_COST_SUBJECT",
+        "MODIFY_COST_COST",
+        "MODIFY_COST_OPERATION",
+        "CHOOSE_MODE_CHOOSER",
+        "CHOOSE_MODE_MINIMUM",
+        "CHOOSE_MODE_MAXIMUM",
+        "CONDITIONAL_EFFECT_CONDITION",
+        "CONDITIONAL_EFFECT_THEN_EFFECT",
+        "CONDITIONAL_EFFECT_ELSE_EFFECT",
+        "KEYWORD_REFERENCE_EXPANSION"
+      ]
+    },
+    "capability_family": {
+      "enum": [
+        "effect",
+        "event",
+        "choice",
+        "cost",
+        "control",
+        "reference",
+        "unknown"
+      ]
+    },
+    "requirement_kind": {
+      "enum": [
+        "move_between_zones",
+        "create_object",
+        "select",
+        "modify_characteristic",
+        "apply_continuous_effect",
+        "search_zone",
+        "draw_cards",
+        "deal_damage",
+        "create_delayed_effect",
+        "trigger_from_event",
+        "replace_event",
+        "pay_cost",
+        "modify_cost",
+        "choose_mode",
+        "conditional_effect",
+        "keyword_reference",
+        "unresolved"
+      ]
+    },
+    "lifecycle": {
+      "enum": ["PROPOSED", "ACTIVE", "SUPERSEDED", "RETIRED"]
+    },
+    "requirement_id": {
+      "type": "string",
+      "pattern": "^srq_[0-9a-f]{64}$"
+    },
+    "requirements_per_capability": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "capability",
+        "lifecycle",
+        "requirement_ids",
+        "requirement_count",
+        "distinct_source_count"
+      ],
+      "properties": {
+        "capability": {"$ref": "#/$defs/capability_ref"},
+        "lifecycle": {"$ref": "#/$defs/lifecycle"},
+        "requirement_ids": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/requirement_id"}
+        },
+        "requirement_count": {"$ref": "#/$defs/count"},
+        "distinct_source_count": {"$ref": "#/$defs/count"}
+      }
+    },
+    "capability_kind": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["capability", "family", "kind", "active", "link_count"],
+      "properties": {
+        "capability": {"$ref": "#/$defs/capability_ref"},
+        "family": {"$ref": "#/$defs/capability_family"},
+        "kind": {"$ref": "#/$defs/requirement_kind"},
+        "active": {"type": "boolean"},
+        "link_count": {"$ref": "#/$defs/count"}
+      }
+    },
+    "dimension_distribution": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "capability",
+        "path_key",
+        "known_count",
+        "unknown_count",
+        "not_applicable_count",
+        "distinct_value_count",
+        "values"
+      ],
+      "properties": {
+        "capability": {"$ref": "#/$defs/capability_ref"},
+        "path_key": {"$ref": "#/$defs/path_key"},
+        "known_count": {"$ref": "#/$defs/count"},
+        "unknown_count": {"$ref": "#/$defs/count"},
+        "not_applicable_count": {"$ref": "#/$defs/count"},
+        "distinct_value_count": {"$ref": "#/$defs/count"},
+        "values": {"type": "array", "uniqueItems": true}
+      }
+    },
+    "capability_counts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["PROPOSED", "ACTIVE", "SUPERSEDED", "RETIRED"],
+      "properties": {
+        "PROPOSED": {"$ref": "#/$defs/count"},
+        "ACTIVE": {"$ref": "#/$defs/count"},
+        "SUPERSEDED": {"$ref": "#/$defs/count"},
+        "RETIRED": {"$ref": "#/$defs/count"}
+      }
+    },
+    "mapping_counts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "MAPPED",
+        "UNMAPPED",
+        "AMBIGUOUS",
+        "OUTLIER",
+        "INSUFFICIENT_EVIDENCE"
+      ],
+      "properties": {
+        "MAPPED": {"$ref": "#/$defs/count"},
+        "UNMAPPED": {"$ref": "#/$defs/count"},
+        "AMBIGUOUS": {"$ref": "#/$defs/count"},
+        "OUTLIER": {"$ref": "#/$defs/count"},
+        "INSUFFICIENT_EVIDENCE": {"$ref": "#/$defs/count"}
+      }
+    },
+    "evolution_counts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ADDITION", "SPLIT", "MERGE", "SUPERSESSION", "RETIREMENT"],
+      "properties": {
+        "ADDITION": {"$ref": "#/$defs/count"},
+        "SPLIT": {"$ref": "#/$defs/count"},
+        "MERGE": {"$ref": "#/$defs/count"},
+        "SUPERSESSION": {"$ref": "#/$defs/count"},
+        "RETIREMENT": {"$ref": "#/$defs/count"}
+      }
+    },
+    "review_queue_sizes": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "capability_definitions",
+        "links",
+        "mapping_decisions",
+        "evolution_records",
+        "candidate_clusters"
+      ],
+      "properties": {
+        "capability_definitions": {"$ref": "#/$defs/count"},
+        "links": {"$ref": "#/$defs/count"},
+        "mapping_decisions": {"$ref": "#/$defs/count"},
+        "evolution_records": {"$ref": "#/$defs/count"},
+        "candidate_clusters": {"$ref": "#/$defs/count"}
+      }
+    },
+    "report": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema",
+        "m4_manifest_sha256",
+        "m3_context",
+        "capability_counts",
+        "mapping_counts",
+        "requirements_per_capability",
+        "capabilities_by_requirement_kind",
+        "parameter_dimension_distributions",
+        "evolution_counts",
+        "review_queue_sizes",
+        "candidate_worklist"
+      ],
+      "properties": {
+        "schema": {"const": "census.capability-report.v1"},
+        "m4_manifest_sha256": {"$ref": "#/$defs/digest"},
+        "m3_context": {"$ref": "#/$defs/m3_context"},
+        "capability_counts": {"$ref": "#/$defs/capability_counts"},
+        "mapping_counts": {"$ref": "#/$defs/mapping_counts"},
+        "requirements_per_capability": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/requirements_per_capability"}
+        },
+        "capabilities_by_requirement_kind": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/capability_kind"}
+        },
+        "parameter_dimension_distributions": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/dimension_distribution"}
+        },
+        "evolution_counts": {"$ref": "#/$defs/evolution_counts"},
+        "review_queue_sizes": {"$ref": "#/$defs/review_queue_sizes"},
+        "candidate_worklist": {"type": "array", "items": {}}
+      }
+    },
+    "report_index": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "report_index_schema",
+        "m4_manifest_sha256",
+        "report_descriptors"
+      ],
+      "properties": {
+        "report_index_schema": {
+          "const": "census.capability-report-index.v1"
+        },
+        "m4_manifest_sha256": {"$ref": "#/$defs/digest"},
+        "report_descriptors": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/report_descriptor"}
+        }
+      }
+    }
+  }
+}
