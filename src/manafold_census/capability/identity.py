@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 from ..digest import domain_digest
-from .model import CapabilityFamilyKeyV1
+from .model import CapabilityClaimV1, CapabilityFamilyKeyV1
 
 FAMILY_ID_DOMAIN = "census.capability-family-id.v1"
 FAMILY_ID_PREFIX = "capfam_"
+CLAIM_DIGEST_DOMAIN = "census.capability-claim.v1"
 
 
 def capability_family_id_for(key: CapabilityFamilyKeyV1) -> str:
@@ -17,8 +18,18 @@ def capability_family_id_for(key: CapabilityFamilyKeyV1) -> str:
     return FAMILY_ID_PREFIX + domain_digest(FAMILY_ID_DOMAIN, key.to_wire())
 
 
+def capability_claim_digest_for(claim: CapabilityClaimV1) -> str:
+    """Return the digest of one exact typed Capability claim."""
+
+    if not isinstance(claim, CapabilityClaimV1):
+        raise TypeError("claim must be CapabilityClaimV1")
+    return domain_digest(CLAIM_DIGEST_DOMAIN, claim.to_wire())
+
+
 __all__ = [
+    "CLAIM_DIGEST_DOMAIN",
     "FAMILY_ID_DOMAIN",
     "FAMILY_ID_PREFIX",
+    "capability_claim_digest_for",
     "capability_family_id_for",
 ]

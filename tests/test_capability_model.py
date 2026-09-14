@@ -1,7 +1,14 @@
 import pytest
 from capability_fixtures import draw_family_key
 
+from manafold_census.capability.dimensions import (
+    CapabilityDimensionV1,
+    DimensionDomainKindV1,
+    DimensionKindV1,
+    M2DimensionPathV1,
+)
 from manafold_census.capability.model import (
+    CapabilityClaimV1,
     CapabilityFamilyKeyV1,
     CapabilityRefV1,
     NucleusKindV1,
@@ -10,6 +17,26 @@ from manafold_census.semantic.kinds import (
     RequirementFamilyV1,
     RequirementKindV1,
 )
+
+
+def draw_claim(*, registry_version: str = "1") -> CapabilityClaimV1:
+    return CapabilityClaimV1(
+        family_key=draw_family_key(),
+        capability_version=1,
+        m2_requirement_schema="census.semantic-requirement.v1",
+        m2_interpretation_version="1",
+        m4_dimension_registry_version=registry_version,
+        dimensions=(
+            CapabilityDimensionV1(
+                path_key=M2DimensionPathV1.DRAW_CARDS_QUANTITY,
+                dimension_kind=DimensionKindV1.QUANTITY,
+                required=True,
+                domain_kind=DimensionDomainKindV1.ANY_TYPED_VALUE,
+            ),
+        ),
+        exclusions=(),
+        composition=None,
+    )
 
 
 def test_family_id_input_is_stable_for_equal_nuclei() -> None:
@@ -153,3 +180,10 @@ def test_capability_ref_rejects_nonpositive_version(version: int) -> None:
 def test_capability_ref_rejects_nonhex_claim_digest() -> None:
     with pytest.raises(ValueError, match="claim_digest"):
         CapabilityRefV1("capfam_" + "a" * 64, 1, "g" * 64)
+
+
+def test_claim_version_and_wire_are_explicit() -> None:
+    claim = draw_claim()
+
+    assert claim.capability_version == 1
+    assert claim.to_wire()["m4_dimension_registry_version"] == "1"
