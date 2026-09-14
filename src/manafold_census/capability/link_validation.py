@@ -236,7 +236,8 @@ def validate_composition_links(
         if link.review_ref is not None
         and link.relation is LinkRelationV1.COMPOSITION_MEMBER
     )
-    by_composite: dict[CapabilityRefV1, list[str]] = {}
+    by_context: dict[tuple[str, CapabilityRefV1], list[str]] = {}
+    by_requirement: dict[str, set[CapabilityRefV1]] = {}
     for link in active_members:
         component = definitions.get(link.capability)
         if component is None:
@@ -248,9 +249,17 @@ def validate_composition_links(
         if composite is None:
             raise ValueError("composition composite Capability does not exist exactly")
         _validate_composition_member_link(link, component, composite)
-        by_composite.setdefault(context.composite, []).append(context.component_key)
+        by_requirement.setdefault(link.requirement_id, set()).add(context.composite)
+        by_context.setdefault((link.requirement_id, context.composite), []).append(
+            context.component_key
+        )
 
-    for composite_ref, component_keys in by_composite.items():
+    if any(len(composites) > 1 for composites in by_requirement.values()):
+        raise ValueError(
+            "multiple COMPOSITION_MEMBER links require the same composition context"
+        )
+
+    for (_, composite_ref), component_keys in by_context.items():
         composite = definitions[composite_ref]
         composition = composite.claim.composition
         assert composition is not None
@@ -359,16 +368,18 @@ class MappingCandidateValidationV1:
 def validate_mapping_candidates(
     links: Sequence[RequirementCapabilityLinkV1],
 ) -> MappingCandidateValidationV1:
-    groups: dict[tuple[str, bytes], set[str]] = {}
+    groups: dict[str, set[bytes]] = {}
     for link in links:
         if not isinstance(link, RequirementCapabilityLinkV1):
             raise TypeError("links must contain RequirementCapabilityLinkV1 values")
-        context = (
-            b""
-            if link.composition_context is None
-            else canonical_json_bytes(link.composition_context.to_wire())
-        )
-        groups.setdefault((link.requirement_id, context), set()).add(link.link_id)
+        if link.relation is LinkRelationV1.COMPOSITION_MEMBER:
+            context = link.composition_context
+            if context is None:
+                raise ValueError("COMPOSITION_MEMBER link requires composition context")
+            candidate = canonical_json_bytes(context.composite.to_wire())
+        else:
+            candidate = canonical_json_bytes(link.capability.to_wire())
+        groups.setdefault(link.requirement_id, set()).add(candidate)
     return MappingCandidateValidationV1(any(len(ids) > 1 for ids in groups.values()))
 
 
@@ -393,13 +404,11 @@ def validate_active_links(
             raise ValueError("multiple active DIRECT links")
         if direct and members:
             raise ValueError("DIRECT and COMPOSITION_MEMBER links cannot coexist")
-        contexts = {
-            canonical_json_bytes(
-                cast(CompositionContextV1, link.composition_context).to_wire()
-            )
+        composites = {
+            cast(CompositionContextV1, link.composition_context).composite
             for link in members
         }
-        if len(contexts) > 1:
+        if len(composites) > 1:
             raise ValueError(
                 "multiple COMPOSITION_MEMBER links require the same composition context"
             )

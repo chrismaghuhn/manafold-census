@@ -178,6 +178,60 @@ def composite_capability() -> CapabilityDefinitionV1:
     return _definition(claim, display_name="Draw and damage")
 
 
+def optional_composite_capability() -> CapabilityDefinitionV1:
+    draw = active_draw_capability()
+    damage = active_damage_capability()
+    key = CapabilityFamilyKeyV1(
+        "1",
+        NucleusKindV1.COMPOSITE,
+        (
+            (RequirementFamilyV1.EFFECT, RequirementKindV1.DRAW_CARDS),
+            (RequirementFamilyV1.EFFECT, RequirementKindV1.DEAL_DAMAGE),
+        ),
+    )
+    claim = _claim(
+        kind=RequirementKindV1.DRAW_CARDS,
+        family_key=key,
+        composition=CompositionClaimV1(
+            (
+                CompositionComponentV1("draw", draw.capability_ref, True, 0),
+                CompositionComponentV1("damage", damage.capability_ref, False, 1),
+            )
+        ),
+    )
+    return _definition(claim, display_name="Draw and optionally damage")
+
+
+def second_composite_capability() -> CapabilityDefinitionV1:
+    first = composite_capability()
+    claim = replace(first.claim, capability_version=2)
+    return _definition(claim, display_name="Draw and damage v2")
+
+
+def mismatched_composite_capability() -> CapabilityDefinitionV1:
+    draw = active_draw_capability()
+    other_draw = active_draw_capability(version=2)
+    key = CapabilityFamilyKeyV1(
+        "1",
+        NucleusKindV1.COMPOSITE,
+        (
+            (RequirementFamilyV1.EFFECT, RequirementKindV1.DRAW_CARDS),
+            (RequirementFamilyV1.EFFECT, RequirementKindV1.DEAL_DAMAGE),
+        ),
+    )
+    claim = _claim(
+        kind=RequirementKindV1.DRAW_CARDS,
+        family_key=key,
+        composition=CompositionClaimV1(
+            (
+                CompositionComponentV1("first", draw.capability_ref, True, 0),
+                CompositionComponentV1("second", other_draw.capability_ref, True, 1),
+            )
+        ),
+    )
+    return _definition(claim, display_name="Mismatched composite")
+
+
 def _evolution_review(
     event: CapabilityEvolutionV1,
     *,
@@ -285,6 +339,52 @@ def test_composes_edges_are_directional_and_acyclic() -> None:
     validate_capability_edges((edge,))
 
 
+def test_claim_nucleus_kind_and_composition_are_intrinsically_coupled() -> None:
+    component = active_draw_capability()
+    atomic_composition = CompositionClaimV1(
+        (CompositionComponentV1("draw", component.capability_ref, True, 0),)
+    )
+
+    with pytest.raises(ValueError, match="ATOMIC.*composition"):
+        _claim(kind=RequirementKindV1.DRAW_CARDS, composition=atomic_composition)
+
+    composite_key = CapabilityFamilyKeyV1(
+        "1",
+        NucleusKindV1.COMPOSITE,
+        (
+            (RequirementFamilyV1.EFFECT, RequirementKindV1.DRAW_CARDS),
+            (RequirementFamilyV1.EFFECT, RequirementKindV1.DEAL_DAMAGE),
+        ),
+    )
+    with pytest.raises(ValueError, match="COMPOSITE.*composition"):
+        _claim(kind=RequirementKindV1.DRAW_CARDS, family_key=composite_key)
+
+
+def test_claim_schema_repeats_nucleus_composition_coupling() -> None:
+    schema = json.loads(
+        (
+            Path(__file__).parents[1] / "schemas" / "capability-claim.v1.schema.json"
+        ).read_text(encoding="utf-8")
+    )
+    Draft202012Validator.check_schema(schema)
+    atomic_wire = active_draw_capability().claim.to_wire()
+    atomic_wire["composition"] = {
+        "components": [
+            {
+                "component_key": "draw",
+                "capability": active_draw_capability().capability_ref.to_wire(),
+                "required": True,
+                "ordinal": 0,
+            }
+        ]
+    }
+    assert list(Draft202012Validator(schema).iter_errors(atomic_wire))
+
+    composite_wire = composite_capability().claim.to_wire()
+    composite_wire["composition"] = None
+    assert list(Draft202012Validator(schema).iter_errors(composite_wire))
+
+
 def test_self_edge_and_cycle_fail_closed() -> None:
     capability = active_draw_capability()
     self_edge = requires_edge(capability, capability)
@@ -381,12 +481,45 @@ def test_composes_edges_bind_exact_components_and_active_lifecycle() -> None:
         validate_capability_edges(edges, capabilities=(composite, retired_draw, damage))
 
 
+def test_composes_relations_cover_optional_components_and_exact_definitions() -> None:
+    composite = optional_composite_capability()
+    draw = active_draw_capability()
+    damage = active_damage_capability()
+    draw_edge = composes_edge(composite, draw)
+
+    with pytest.raises(ValueError, match="component"):
+        validate_capability_edges((draw_edge,), capabilities=(composite, draw))
+    with pytest.raises(ValueError, match="complete|optional|component"):
+        validate_capability_edges((draw_edge,), capabilities=(composite, draw, damage))
+
+    validate_capability_edges(
+        (draw_edge, composes_edge(composite, damage)),
+        capabilities=(composite, draw, damage),
+    )
+
+
+def test_composite_operation_anchor_matches_component_nuclei() -> None:
+    composite = mismatched_composite_capability()
+    draw = active_draw_capability()
+    other_draw = active_draw_capability(version=2)
+    edges = (
+        composes_edge(composite, draw),
+        composes_edge(composite, other_draw),
+    )
+
+    with pytest.raises(ValueError, match="operation anchor"):
+        validate_capability_edges(
+            edges,
+            capabilities=(composite, draw, other_draw),
+        )
+
+
 def test_active_composite_requires_persisted_required_component_edges() -> None:
     composite = composite_capability()
     draw = active_draw_capability()
     damage = active_damage_capability()
 
-    with pytest.raises(ValueError, match="required component"):
+    with pytest.raises(ValueError, match="component"):
         validate_capability_edges((), capabilities=(composite, draw, damage))
 
 
@@ -655,6 +788,84 @@ def test_active_composition_context_must_cover_required_components() -> None:
         )
 
 
+def test_same_requirement_and_composite_can_cover_two_distinct_components() -> None:
+    composite = composite_capability()
+    draw = active_draw_capability()
+    damage = active_damage_capability()
+    requirement = _requirement(
+        kind=RequirementKindV1.DRAW_CARDS,
+        source_record_sha256="2" * 64,
+    )
+    draw_link = _active_member_link(requirement, draw, composite, "draw")
+    damage_link = _active_member_link(requirement, damage, composite, "damage")
+
+    validate_active_links(
+        (draw_link, damage_link),
+        capabilities=(composite, draw, damage),
+    )
+
+
+def test_same_requirement_cannot_mix_different_composite_contexts() -> None:
+    first = composite_capability()
+    second = second_composite_capability()
+    draw = active_draw_capability()
+    requirement = _requirement(
+        kind=RequirementKindV1.DRAW_CARDS,
+        source_record_sha256="2" * 64,
+    )
+    first_link = _active_member_link(requirement, draw, first, "draw")
+    second_link = _active_member_link(requirement, draw, second, "draw")
+
+    with pytest.raises(ValueError, match="same composition context"):
+        validate_active_links(
+            (first_link, second_link),
+            capabilities=(first, second, draw, active_damage_capability()),
+        )
+
+
+def test_same_composite_component_can_be_reused_by_different_requirements() -> None:
+    composite = composite_capability()
+    draw = active_draw_capability()
+    damage = active_damage_capability()
+    first_requirement = _requirement(
+        kind=RequirementKindV1.DRAW_CARDS,
+        source_record_sha256="2" * 64,
+    )
+    second_requirement = _requirement(
+        kind=RequirementKindV1.DRAW_CARDS,
+        source_record_sha256="3" * 64,
+    )
+    first = _active_member_link(
+        first_requirement,
+        draw,
+        composite,
+        "draw",
+    )
+    first_damage = _active_member_link(
+        first_requirement,
+        damage,
+        composite,
+        "damage",
+    )
+    second = _active_member_link(
+        second_requirement,
+        draw,
+        composite,
+        "draw",
+    )
+    second_damage = _active_member_link(
+        second_requirement,
+        damage,
+        composite,
+        "damage",
+    )
+
+    validate_active_links(
+        (first, first_damage, second, second_damage),
+        capabilities=(composite, draw, damage),
+    )
+
+
 def test_active_composition_links_match_declared_component_references() -> None:
     composite = composite_capability()
     draw = active_draw_capability()
@@ -681,20 +892,18 @@ def test_active_composition_context_accepts_each_required_component_once() -> No
     composite = composite_capability()
     draw = active_draw_capability()
     damage = active_damage_capability()
+    requirement = _requirement(
+        kind=RequirementKindV1.DRAW_CARDS,
+        source_record_sha256="2" * 64,
+    )
     draw_link = _active_member_link(
-        _requirement(
-            kind=RequirementKindV1.DRAW_CARDS,
-            source_record_sha256="2" * 64,
-        ),
+        requirement,
         draw,
         composite,
         "draw",
     )
     damage_link = _active_member_link(
-        _requirement(
-            kind=RequirementKindV1.DEAL_DAMAGE,
-            source_record_sha256="3" * 64,
-        ),
+        requirement,
         damage,
         composite,
         "damage",

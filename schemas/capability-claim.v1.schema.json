@@ -59,6 +59,40 @@
       ]
     }
   },
+  "allOf": [
+    {
+      "oneOf": [
+        {
+          "properties": {
+            "family_key": {
+              "properties": {
+                "nucleus_kind": {
+                  "const": "ATOMIC"
+                }
+              }
+            },
+            "composition": {
+              "type": "null"
+            }
+          }
+        },
+        {
+          "properties": {
+            "family_key": {
+              "properties": {
+                "nucleus_kind": {
+                  "const": "COMPOSITE"
+                }
+              }
+            },
+            "composition": {
+              "$ref": "#/$defs/composition"
+            }
+          }
+        }
+      ]
+    }
+  ],
   "$defs": {
     "text": {
       "type": "string",

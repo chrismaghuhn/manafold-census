@@ -1,4 +1,4 @@
-"""Typed M4 semantic relations and graph validation."""
+"""Typed M4 semantic relation wires, identities, and factories."""
 
 from __future__ import annotations
 
@@ -18,7 +18,7 @@ from ..semantic.primitives import (
     _require_text,
 )
 from .claim import CompositionClaimV1
-from .definition import CapabilityDefinitionV1, CapabilityLifecycleStateV1
+from .definition import CapabilityDefinitionV1
 from .model import CapabilityRefV1, NucleusKindV1
 
 RELATION_SCHEMA = "census.capability-relations.v1"
@@ -307,137 +307,3 @@ def specializes_edge(
     target: CapabilityDefinitionV1 | CapabilityRefV1,
 ) -> CapabilityRelationV1:
     return _edge(CapabilityRelationKindV1.SPECIALIZES, source, target)
-
-
-def _capability_index(
-    capabilities: Sequence[CapabilityDefinitionV1],
-) -> dict[CapabilityRefV1, CapabilityDefinitionV1]:
-    values = tuple(capabilities)
-    if any(not isinstance(item, CapabilityDefinitionV1) for item in values):
-        raise TypeError("capabilities must contain CapabilityDefinitionV1 values")
-    result: dict[CapabilityRefV1, CapabilityDefinitionV1] = {}
-    for capability in values:
-        if capability.capability_ref in result:
-            raise ValueError("duplicate Capability reference")
-        result[capability.capability_ref] = capability
-    return result
-
-
-def _assert_acyclic(
-    graph: dict[CapabilityRefV1, set[CapabilityRefV1]],
-    kind: CapabilityRelationKindV1,
-) -> None:
-    visiting: set[CapabilityRefV1] = set()
-    visited: set[CapabilityRefV1] = set()
-
-    def visit(node: CapabilityRefV1) -> None:
-        if node in visiting:
-            raise ValueError(f"{kind.value} relation cycle detected")
-        if node in visited:
-            return
-        visiting.add(node)
-        for successor in graph.get(node, ()):
-            visit(successor)
-        visiting.remove(node)
-        visited.add(node)
-
-    for node in graph:
-        visit(node)
-
-
-def _validate_cycles(relations: Sequence[CapabilityRelationV1]) -> None:
-    for kind in CapabilityRelationKindV1:
-        graph: dict[CapabilityRefV1, set[CapabilityRefV1]] = {}
-        for relation in relations:
-            if relation.relation_kind is kind:
-                graph.setdefault(relation.from_capability, set()).add(
-                    relation.to_capability
-                )
-        _assert_acyclic(graph, kind)
-
-
-def validate_capability_edges(
-    relations: Sequence[CapabilityRelationV1],
-    capabilities: Sequence[CapabilityDefinitionV1] = (),
-) -> None:
-    values = tuple(relations)
-    if any(not isinstance(item, CapabilityRelationV1) for item in values):
-        raise TypeError("relations must contain CapabilityRelationV1 values")
-    if len({item.relation_id for item in values}) != len(values):
-        raise ValueError("duplicate Capability relation")
-    if any(item.from_capability == item.to_capability for item in values):
-        raise ValueError("self-edge is not allowed")
-    definitions = _capability_index(capabilities)
-    if definitions:
-        for relation in values:
-            source = definitions.get(relation.from_capability)
-            target = definitions.get(relation.to_capability)
-            if source is None or target is None:
-                raise ValueError("Capability relation endpoint does not exist exactly")
-            if relation.relation_kind is not CapabilityRelationKindV1.COMPOSES:
-                continue
-            if source.claim.family_key.nucleus_kind is not NucleusKindV1.COMPOSITE:
-                raise ValueError("COMPOSES source must be a composite Capability")
-            composition = source.claim.composition
-            if not isinstance(composition, CompositionClaimV1):
-                raise ValueError("COMPOSES source must declare a composition claim")
-            matches = tuple(
-                item
-                for item in composition.components
-                if item.component_key == relation.component_key
-            )
-            if len(matches) != 1:
-                raise ValueError("COMPOSES component key is not declared exactly once")
-            component = matches[0]
-            if component.capability != relation.to_capability:
-                raise ValueError(
-                    "COMPOSES target does not match the declared component"
-                )
-            if (
-                component.ordinal != relation.ordinal
-                or component.required != relation.required
-            ):
-                raise ValueError(
-                    "COMPOSES relation fields do not match the component claim"
-                )
-            if (
-                source.lifecycle is CapabilityLifecycleStateV1.ACTIVE
-                and target.lifecycle is not CapabilityLifecycleStateV1.ACTIVE
-            ):
-                raise ValueError(
-                    "active composite may reference only active non-retired components"
-                )
-    _validate_cycles(values)
-    if not definitions:
-        return
-    grouped: dict[CapabilityRefV1, list[CapabilityRelationV1]] = {}
-    for relation in values:
-        if relation.relation_kind is CapabilityRelationKindV1.COMPOSES:
-            grouped.setdefault(relation.from_capability, []).append(relation)
-    for composite_ref, component_relations in grouped.items():
-        composition = definitions[composite_ref].claim.composition
-        assert composition is not None
-        keys = [item.component_key for item in component_relations]
-        if len(keys) != len(set(keys)):
-            raise ValueError("duplicate composition component key")
-        required = {
-            item.component_key for item in composition.components if item.required
-        }
-        if not required.issubset(set(keys)):
-            raise ValueError("required component keys are not covered exactly once")
-    for composite_ref, composite in definitions.items():
-        if (
-            composite.lifecycle is CapabilityLifecycleStateV1.ACTIVE
-            and composite.claim.family_key.nucleus_kind is NucleusKindV1.COMPOSITE
-        ):
-            composition = composite.claim.composition
-            if not isinstance(composition, CompositionClaimV1):
-                raise ValueError("active composite must declare a composition claim")
-            required_edge_keys = {
-                item.component_key for item in grouped.get(composite_ref, ())
-            }
-            required = {
-                item.component_key for item in composition.components if item.required
-            }
-            if not required.issubset(required_edge_keys):
-                raise ValueError("required component keys are not covered exactly once")

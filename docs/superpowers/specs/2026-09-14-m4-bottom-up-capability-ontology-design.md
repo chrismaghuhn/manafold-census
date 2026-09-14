@@ -10,6 +10,8 @@ Status: `DESIGN_ONLY / READY_FOR_INDEPENDENT_REVIEW`
 M4_DESIGN_BASE_HEAD              = 0f787e7807dad3f730b4013e6a768616000666c2
 M4_DESIGN_AMENDMENT_01           = PERSIST_SEMANTIC_RELATIONS
 M4_DESIGN_AMENDMENT_01_STATUS    = READY_FOR_INDEPENDENT_REVIEW
+M4_DESIGN_AMENDMENT_02           = COMPOSITION_CLOSURE
+M4_DESIGN_AMENDMENT_02_STATUS    = READY_FOR_INDEPENDENT_REVIEW
 ~~~
 
 This document is the M4 architecture and specification only. It creates no
@@ -514,8 +516,12 @@ For an atomic Capability, `operation_anchor` is the exact M2 family/kind
 anchor. A composite Capability uses `nucleus_kind=COMPOSITE` and the sorted
 set of observed M2 operation anchors that its stable semantic nucleus unites;
 its component references, roles, order, and requiredness remain in the
-versioned claim. A family-key change is reserved for a changed operation
-nucleus, not for a changed dimension interpretation.
+versioned claim. The claim is intrinsically coupled to the nucleus: `ATOMIC`
+requires `composition=null`, while `COMPOSITE` requires a non-null composition
+claim. When the referenced component definitions are available, the composite
+operation anchor must equal the union of the exact component operation
+anchors. A family-key change is reserved for a changed operation nucleus, not
+for a changed dimension interpretation.
 
 The family identity is:
 
@@ -930,7 +936,13 @@ composite definition.
 component of a reviewed composite Capability use. The composite definition
 lists the component Capability references and component keys. The link points
 to the exact component version and carries a composition context that names
-the composite version and component key.
+the composite version and component key. For active-link cardinality, the
+mapping context identity is `(requirement_id, composite CapabilityRefV1)`;
+`component_key` is the member coordinate inside that context, not part of the
+context identity. Thus one Requirement may cover multiple distinct component
+keys exactly once, while the same composite/component key may be reused by a
+different Requirement. Different composite references for one Requirement are
+different mapping contexts and may not be active together.
 
 There is no untyped `MAPS_TO`, `SIMILAR_TO`, `DEPENDS_ON`, or catch-all edge.
 
@@ -1066,6 +1078,8 @@ Shared dimensions are not persisted as edges. A report may derive a
 * self-edges are invalid;
 * `COMPOSES`, `REQUIRES`, and `SPECIALIZES` are each acyclic;
 * every component reference exists at the exact version and claim digest;
+* the persisted `COMPOSES` set equals every declared composition component,
+  including optional components, with matching key, ordinal, and requiredness;
 * a new active composite may reference only active, non-retired components;
 * an edge cannot target a mismatched claim digest;
 * a composition context must cover every required component key exactly once;

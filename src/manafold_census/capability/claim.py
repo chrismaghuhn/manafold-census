@@ -26,7 +26,7 @@ from .dimensions import (
     _validate_domain,
     dimension_spec_for,
 )
-from .model import CapabilityFamilyKeyV1, CapabilityRefV1
+from .model import CapabilityFamilyKeyV1, CapabilityRefV1, NucleusKindV1
 
 
 def _values(value: object, field: str) -> tuple[object, ...]:
@@ -257,6 +257,16 @@ class CapabilityClaimV1:
         composition = self.composition
         if composition is not None and not isinstance(composition, CompositionClaimV1):
             raise TypeError("composition must be CompositionClaimV1 or None")
+        if (
+            self.family_key.nucleus_kind is NucleusKindV1.ATOMIC
+            and composition is not None
+        ):
+            raise ValueError("ATOMIC Capability composition must be null")
+        if (
+            self.family_key.nucleus_kind is NucleusKindV1.COMPOSITE
+            and composition is None
+        ):
+            raise ValueError("COMPOSITE Capability composition must be declared")
         object.__setattr__(self, "capability_version", capability_version)
         object.__setattr__(self, "m2_requirement_schema", m2_schema)
         object.__setattr__(self, "m2_interpretation_version", interpretation_version)

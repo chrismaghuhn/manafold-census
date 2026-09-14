@@ -1698,11 +1698,14 @@ git commit -m "feat: add M4 requirement capability links"
 **Files:**
 
 - Create: src/manafold_census/capability/evolution.py
+- Create: src/manafold_census/capability/relations.py
+- Create: src/manafold_census/capability/relation_validation.py
 - Modify: src/manafold_census/capability/claim.py
 - Modify: src/manafold_census/capability/link_validation.py
 - Create: schemas/capability-evolution.v1.schema.json
 - Create: schemas/capability-relations.v1.schema.json
 - Create: tests/test_capability_evolution.py
+- Modify: tests/test_capability_dimensions.py
 
 **Dependency:** Tasks 1–5.
 
@@ -1760,6 +1763,12 @@ Expected: collection fails because the evolution module does not exist.
 
 ### Step 2: Implement typed semantic edges
 
+Keep the relation wire, relation identity, factories, and canonical relation
+ordering in `relations.py`. Keep endpoint, component-closure, lifecycle, and
+graph validation in `relation_validation.py`; `evolution.py` owns immutable
+Evolution records and history validation. This split is required by the
+existing production-module 500-line maintainability gate.
+
 Implement the closed edge values:
 
 ~~~text
@@ -1811,6 +1820,17 @@ validated here against exact component references. Component keys are unique
 non-empty identifiers scoped to one claim. Their meaning comes from the exact
 component Capability reference and ordinal; they are not free-form executable
 labels.
+
+CapabilityClaimV1 couples the nucleus to composition intrinsically:
+
+~~~text
+ATOMIC    -> composition is null
+COMPOSITE -> composition is non-null
+~~~
+
+When the selected Capability definitions are available, relation validation
+also requires the composite operation anchor to equal the union of the exact
+component operation anchors.
 
 Validation:
 
@@ -1870,11 +1890,24 @@ new link to superseded or retired version
 cycle in any semantic edge relation
 component key duplication
 implicit composition inferred from link count
+atomic/composite composition mismatch
+missing optional COMPOSES component or exact component definition
+same Requirement plus different composite references
+same composite/component key reused by different Requirements
 ~~~
 
-Also verify that every valid relation is persisted, reread, and included in
-the relation-file descriptor. A valid in-memory relation that is absent from
-the published artifact is a build failure.
+Verify the typed relation wire round-trip, canonical relation ordering, exact
+component closure, and graph validation in this task. Physical persistence
+of `capability-relations.jsonl`, independent reread, byte descriptors, and
+missing/extra-on-disk detection belong to Task 8, which owns the authoritative
+build and manifest publication.
+
+Active `COMPOSITION_MEMBER` links use
+`(requirement_id, composite CapabilityRefV1)` as the mapping-context key.
+`component_key` is the member coordinate inside that context. For one context,
+component keys are unique and all required claim components are covered
+exactly once. Different composite references for one Requirement are rejected;
+the same composite/component key may be reused by another Requirement.
 
 ### Step 5: Run gates and commit
 
@@ -1883,7 +1916,7 @@ python -m pytest tests/test_capability_evolution.py tests/test_capability_link.p
 ruff format --check src/manafold_census/capability tests/test_capability_evolution.py tests/test_capability_link.py
 ruff check src/manafold_census/capability tests/test_capability_evolution.py tests/test_capability_link.py
 mypy src/manafold_census/capability
-git add src/manafold_census/capability tests/test_capability_evolution.py schemas/capability-evolution.v1.schema.json schemas/capability-relations.v1.schema.json
+git add src/manafold_census/capability tests/test_capability_evolution.py tests/test_capability_dimensions.py schemas/capability-evolution.v1.schema.json schemas/capability-relations.v1.schema.json docs/superpowers/specs/2026-09-14-m4-bottom-up-capability-ontology-design.md
 git diff --cached --check
 git commit -m "feat: add M4 capability evolution relations"
 ~~~
@@ -2413,10 +2446,11 @@ The implementation body must:
 * recompute descriptors and manifest identity; and
 * atomically publish the completed directory only after all checks pass.
 
-The relation set is written to capability-relations.jsonl, reread, sorted by
-relation kind/from reference/to reference/relation ID, and represented by the
-relation_file descriptor in M4OntologyManifestV1. A relation that exists only
-in memory is not a successful build result.
+Task 8 writes the typed relation set to `capability-relations.jsonl`, rereads
+it, sorts it by relation kind/from reference/to reference/relation ID, and
+represents it with the `relation_file` descriptor in
+`M4OntologyManifestV1`. A relation that exists only in memory is not a
+successful Task-8 build result; Task 6 does not publish this physical file.
 
 Exceptions are classified as invalid M3 input, invalid wire, stale link,
 review disagreement, graph failure, digest failure, or publication failure.

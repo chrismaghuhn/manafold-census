@@ -13,6 +13,7 @@ from ..digest import domain_digest
 from ..semantic.primitives import _require_enum, _require_object, _require_text
 from .definition import CapabilityDefinitionV1, CapabilityLifecycleStateV1
 from .model import CapabilityRefV1
+from .relation_validation import validate_capability_edges
 from .relations import (
     RELATION_ID_DOMAIN,
     RELATION_ID_PREFIX,
@@ -25,7 +26,6 @@ from .relations import (
     requires_edge,
     sort_capability_relations,
     specializes_edge,
-    validate_capability_edges,
 )
 from .review import CapabilityReviewRecordV1, EvolutionReviewSubjectV1, ReviewDecisionV1
 

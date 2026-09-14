@@ -8,7 +8,12 @@ from capability_fixtures import draw_family_key
 from jsonschema import Draft202012Validator
 
 from manafold_census.capability.binding import BindingStateV1, ParameterBindingV1
-from manafold_census.capability.claim import CapabilityClaimV1, ExclusionV1
+from manafold_census.capability.claim import (
+    CapabilityClaimV1,
+    CompositionClaimV1,
+    CompositionComponentV1,
+    ExclusionV1,
+)
 from manafold_census.capability.dimensions import (
     CapabilityDimensionV1,
     DimensionDomainKindV1,
@@ -19,6 +24,7 @@ from manafold_census.capability.dimensions import (
 )
 from manafold_census.capability.model import (
     CapabilityFamilyKeyV1,
+    CapabilityRefV1,
     NucleusKindV1,
 )
 from manafold_census.semantic.kinds import RequirementFamilyV1, RequirementKindV1
@@ -259,7 +265,22 @@ def test_composite_claim_accepts_a_declared_anchor_path() -> None:
             ),
         ),
         exclusions=(),
-        composition=None,
+        composition=CompositionClaimV1(
+            (
+                CompositionComponentV1(
+                    "draw",
+                    CapabilityRefV1("capfam_" + "a" * 64, 1, "b" * 64),
+                    True,
+                    0,
+                ),
+                CompositionComponentV1(
+                    "damage",
+                    CapabilityRefV1("capfam_" + "c" * 64, 1, "d" * 64),
+                    True,
+                    1,
+                ),
+            )
+        ),
     )
 
     assert claim.family_key.nucleus_kind is NucleusKindV1.COMPOSITE
