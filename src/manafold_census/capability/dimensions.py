@@ -6,7 +6,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from enum import StrEnum
 from types import MappingProxyType
-from typing import Any, ClassVar, NamedTuple, cast
+from typing import Any, ClassVar, NamedTuple
 
 from ..canonical import JSONValue
 from ..semantic.kinds import (
@@ -28,15 +28,12 @@ from ..semantic.primitives import (
     SemanticDescriptorV1,
     SemanticShapeV1,
     SubjectKindV1,
-    UnknownReasonV1,
     ZoneRefV1,
     _require_bool,
     _require_enum,
     _require_object,
     _require_text,
-    _validate_json_wire,
 )
-from .model import ExclusionV1  # noqa: F401
 
 
 class DimensionKindV1(StrEnum):
@@ -56,12 +53,6 @@ class DimensionDomainKindV1(StrEnum):
     ANY_TYPED_VALUE = "ANY_TYPED_VALUE"
     M2_ENUM_SUBSET = "M2_ENUM_SUBSET"
     M2_SHAPE_SUBSET = "M2_SHAPE_SUBSET"
-
-
-class BindingStateV1(StrEnum):
-    KNOWN = "KNOWN"
-    UNKNOWN = "UNKNOWN"
-    NOT_APPLICABLE = "NOT_APPLICABLE"
 
 
 class UnknownPolicyV1(StrEnum):
@@ -391,105 +382,4 @@ class CapabilityDimensionV1:
         )
         if result.to_wire() != document:
             raise ValueError("capability dimension wire is not canonical")
-        return result
-
-
-@dataclass(frozen=True, slots=True)
-class ParameterBindingV1:
-    path_key: M2DimensionPathV1
-    state: BindingStateV1
-    value: JSONValue | None
-    reason: str | None
-    m2_unknown_path: str | None
-
-    _WIRE_KEYS: ClassVar[set[str]] = {"path_key", "binding"}
-
-    def __post_init__(self) -> None:
-        path_key = _path_key(self.path_key)
-        state = _require_enum("state", self.state, BindingStateV1)
-        if self.value is not None:
-            _validate_json_wire(self.value, "binding.value")
-        spec = dimension_spec_for(path_key)
-        reason = self.reason
-        unknown_path = self.m2_unknown_path
-        if state is BindingStateV1.KNOWN:
-            if self.value is None:
-                raise ValueError("KNOWN binding requires a value")
-            if reason is not None or unknown_path is not None:
-                raise ValueError("KNOWN binding cannot contain unknown metadata")
-        elif state is BindingStateV1.UNKNOWN:
-            if self.value is not None:
-                raise ValueError("UNKNOWN binding cannot contain a value")
-            reason_value = _require_enum("reason", reason, UnknownReasonV1)
-            unknown_path = _require_text("m2_unknown_path", unknown_path)
-            if unknown_path != spec.parameter_path:
-                raise ValueError("m2_unknown_path does not match the registered path")
-            reason = reason_value.value
-        else:
-            if not spec.optional:
-                raise ValueError("NOT_APPLICABLE requires an optional M2 path")
-            if self.value is not None or reason is not None or unknown_path is not None:
-                raise ValueError(
-                    "NOT_APPLICABLE binding must have no value or metadata"
-                )
-
-        object.__setattr__(self, "path_key", path_key)
-        object.__setattr__(self, "state", state)
-        object.__setattr__(self, "reason", reason)
-        object.__setattr__(self, "m2_unknown_path", unknown_path)
-
-    @classmethod
-    def known(cls, path_key: object, value: JSONValue) -> ParameterBindingV1:
-        return cls(_path_key(path_key), BindingStateV1.KNOWN, value, None, None)
-
-    @classmethod
-    def unknown(
-        cls, path_key: M2DimensionPathV1, reason: str, unknown_path: str
-    ) -> ParameterBindingV1:
-        return cls(path_key, BindingStateV1.UNKNOWN, None, reason, unknown_path)
-
-    @classmethod
-    def not_applicable(cls, path_key: object) -> ParameterBindingV1:
-        return cls(_path_key(path_key), BindingStateV1.NOT_APPLICABLE, None, None, None)
-
-    def to_wire(self) -> dict[str, JSONValue]:
-        binding: dict[str, JSONValue] = {"state": self.state.value}
-        if self.state is BindingStateV1.KNOWN:
-            binding["value"] = cast(JSONValue, self.value)
-        elif self.state is BindingStateV1.UNKNOWN:
-            binding.update(
-                {
-                    "reason": cast(str, self.reason),
-                    "m2_unknown_path": cast(str, self.m2_unknown_path),
-                }
-            )
-        return {"path_key": self.path_key.value, "binding": binding}
-
-    @classmethod
-    def from_wire(cls, value: object) -> ParameterBindingV1:
-        document = _require_object(value, cls._WIRE_KEYS, "parameter binding")
-        path_key = _path_key(document["path_key"])
-        binding = document["binding"]
-        if not isinstance(binding, dict):
-            raise TypeError("binding must be an object")
-        state = _require_enum("binding.state", binding.get("state"), BindingStateV1)
-        if state is BindingStateV1.KNOWN:
-            inner = _require_object(binding, {"state", "value"}, "known binding")
-            result = cls(path_key, state, cast(JSONValue, inner["value"]), None, None)
-        elif state is BindingStateV1.UNKNOWN:
-            inner = _require_object(
-                binding, {"state", "reason", "m2_unknown_path"}, "unknown binding"
-            )
-            result = cls(
-                path_key,
-                state,
-                None,
-                cast(str, inner["reason"]),
-                cast(str, inner["m2_unknown_path"]),
-            )
-        else:
-            _require_object(binding, {"state"}, "not-applicable binding")
-            result = cls(path_key, state, None, None, None)
-        if result.to_wire() != document:
-            raise ValueError("parameter binding wire is not canonical")
         return result

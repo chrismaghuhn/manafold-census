@@ -1,6 +1,7 @@
 import pytest
 from capability_fixtures import draw_family_key
 
+from manafold_census.capability.claim import CapabilityClaimV1
 from manafold_census.capability.dimensions import (
     CapabilityDimensionV1,
     DimensionDomainKindV1,
@@ -8,7 +9,6 @@ from manafold_census.capability.dimensions import (
     M2DimensionPathV1,
 )
 from manafold_census.capability.model import (
-    CapabilityClaimV1,
     CapabilityFamilyKeyV1,
     CapabilityRefV1,
     NucleusKindV1,

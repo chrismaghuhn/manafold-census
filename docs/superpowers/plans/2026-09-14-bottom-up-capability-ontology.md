@@ -37,6 +37,8 @@ DESIGN_BASE_HEAD                  = 0f787e7807dad3f730b4013e6a768616000666c2
 DESIGN_STATE                      = FROZEN_BASE_PLUS_AMENDMENT_PENDING_REVIEW
 DESIGN_AMENDMENT_01               = PERSIST_SEMANTIC_RELATIONS
 DESIGN_AMENDMENT_01_STATUS        = READY_FOR_INDEPENDENT_REVIEW
+TASK_2_REPAIR_01                  = ANCHOR_TYPED_BINDING_MODULE_SPLIT
+TASK_2_REPAIR_01_STATUS           = READY_FOR_INDEPENDENT_REVIEW
 PLAN_ARTIFACT                     = docs/superpowers/plans/2026-09-14-bottom-up-capability-ontology.md
 M4_IMPLEMENTATION_PLAN_AUTHORIZED = YES
 M4_IMPLEMENTATION_PLAN_REVIEW     = NOT_RUN
@@ -50,10 +52,10 @@ MERGE_AUTHORIZED                  = NO
 ~~~
 
 The frozen design base at DESIGN_BASE_HEAD remains immutable. This plan carries
-only the narrow DESIGN_AMENDMENT_01 relation-persistence amendment; that
-amendment is not frozen until independent review records PASS. The plan does
-not rewrite the design document's pre-freeze status text. Every future
-implementation task must preserve:
+the already-reviewed relation-persistence amendment and the current narrow
+TASK_2_REPAIR_01 implementation correction; neither plan repair status is an
+implementation authorization. The plan does not rewrite the design document's
+pre-freeze status text. Every future implementation task must preserve:
 
 ~~~text
 M1 structural records, source lock, and pinned source configuration
@@ -239,9 +241,12 @@ by this planning task.
 | File | Single responsibility |
 | --- | --- |
 | src/manafold_census/capability/__init__.py | Small public exports; no CLI, network, engine, or source enumeration |
-| src/manafold_census/capability/model.py | Capability family keys, references, claims, definitions, and lifecycle values |
+| src/manafold_census/capability/model.py | Capability family keys, exact references, and stable nucleus values |
+| src/manafold_census/capability/claim.py | Versioned Capability claims, exclusions, and composition components |
 | src/manafold_census/capability/identity.py | Family IDs, claim digests, link digests, review digests, and Requirement-set digest |
-| src/manafold_census/capability/dimensions.py | Code-owned M2 path registry, typed domains, and parameter bindings |
+| src/manafold_census/capability/dimensions.py | Code-owned M2 path registry and typed Capability domains |
+| src/manafold_census/capability/binding.py | Typed M2 bindings and exact Requirement recomputation validation |
+| src/manafold_census/capability/definition.py | Future Capability definition lifecycle and activation seam |
 | src/manafold_census/capability/review.py | M4 review authority and SOURCE_REQUIREMENT_ADMISSIBILITY validation |
 | src/manafold_census/capability/link.py | Exact Requirement-to-Capability links and one-row mapping dispositions |
 | src/manafold_census/capability/evolution.py | Composition, dependency, specialization, and append-only evolution records |
@@ -253,7 +258,8 @@ by this planning task.
 | src/manafold_census/capability/report.py | Derived reports only; never an authority input |
 
 Every production module remains at or below the existing 500-line budget.
-identity.py, dimensions.py, link.py, and validate.py are deep module seams:
+identity.py, dimensions.py, claim.py, binding.py, link.py, and validate.py are
+deep module seams:
 callers provide typed values and frozen inputs, while canonicalization,
 binding, and failure rules remain behind small interfaces.
 
@@ -296,6 +302,7 @@ The implementation phase adds focused tests:
 tests/capability_fixtures.py
 tests/test_capability_model.py
 tests/test_capability_identity.py
+tests/test_capability_binding.py
 tests/test_capability_dimensions.py
 tests/test_capability_review.py
 tests/test_capability_admissibility.py
@@ -647,18 +654,24 @@ remote SHA and clean worktree, and stop for independent review before Task 2.
 **Files:**
 
 - Create: src/manafold_census/capability/dimensions.py
+- Create: src/manafold_census/capability/claim.py
+- Create: src/manafold_census/capability/binding.py
 - Modify: src/manafold_census/capability/model.py
 - Modify: src/manafold_census/capability/identity.py
 - Create: schemas/capability-claim.v1.schema.json
+- Create: tests/test_capability_binding.py
 - Create: tests/test_capability_dimensions.py
 - Modify: tests/test_capability_model.py
 - Modify: tests/test_capability_identity.py
+
+The TASK_2_REPAIR_01 correction also updates this plan artifact. It does not
+change the M4 design contract, M2/M3 sources, or any real corpus.
 
 **Dependency:** Task 1.
 
 **Authorization:** Separate implementation authorization is required.
 
-### Step 1: Write the failing dimension tests
+### Step 1: Write the failing dimension and repair tests
 
 Add exact draw-card parameter cases:
 
@@ -696,17 +709,20 @@ def test_parameter_binding_preserves_unknown_values() -> None:
 Run:
 
 ~~~powershell
-python -m pytest tests/test_capability_dimensions.py -q
+python -m pytest tests/test_capability_dimensions.py tests/test_capability_binding.py tests/test_capability_model.py tests/test_capability_identity.py -q
 ~~~
 
-Expected: collection fails because the typed path and binding values do not
-exist.
+Expected before the repair: collection fails because claim.py and binding.py do
+not exist, and the new anchor/recompute assertions cannot pass.
 
 ### Step 2: Define the closed dimension vocabulary
 
-Implement these values in dimensions.py:
+Implement DimensionKindV1, DimensionDomainKindV1, UnknownPolicyV1, and the
+code-owned M2DimensionPathV1 registry in dimensions.py. Implement
+BindingStateV1 and ParameterBindingV1 in binding.py:
 
 ~~~python
+# dimensions.py
 class DimensionKindV1(StrEnum):
     ENTITY_REF = "ENTITY_REF"
     QUANTITY = "QUANTITY"
@@ -726,15 +742,20 @@ class DimensionDomainKindV1(StrEnum):
     M2_SHAPE_SUBSET = "M2_SHAPE_SUBSET"
 
 
+class UnknownPolicyV1(StrEnum):
+    EXPLICIT_BUT_NOT_ACTIVE = "EXPLICIT_BUT_NOT_ACTIVE"
+~~~
+
+~~~python
+# binding.py
 class BindingStateV1(StrEnum):
     KNOWN = "KNOWN"
     UNKNOWN = "UNKNOWN"
     NOT_APPLICABLE = "NOT_APPLICABLE"
-
-
-class UnknownPolicyV1(StrEnum):
-    EXPLICIT_BUT_NOT_ACTIVE = "EXPLICIT_BUT_NOT_ACTIVE"
 ~~~
+
+UnknownPolicyV1 remains owned by dimensions.py. No binding state is inferred
+from an artifact string outside these closed enums.
 
 The code-owned M2DimensionPathV1 enum contains these exact entries:
 
@@ -802,7 +823,9 @@ The implementation never substitutes a free-form recursive path.
 
 ### Step 3: Implement typed domains and bindings
 
-Implement:
+Implement CapabilityDimensionV1 and ExclusionV1 in dimensions.py and claim.py,
+respectively. Implement CompositionComponentV1, CompositionClaimV1, and
+CapabilityClaimV1 in claim.py. Implement ParameterBindingV1 in binding.py:
 
 ~~~python
 @dataclass(frozen=True, slots=True)
@@ -863,9 +886,32 @@ value is a restricted JSON projection of an already validated M2 value. It is
 never evaluated as code. The binding validator recomputes the value from the
 Requirement rather than trusting a duplicated artifact value.
 
+For a KNOWN binding, binding.py must select the registered value_type and parse
+the value through that existing M2 type's parser, then retain only its
+canonical to_wire projection. JSON-valid but wrong-shaped values fail closed.
+Provide the downstream recomputation seam:
+
+~~~python
+def validate_binding_against_requirement(
+    requirement: RequirementV1,
+    binding: ParameterBindingV1,
+) -> None:
+    ...
+~~~
+
+The validator requires the path's registered family/kind to equal the
+Requirement family/kind, extracts only the registered direct
+/parameters/<field> path, and recomputes its canonical typed M2 value. KNOWN
+must be byte-equivalent to that value. UNKNOWN must carry the exact registered
+unknown path, an UnknownReasonV1 equal to the Requirement resolution reason,
+the same path in resolution.unknown_paths, and an actually unknown typed M2
+value. NOT_APPLICABLE is valid only when the actual M2 value is null. The
+validator accepts no callbacks, expressions, recursive free-form paths, or
+artifact-selected parsers.
+
 ### Step 4: Add versioned claims
 
-Extend model.py with:
+Create claim.py with:
 
 ~~~python
 @dataclass(frozen=True, slots=True)
@@ -899,6 +945,11 @@ The claim includes dimension paths and registry versions. The family key does
 not. A changed claim under an unchanged family key increments the Capability
 version and changes the claim digest.
 
+CapabilityClaimV1 validates every dimension and exclusion against the
+family_key.operation_anchor. A registered path whose (family, kind) pair is
+absent from the atomic anchor or all composite anchors is invalid; matching
+dimension_kind alone is insufficient.
+
 ### Step 5: Test dimension evolution and negative boundaries
 
 Test that:
@@ -918,9 +969,9 @@ unknown values round-trip without being guessed
 Run:
 
 ~~~powershell
-python -m pytest tests/test_capability_dimensions.py tests/test_capability_model.py tests/test_capability_identity.py -q
-ruff format --check src/manafold_census/capability tests/test_capability_dimensions.py tests/test_capability_model.py tests/test_capability_identity.py
-ruff check src/manafold_census/capability tests/test_capability_dimensions.py tests/test_capability_model.py tests/test_capability_identity.py
+python -m pytest tests/test_capability_dimensions.py tests/test_capability_binding.py tests/test_capability_model.py tests/test_capability_identity.py -q
+ruff format --check src/manafold_census/capability tests/test_capability_dimensions.py tests/test_capability_binding.py tests/test_capability_model.py tests/test_capability_identity.py
+ruff check src/manafold_census/capability tests/test_capability_dimensions.py tests/test_capability_binding.py tests/test_capability_model.py tests/test_capability_identity.py
 mypy src/manafold_census/capability
 ~~~
 
@@ -929,7 +980,7 @@ Expected: focused tests and all static checks PASS.
 ### Step 6: Commit the dimension slice
 
 ~~~powershell
-git add src/manafold_census/capability tests/test_capability_dimensions.py tests/test_capability_model.py tests/test_capability_identity.py schemas/capability-claim.v1.schema.json
+git add src/manafold_census/capability/claim.py src/manafold_census/capability/binding.py src/manafold_census/capability/dimensions.py src/manafold_census/capability/identity.py src/manafold_census/capability/model.py tests/test_capability_binding.py tests/test_capability_dimensions.py tests/test_capability_identity.py tests/test_capability_model.py docs/superpowers/plans/2026-09-14-bottom-up-capability-ontology.md
 git diff --cached --check
 git commit -m "feat: add typed M4 capability dimensions"
 ~~~
@@ -938,13 +989,13 @@ git commit -m "feat: add typed M4 capability dimensions"
 
 **Files:**
 
-- Modify: src/manafold_census/capability/model.py
+- Create: src/manafold_census/capability/definition.py
 - Modify: src/manafold_census/capability/identity.py
 - Create: src/manafold_census/capability/review.py
 - Create: schemas/capability-definition.v1.schema.json
 - Create: schemas/capability-review.v1.schema.json
+- Create: tests/test_capability_definition.py
 - Create: tests/test_capability_review.py
-- Modify: tests/test_capability_model.py
 - Modify: tests/test_capability_identity.py
 
 **Dependency:** Tasks 1 and 2.
@@ -997,7 +1048,7 @@ def test_definition_review_requires_a_closed_generalization_basis() -> None:
 Run:
 
 ~~~powershell
-python -m pytest tests/test_capability_review.py tests/test_capability_model.py -q
+python -m pytest tests/test_capability_review.py tests/test_capability_definition.py -q
 ~~~
 
 Expected: collection fails because lifecycle and review modules are not
@@ -1005,7 +1056,7 @@ implemented.
 
 ### Step 2: Add the closed lifecycle and definition model
 
-Implement:
+Implement in definition.py:
 
 ~~~python
 class CapabilityLifecycleStateV1(StrEnum):
@@ -1164,7 +1215,7 @@ activation.
 
 ### Step 4: Add active-definition preconditions
 
-Implement validate_active_definition with these checks:
+Implement validate_active_definition in definition.py with these checks:
 
 ~~~text
 claim digest recomputes
@@ -1185,11 +1236,11 @@ link interface exists.
 ### Step 5: Run focused checks and commit
 
 ~~~powershell
-python -m pytest tests/test_capability_review.py tests/test_capability_model.py tests/test_capability_identity.py -q
-ruff format --check src/manafold_census/capability tests/test_capability_review.py tests/test_capability_model.py tests/test_capability_identity.py
-ruff check src/manafold_census/capability tests/test_capability_review.py tests/test_capability_model.py tests/test_capability_identity.py
+python -m pytest tests/test_capability_review.py tests/test_capability_definition.py tests/test_capability_identity.py -q
+ruff format --check src/manafold_census/capability tests/test_capability_review.py tests/test_capability_definition.py tests/test_capability_identity.py
+ruff check src/manafold_census/capability tests/test_capability_review.py tests/test_capability_definition.py tests/test_capability_identity.py
 mypy src/manafold_census/capability
-git add src/manafold_census/capability tests/test_capability_review.py tests/test_capability_model.py tests/test_capability_identity.py schemas/capability-definition.v1.schema.json schemas/capability-review.v1.schema.json
+git add src/manafold_census/capability tests/test_capability_definition.py tests/test_capability_review.py tests/test_capability_identity.py schemas/capability-definition.v1.schema.json schemas/capability-review.v1.schema.json
 git diff --cached --check
 git commit -m "feat: add M4 capability lifecycle and review"
 ~~~
@@ -1595,7 +1646,7 @@ git commit -m "feat: add M4 requirement capability links"
 **Files:**
 
 - Create: src/manafold_census/capability/evolution.py
-- Modify: src/manafold_census/capability/model.py
+- Modify: src/manafold_census/capability/claim.py
 - Modify: src/manafold_census/capability/link.py
 - Create: schemas/capability-evolution.v1.schema.json
 - Create: schemas/capability-relations.v1.schema.json

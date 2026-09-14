@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 from ..digest import domain_digest
-from .model import CapabilityClaimV1, CapabilityFamilyKeyV1
+from .claim import CapabilityClaimV1
+from .model import CapabilityFamilyKeyV1
 
 FAMILY_ID_DOMAIN = "census.capability-family-id.v1"
 FAMILY_ID_PREFIX = "capfam_"

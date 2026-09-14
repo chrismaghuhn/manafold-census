@@ -7,18 +7,20 @@ import pytest
 from capability_fixtures import draw_family_key
 from jsonschema import Draft202012Validator
 
+from manafold_census.capability.binding import BindingStateV1, ParameterBindingV1
+from manafold_census.capability.claim import CapabilityClaimV1, ExclusionV1
 from manafold_census.capability.dimensions import (
-    BindingStateV1,
     CapabilityDimensionV1,
     DimensionDomainKindV1,
     DimensionKindV1,
-    ExclusionV1,
     M2DimensionPathV1,
-    ParameterBindingV1,
     UnknownPolicyV1,
     dimension_spec_for,
 )
-from manafold_census.capability.model import CapabilityClaimV1
+from manafold_census.capability.model import (
+    CapabilityFamilyKeyV1,
+    NucleusKindV1,
+)
 from manafold_census.semantic.kinds import RequirementFamilyV1, RequirementKindV1
 from manafold_census.semantic.primitives import SemanticShapeV1
 
@@ -192,6 +194,75 @@ def test_claim_rejects_duplicate_dimension_paths() -> None:
             exclusions=(),
             composition=None,
         )
+
+
+def test_claim_rejects_dimension_outside_family_operation_anchor() -> None:
+    with pytest.raises(ValueError, match="operation_anchor"):
+        CapabilityClaimV1(
+            family_key=draw_family_key(),
+            capability_version=1,
+            m2_requirement_schema="census.semantic-requirement.v1",
+            m2_interpretation_version="1",
+            m4_dimension_registry_version="1",
+            dimensions=(
+                CapabilityDimensionV1(
+                    path_key=M2DimensionPathV1.DEAL_DAMAGE_AMOUNT,
+                    dimension_kind=DimensionKindV1.QUANTITY,
+                    required=True,
+                    domain_kind=DimensionDomainKindV1.ANY_TYPED_VALUE,
+                ),
+            ),
+            exclusions=(),
+            composition=None,
+        )
+
+
+def test_claim_rejects_exclusion_outside_family_operation_anchor() -> None:
+    with pytest.raises(ValueError, match="operation_anchor"):
+        CapabilityClaimV1(
+            family_key=draw_family_key(),
+            capability_version=1,
+            m2_requirement_schema="census.semantic-requirement.v1",
+            m2_interpretation_version="1",
+            m4_dimension_registry_version="1",
+            dimensions=(),
+            exclusions=(
+                ExclusionV1(
+                    path_key=M2DimensionPathV1.DEAL_DAMAGE_AMOUNT,
+                    domain_kind=DimensionDomainKindV1.ANY_TYPED_VALUE,
+                ),
+            ),
+            composition=None,
+        )
+
+
+def test_composite_claim_accepts_a_declared_anchor_path() -> None:
+    claim = CapabilityClaimV1(
+        family_key=CapabilityFamilyKeyV1(
+            nucleus_contract_version="1",
+            nucleus_kind=NucleusKindV1.COMPOSITE,
+            operation_anchor=(
+                (RequirementFamilyV1.EFFECT, RequirementKindV1.DRAW_CARDS),
+                (RequirementFamilyV1.EFFECT, RequirementKindV1.DEAL_DAMAGE),
+            ),
+        ),
+        capability_version=1,
+        m2_requirement_schema="census.semantic-requirement.v1",
+        m2_interpretation_version="1",
+        m4_dimension_registry_version="1",
+        dimensions=(
+            CapabilityDimensionV1(
+                path_key=M2DimensionPathV1.DEAL_DAMAGE_AMOUNT,
+                dimension_kind=DimensionKindV1.QUANTITY,
+                required=True,
+                domain_kind=DimensionDomainKindV1.ANY_TYPED_VALUE,
+            ),
+        ),
+        exclusions=(),
+        composition=None,
+    )
+
+    assert claim.family_key.nucleus_kind is NucleusKindV1.COMPOSITE
 
 
 def test_shape_subset_is_typed_and_canonical() -> None:
