@@ -106,7 +106,6 @@ def test_fresh_non_editable_wheel_contains_all_m4_resources(
             "wheel",
             ".",
             "--no-deps",
-            "--no-build-isolation",
             "--wheel-dir",
             str(wheel_dir),
         ],
