@@ -33,8 +33,10 @@ This document is a plan artifact only. Creating it does not authorize any
 numbered implementation task.
 
 ~~~text
-DESIGN_HEAD                       = 0f787e7807dad3f730b4013e6a768616000666c2
-DESIGN_STATE                      = FROZEN_BY_INDEPENDENT_REVIEW
+DESIGN_BASE_HEAD                  = 0f787e7807dad3f730b4013e6a768616000666c2
+DESIGN_STATE                      = FROZEN_BASE_PLUS_AMENDMENT_PENDING_REVIEW
+DESIGN_AMENDMENT_01               = PERSIST_SEMANTIC_RELATIONS
+DESIGN_AMENDMENT_01_STATUS        = READY_FOR_INDEPENDENT_REVIEW
 PLAN_ARTIFACT                     = docs/superpowers/plans/2026-09-14-bottom-up-capability-ontology.md
 M4_IMPLEMENTATION_PLAN_AUTHORIZED = YES
 M4_IMPLEMENTATION_PLAN_REVIEW     = NOT_RUN
@@ -47,9 +49,10 @@ PR_AUTHORIZED                     = NO
 MERGE_AUTHORIZED                  = NO
 ~~~
 
-The frozen design document at DESIGN_HEAD is immutable during plan execution.
-The freeze is the independent-review decision recorded by the user; the plan
-does not rewrite the design document's pre-freeze status text. Every future
+The frozen design base at DESIGN_BASE_HEAD remains immutable. This plan carries
+only the narrow DESIGN_AMENDMENT_01 relation-persistence amendment; that
+amendment is not frozen until independent review records PASS. The plan does
+not rewrite the design document's pre-freeze status text. Every future
 implementation task must preserve:
 
 ~~~text
@@ -263,11 +266,13 @@ schemas/capability-claim.v1.schema.json
 schemas/capability-definition.v1.schema.json
 schemas/capability-review.v1.schema.json
 schemas/source-requirement-admissibility.v1.schema.json
+schemas/capability-relations.v1.schema.json
 schemas/requirement-capability-link.v1.schema.json
 schemas/requirement-mapping-decision.v1.schema.json
 schemas/capability-evolution.v1.schema.json
 schemas/capability-ontology-manifest.v1.schema.json
 schemas/capability-candidate-cluster.v1.schema.json
+schemas/candidate-grouping-policy.v1.schema.json
 schemas/capability-report.v1.schema.json
 ~~~
 
@@ -336,6 +341,7 @@ proposed_complete_requirement
 accepted_complete_requirement
 requirement_with_status_and_resolution
 proposed_draw_requirement
+proposed_draw_requirement_with_unknown_dimension_path
 proposed_damage_requirement
 record_with_proposed_requirement
 record_with_requirement
@@ -360,10 +366,17 @@ requires_edge
 split_event
 links_for_two_distinct_m1_sources
 links_for_one_m1_source
+semantic_relation
+composes_relation
+requires_relation
+specializes_relation
 build_synthetic_m4
 build_synthetic_m4_with_stale_link
 build_capability_reports
 report_for_synthetic_sparse_m3
+candidate_grouping_policy
+policy_with_duplicate_or_overlapping_paths
+policy_with_changed_partition_rule
 ~~~
 
 Each factory returns a complete typed value with deterministic fixture IDs,
@@ -1016,6 +1029,37 @@ provenance
 review_ref
 ~~~
 
+Define the closed provenance value before constructing a definition:
+
+~~~python
+@dataclass(frozen=True, slots=True)
+class CapabilityRequirementProvenanceV1:
+    requirement_id: str
+    requirement_wire_digest: str
+
+
+@dataclass(frozen=True, slots=True)
+class CapabilityProvenanceV1:
+    m3_analysis_manifest_sha256: str
+    candidate_cluster_ids: tuple[str, ...]
+    requirement_refs: tuple[CapabilityRequirementProvenanceV1, ...]
+~~~
+
+The provenance wire contains exactly the M3 manifest SHA, sorted
+candidate-cluster IDs, and sorted Requirement reference objects. Each
+Requirement reference contains exactly requirement_id and
+requirement_wire_digest; there is no free-form metadata map. The constructor
+sorts both collections into canonical order and rejects duplicates or an empty
+combined basis. Candidate IDs must use the closed ccg_ digest form.
+Requirement references must use the existing srq_ identity form and the
+existing wire_digest_for value. Provenance is a typed audit basis and is
+excluded from family ID and claim_digest; it is never an arbitrary dictionary
+or a source-specific Capability identity.
+
+CapabilityDefinitionV1.provenance has type CapabilityProvenanceV1. The
+definition wire carries its canonical to_wire value, and independent
+validation checks every Requirement reference against the selected M3 corpus.
+
 The constructor recomputes capability_family_id from claim.family_key and
 claim_digest from the exact claim. It rejects mismatches, unknown fields,
 invalid display text, and lifecycle values outside the closed enum.
@@ -1125,6 +1169,7 @@ Implement validate_active_definition with these checks:
 ~~~text
 claim digest recomputes
 family ID recomputes from the stable family key
+provenance parses as CapabilityProvenanceV1 and binds to the selected M3 input
 review_ref points to an ACCEPTED exact capability review
 definition lifecycle is ACTIVE
 ~~~
@@ -1553,6 +1598,7 @@ git commit -m "feat: add M4 requirement capability links"
 - Modify: src/manafold_census/capability/model.py
 - Modify: src/manafold_census/capability/link.py
 - Create: schemas/capability-evolution.v1.schema.json
+- Create: schemas/capability-relations.v1.schema.json
 - Create: tests/test_capability_evolution.py
 
 **Dependency:** Tasks 1–5.
@@ -1618,6 +1664,41 @@ COMPOSES
 REQUIRES
 SPECIALIZES
 ~~~
+
+Persist each edge as CapabilityRelationV1 in the dedicated relation file:
+
+~~~python
+class CapabilityRelationKindV1(StrEnum):
+    COMPOSES = "COMPOSES"
+    REQUIRES = "REQUIRES"
+    SPECIALIZES = "SPECIALIZES"
+
+
+@dataclass(frozen=True, slots=True)
+class CapabilityRelationV1:
+    relation_id: str
+    relation_kind: CapabilityRelationKindV1
+    from_capability: CapabilityRefV1
+    to_capability: CapabilityRefV1
+    component_key: str | None
+    ordinal: int | None
+    required: bool | None
+~~~
+
+relation_id is:
+
+~~~text
+crl_ + domain_digest(
+    "census.capability-relation-id.v1",
+    relation_claim_payload
+)
+~~~
+
+For COMPOSES, component_key, ordinal, and required are required. For REQUIRES
+and SPECIALIZES, all three are explicit nulls. The relation claim contains
+only the exact kind, endpoints, and relation-specific fields. It excludes
+review, filesystem path, timestamp, runtime order, report data, and the future
+M4 manifest digest.
 
 Edges are directional and target exact Capability references including claim
 digest. SHARES_DIMENSION is a derived report view and is not persisted.
@@ -1688,6 +1769,10 @@ component key duplication
 implicit composition inferred from link count
 ~~~
 
+Also verify that every valid relation is persisted, reread, and included in
+the relation-file descriptor. A valid in-memory relation that is absent from
+the published artifact is a build failure.
+
 ### Step 5: Run gates and commit
 
 ~~~powershell
@@ -1695,7 +1780,7 @@ python -m pytest tests/test_capability_evolution.py tests/test_capability_link.p
 ruff format --check src/manafold_census/capability tests/test_capability_evolution.py tests/test_capability_link.py
 ruff check src/manafold_census/capability tests/test_capability_evolution.py tests/test_capability_link.py
 mypy src/manafold_census/capability
-git add src/manafold_census/capability tests/test_capability_evolution.py schemas/capability-evolution.v1.schema.json
+git add src/manafold_census/capability tests/test_capability_evolution.py schemas/capability-evolution.v1.schema.json schemas/capability-relations.v1.schema.json
 git diff --cached --check
 git commit -m "feat: add M4 capability evolution relations"
 ~~~
@@ -1929,6 +2014,13 @@ def test_m4_manifest_binds_m3_and_all_authoritative_files(tmp_path: Path) -> Non
     assert "report_index_digest" not in result.manifest.to_wire()
 
 
+def test_manifest_digest_is_raw_sha256_of_canonical_manifest_bytes() -> None:
+    manifest = genesis_manifest()
+    raw = canonical_json_bytes(manifest.to_wire())
+
+    assert manifest.digest() == hashlib.sha256(raw).hexdigest()
+
+
 def test_failed_build_never_publishes_manifest(tmp_path: Path) -> None:
     output = tmp_path / "output"
 
@@ -2050,6 +2142,7 @@ The reference output layout is:
 ~~~text
 capabilities.jsonl
 review-authority.jsonl
+capability-relations.jsonl
 requirement-admissibility.jsonl
 evolution.jsonl
 links/0.jsonl through links/f.jsonl
@@ -2081,6 +2174,7 @@ parent_m4_manifest_sha256
 requirement_set_digest
 capability_file
 review_file
+relation_file
 admissibility_file
 evolution_file
 link_shards
@@ -2124,11 +2218,20 @@ class M4OntologyManifestV1:
     requirement_set_digest: str
     capability_file: M4FileDescriptorV1
     review_file: M4FileDescriptorV1
+    relation_file: M4FileDescriptorV1
     admissibility_file: M4FileDescriptorV1
     evolution_file: M4FileDescriptorV1
     link_shards: tuple[M4FileDescriptorV1, ...]
     mapping_decision_shards: tuple[M4FileDescriptorV1, ...]
+
+    def digest(self) -> str:
+        return sha256_bytes(canonical_json_bytes(self.to_wire()))
 ~~~
+
+M4OntologyManifestV1.digest is the raw SHA-256 of the exact canonical
+manifest bytes. It is not a domain-separated semantic digest. The same method
+supplies the parent_m4_manifest_sha256 comparison and the downstream report
+binding, so those two consumers cannot diverge.
 
 ### Step 4: Implement the reference build
 
@@ -2141,6 +2244,7 @@ class M4BuildResultV1:
     manifest: M4OntologyManifestV1
     requirements: tuple[RequirementV1, ...]
     definitions: tuple[CapabilityDefinitionV1, ...]
+    semantic_relations: tuple[CapabilityRelationV1, ...]
     links: tuple[RequirementCapabilityLinkV1, ...]
     mapping_decisions: tuple[RequirementMappingDecisionV1, ...]
 
@@ -2151,6 +2255,7 @@ def build_reference_m4(
     parent_m4_manifest: M4OntologyManifestV1 | None,
     capability_definitions: Sequence[CapabilityDefinitionV1],
     reviews: Sequence[CapabilityReviewRecordV1],
+    semantic_relations: Sequence[CapabilityRelationV1],
     admissibility_records: Sequence[SourceRequirementAdmissibilityV1],
     links: Sequence[RequirementCapabilityLinkV1],
     mapping_decisions: Sequence[RequirementMappingDecisionV1],
@@ -2164,6 +2269,7 @@ def build_reference_m4(
         parent_m4_manifest,
         capability_definitions,
         reviews,
+        semantic_relations,
         admissibility_records,
         links,
         mapping_decisions,
@@ -2173,6 +2279,7 @@ def build_reference_m4(
         input_corpus,
         capability_definitions,
         reviews,
+        semantic_relations,
         admissibility_records,
         links,
         mapping_decisions,
@@ -2193,6 +2300,7 @@ The implementation body must:
 * load and validate the frozen M3 Requirement corpus;
 * validate all Capability definitions and exact claim digests;
 * validate review and admissibility records;
+* validate every semantic relation and its exact endpoint claim digests;
 * validate every link against the loaded Requirement and Capability sets;
 * require exactly one mapping decision per actual Requirement;
 * validate evolution and semantic edges;
@@ -2201,6 +2309,11 @@ The implementation body must:
 * reread every file through independent parser/validator functions;
 * recompute descriptors and manifest identity; and
 * atomically publish the completed directory only after all checks pass.
+
+The relation set is written to capability-relations.jsonl, reread, sorted by
+relation kind/from reference/to reference/relation ID, and represented by the
+relation_file descriptor in M4OntologyManifestV1. A relation that exists only
+in memory is not a successful build result.
 
 Exceptions are classified as invalid M3 input, invalid wire, stale link,
 review disagreement, graph failure, digest failure, or publication failure.
@@ -2265,6 +2378,8 @@ missing or extra link endpoint fails
 manifest descriptors match exact bytes
 reports are absent from manifest identity
 failed publication leaves no authoritative manifest
+relation-file persistence and descriptor match
+relation permutation leaves bytes unchanged
 ~~~
 
 ### Step 6: Run gates and commit
@@ -2285,6 +2400,7 @@ git commit -m "feat: add deterministic M4 ontology publication"
 
 - Create: src/manafold_census/capability/candidates.py
 - Create: schemas/capability-candidate-cluster.v1.schema.json
+- Create: schemas/candidate-grouping-policy.v1.schema.json
 - Create: tests/test_capability_candidates.py
 
 **Dependency:** Tasks 1, 2, 7, and 8.
@@ -2301,8 +2417,9 @@ def test_quantity_variants_share_one_candidate_signature() -> None:
     first = proposed_draw_requirement(quantity=2)
     second = proposed_draw_requirement(quantity=3, other_source=True)
     corpus = corpus_for_requirements((first, second))
+    policy = candidate_grouping_policy()
 
-    result = group_requirement_candidates(corpus)
+    result = group_requirement_candidates(corpus, policy)
 
     assert len(result.clusters) == 1
     assert result.clusters[0].distinct_source_count == 2
@@ -2313,15 +2430,17 @@ def test_different_operation_kinds_do_not_share_signature() -> None:
     draw = proposed_draw_requirement(quantity=2)
     damage = proposed_damage_requirement()
     corpus = corpus_for_requirements((draw, damage))
+    policy = candidate_grouping_policy()
 
-    result = group_requirement_candidates(corpus)
+    result = group_requirement_candidates(corpus, policy)
 
     assert len(result.clusters) == 2
 
 
 def test_cluster_is_not_a_capability_definition() -> None:
     corpus = corpus_for_requirements((proposed_draw_requirement(quantity=2),))
-    cluster = group_requirement_candidates(corpus).clusters[0]
+    policy = candidate_grouping_policy()
+    cluster = group_requirement_candidates(corpus, policy).clusters[0]
 
     assert cluster.status is CandidateClusterStatusV1.PROPOSED
     assert cluster.capability_definition is None
@@ -2329,7 +2448,58 @@ def test_cluster_is_not_a_capability_definition() -> None:
 
 def test_candidate_identity_requires_the_frozen_m3_corpus() -> None:
     with pytest.raises(TypeError, match="M3RequirementCorpusV1"):
-        group_requirement_candidates((proposed_draw_requirement(quantity=2),))
+        group_requirement_candidates(
+            (proposed_draw_requirement(quantity=2),),
+            candidate_grouping_policy(),
+        )
+
+
+def test_policy_partition_paths_prevent_semantic_overgrouping() -> None:
+    first = proposed_draw_requirement(quantity=2, drawer="controller")
+    second = proposed_draw_requirement(
+        quantity=3,
+        drawer="opponent",
+        other_source=True,
+    )
+    corpus = corpus_for_requirements((first, second))
+
+    result = group_requirement_candidates(corpus, candidate_grouping_policy())
+
+    assert len(result.clusters) == 2
+
+
+def test_unknown_observed_path_is_always_a_partition() -> None:
+    first = proposed_draw_requirement(quantity=2)
+    second = proposed_draw_requirement_with_unknown_dimension_path(
+        quantity=3,
+        other_source=True,
+    )
+    corpus = corpus_for_requirements((first, second))
+
+    result = group_requirement_candidates(corpus, candidate_grouping_policy())
+
+    assert len(result.clusters) == 2
+
+
+def test_policy_rejects_duplicate_or_overlapping_paths() -> None:
+    invalid_policy = policy_with_duplicate_or_overlapping_paths()
+
+    with pytest.raises(ValueError, match="candidate grouping policy"):
+        group_requirement_candidates(
+            corpus_for_requirements((proposed_draw_requirement(quantity=2),)),
+            invalid_policy,
+        )
+
+
+def test_policy_digest_is_part_of_candidate_identity() -> None:
+    corpus = corpus_for_requirements((proposed_draw_requirement(quantity=2),))
+    first_policy = candidate_grouping_policy()
+    second_policy = policy_with_changed_partition_rule()
+
+    first = group_requirement_candidates(corpus, first_policy)
+    second = group_requirement_candidates(corpus, second_policy)
+
+    assert first.clusters[0].candidate_id != second.clusters[0].candidate_id
 ~~~
 
 Run:
@@ -2349,21 +2519,90 @@ class CandidateClusterStatusV1(StrEnum):
     PROPOSED = "PROPOSED"
 ~~~
 
-The public grouping interface accepts only the validated M3 corpus envelope:
+Define the closed, versioned dimension-mask policy before the grouping
+function:
+
+~~~python
+@dataclass(frozen=True, slots=True)
+class CandidateGroupingRuleV1:
+    family: RequirementFamilyV1
+    kind: RequirementKindV1
+    dimension_paths: tuple[M2DimensionPathV1, ...]
+    partition_paths: tuple[M2DimensionPathV1, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class CandidateGroupingPolicyV1:
+    policy_version: str
+    rules: tuple[CandidateGroupingRuleV1, ...]
+
+    SCHEMA: ClassVar[str] = "census.candidate-grouping-policy.v1"
+~~~
+
+The policy wire contains exactly:
+
+~~~text
+schema
+policy_version
+rules:
+    family
+    kind
+    dimension_paths
+    partition_paths
+~~~
+
+CandidateGroupingRuleV1 has exactly one rule for every supported M2
+family/kind pair. Within a rule, every path known by the Task 2 dimension
+registry for that kind appears exactly once in either dimension_paths or
+partition_paths; overlaps, duplicates, family/kind mismatches, and missing
+rules fail closed. dimension_paths are the only registered paths whose typed
+values may vary inside one candidate cluster. partition_paths always
+partition the cluster, even when their values are equal in the current
+corpus.
+
+An observed path that is absent from the code-owned registry, or cannot be
+classified by the selected rule, is represented only as an exact opaque
+unknown-path partition token. It is never masked into a dimension and never
+silently discarded. A policy cannot introduce a new path string or a free-form
+expression. The policy itself has a canonical wire shape, a non-empty stable
+version identifier, and a digest:
+
+~~~text
+candidate_grouping_policy_digest =
+    domain_digest(
+        "census.m4-candidate-grouping-policy.v1",
+        policy.to_wire(),
+    )
+~~~
+
+Implement candidate_grouping_policy_digest_for as a pure wrapper around the
+existing domain_digest helper. The initial policy_version is "1"; generator
+identity/version remains a separate candidate-generator field.
+
+The policy version and policy digest are both part of the candidate identity
+input. Changing a mask/partition decision therefore creates new candidate
+IDs; it cannot reinterpret historical proposal artifacts.
+
+The public grouping interface accepts only the validated M3 corpus envelope
+and this validated policy:
 
 ~~~python
 def group_requirement_candidates(
     corpus: M3RequirementCorpusV1,
+    policy: CandidateGroupingPolicyV1,
 ) -> CandidateGroupingResultV1:
     if not isinstance(corpus, M3RequirementCorpusV1):
         raise TypeError("grouping requires M3RequirementCorpusV1")
-    return group_validated_requirements(corpus)
+    if not isinstance(policy, CandidateGroupingPolicyV1):
+        raise TypeError("grouping requires CandidateGroupingPolicyV1")
+    validate_candidate_grouping_policy(policy)
+    return group_validated_requirements(corpus, policy)
 ~~~
 
 group_validated_requirements is a private deterministic seam in candidates.py;
-it reads corpus.requirements, corpus.m3_analysis_manifest_sha256, and
-corpus.requirement_set_digest. There is no public overload that accepts a raw
-Requirement sequence without the M3 envelope.
+it reads corpus.requirements, corpus.m3_analysis_manifest_sha256,
+corpus.requirement_set_digest, and the validated policy. There is no public
+overload that accepts a raw Requirement sequence or an unvalidated policy.
 
 The grouping signature contains:
 
@@ -2373,13 +2612,16 @@ registered path keys
 typed M2 value shapes and enum values
 known, unknown, or optional state
 M2 relationship shape where explicitly supplied
-dimension-mask policy
+policy version and policy digest
 ~~~
 
 The generator may mask a concrete value only when the corresponding
-code-owned path is declared as a Capability dimension. It must not mask
-operation, actor, zone, timing, event, selection, replacement, condition, or
-payment semantics merely to increase frequency.
+code-owned path is in dimension_paths for the Requirement's exact family/kind
+rule. It must partition on every partition_paths value and on every
+unknown/unclassified path token. It must not mask operation, actor, zone,
+timing, event, selection, replacement, condition, or payment semantics merely
+to increase frequency; those paths are partition paths unless a future
+versioned policy explicitly proves a different closed interpretation.
 
 candidate_id is:
 
@@ -2389,6 +2631,8 @@ ccg_ + domain_digest(
     {
         "m3_analysis_manifest_sha256": corpus.m3_analysis_manifest_sha256,
         "requirement_set_digest": corpus.requirement_set_digest,
+        "policy_version": policy.policy_version,
+        "policy_digest": candidate_grouping_policy_digest_for(policy),
         "generator_id": generator_id,
         "generator_version": generator_version,
         "group_signature": canonical_group_signature,
@@ -2397,9 +2641,9 @@ ccg_ + domain_digest(
 )
 ~~~
 
-The candidate record contains exact Requirement IDs, integer counts, typed
-variation summaries, and a proposed claim sketch. It never has lifecycle
-ACTIVE or an accepted review reference.
+The candidate record contains the policy version and digest, exact Requirement
+IDs, integer counts, typed variation summaries, and a proposed claim sketch. It
+never has lifecycle ACTIVE or an accepted review reference.
 
 ### Step 3: Implement deterministic ranking and worklists
 
@@ -2454,7 +2698,7 @@ python -m pytest tests/test_capability_candidates.py -q
 ruff format --check src/manafold_census/capability tests/test_capability_candidates.py
 ruff check src/manafold_census/capability tests/test_capability_candidates.py
 mypy src/manafold_census/capability
-git add src/manafold_census/capability tests/test_capability_candidates.py schemas/capability-candidate-cluster.v1.schema.json
+git add src/manafold_census/capability tests/test_capability_candidates.py schemas/capability-candidate-cluster.v1.schema.json schemas/candidate-grouping-policy.v1.schema.json
 git diff --cached --check
 git commit -m "feat: add deterministic M4 candidate grouping"
 ~~~
@@ -2652,8 +2896,10 @@ one Requirement has multiple proposals but no implicit ambiguity resolution
 composition-member links require explicit composite context
 all evolution operation cardinalities
 all semantic edge cycle failures
+semantic relation persistence and canonical reread
+candidate policy variation/partition rules and unknown-path partitioning
 same frozen inputs produce byte-identical output
-input-order and mapping-order permutations preserve bytes
+input-order, mapping-order, and semantic-relation-order permutations preserve bytes
 duplicate insertion is idempotent only for identical claims
 stale M3, Requirement, and Capability digests fail
 generated cluster cannot become ACTIVE
@@ -2686,9 +2932,9 @@ def test_two_clean_m4_builds_have_identical_bytes_and_directory_digest(
 ~~~
 
 Also test shuffled Requirement, definition, review, admissibility, link,
-evolution, and mapping-decision input. Every permutation must produce
-identical canonical bytes. A future optimized backend cannot be added without
-parity with this single-process path.
+semantic-relation, evolution, and mapping-decision input. Every permutation
+must produce identical canonical bytes. A future optimized backend cannot be
+added without parity with this single-process path.
 
 ### Step 3: Extend maintainability and security guards
 

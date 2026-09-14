@@ -6,6 +6,12 @@ Roadmap: [Issue #2](https://github.com/chrismaghuhn/manafold-census/issues/2)
 Milestone: [Issue #7](https://github.com/chrismaghuhn/manafold-census/issues/7)
 Status: `DESIGN_ONLY / READY_FOR_INDEPENDENT_REVIEW`
 
+~~~text
+M4_DESIGN_BASE_HEAD              = 0f787e7807dad3f730b4013e6a768616000666c2
+M4_DESIGN_AMENDMENT_01           = PERSIST_SEMANTIC_RELATIONS
+M4_DESIGN_AMENDMENT_01_STATUS    = READY_FOR_INDEPENDENT_REVIEW
+~~~
+
 This document is the M4 architecture and specification only. It creates no
 production module, schema, ontology data, Requirement-to-Capability mapping,
 database, model dependency, engine integration, or implementation plan.
@@ -1070,6 +1076,55 @@ Shared dimensions are not persisted as edges. A report may derive a
 The graph is therefore a small typed relation set, not an arbitrary user
 defined graph language.
 
+### Persisted semantic relation artifact
+
+The three semantic edge kinds are persisted, not merely checked in memory.
+M4 owns a dedicated canonical JSONL artifact named
+capability-relations.jsonl. Its closed relation kind is:
+
+~~~text
+CapabilityRelationKindV1 =
+    COMPOSES
+    REQUIRES
+    SPECIALIZES
+~~~
+
+CapabilityRelationV1 contains exactly:
+
+~~~text
+relation_id
+relation_kind
+from_capability
+to_capability
+component_key
+ordinal
+required
+~~~
+
+from_capability and to_capability are exact Capability references containing
+family ID, version, and claim digest. component_key, ordinal, and required are
+populated only for COMPOSES and are explicit nulls for REQUIRES and
+SPECIALIZES. A relation claim contains the schema, relation kind, exact
+endpoints, and relation-specific fields:
+
+~~~text
+relation_id = "crl_" + domain_digest(
+    "census.capability-relation-id.v1",
+    relation_claim_payload
+)
+~~~
+
+The relation claim excludes reviewer, filesystem path, timestamp, runtime
+order, report data, and the future M4 manifest digest. Relations are sorted by
+relation kind, from reference, to reference, and relation ID. Independent
+reread validates the relation file, endpoint claim digests, relation-specific
+nullability, self-edge rule, and the three acyclic graph projections.
+
+The authoritative M4 build consumes semantic_relations as an explicit typed
+input. It validates and writes the complete relation set before publishing the
+M4 manifest. Missing, extra, duplicate, stale, or noncanonical relation data
+aborts publication; it is never converted to an unresolved semantic result.
+
 ## Outliers and unresolved semantics
 
 M4 preserves all visible Requirements and distinguishes several reasons for
@@ -1391,6 +1446,7 @@ evolution, and derived views have different owners and cardinalities.
 
 | Artifact | Role | Authority |
 | --- | --- | --- |
+| capability-relations | Persisted COMPOSES, REQUIRES, and SPECIALIZES edges with exact Capability references | Authoritative M4 semantic relation set |
 | `capability-candidate-clusters` | Deterministic or pinned model proposal groups | Non-authoritative proposal |
 | `capability-definitions` | Versioned typed Capability claims and lifecycle | Authoritative M4 definition set |
 | `capability-review-authority` | Exact accepted/rejected review records | Authoritative review input |
@@ -1408,6 +1464,7 @@ The initial reference artifact uses canonical JSONL rather than a database:
 ```text
 capabilities.jsonl
 review-authority.jsonl
+capability-relations.jsonl
 requirement-admissibility.jsonl
 evolution.jsonl
 links/0.jsonl ... links/f.jsonl
@@ -1447,6 +1504,7 @@ manual file.
   "capability_file": "<descriptor>",
   "review_file": "<descriptor>",
   "admissibility_file": "<descriptor>",
+  "relation_file": "<descriptor>",
   "evolution_file": "<descriptor>",
   "link_shards": ["<16 ordered descriptors>"],
   "mapping_decision_shards": ["<16 ordered descriptors>"]
@@ -1457,6 +1515,18 @@ manual file.
 of `requirement_id` and existing M2 `wire_digest_for()` value, with the M3
 manifest SHA included in the domain input. It is an M4 audit projection; the
 M2 Requirement ID remains owned by M2.
+
+M4OntologyManifestV1.digest() is the raw SHA-256 of the exact canonical
+manifest bytes:
+
+~~~python
+def digest(self) -> str:
+    return sha256_bytes(canonical_json_bytes(self.to_wire()))
+~~~
+
+This raw manifest SHA is the sole value used for parent-M4 binding and
+downstream report binding. It is distinct from domain-separated Capability,
+relation, link, and Requirement-set digests.
 
 The manifest contains no report bytes or report counters that can affect
 semantic identity. A report index, if added, points to the M4 manifest and is
@@ -1485,6 +1555,9 @@ frozen M3 analysis-manifest.json bytes
         ├── accepted review records
         │       └── review record digests
         │
+        ├── persisted semantic relation records
+        │       └── relation claim digests
+        │
         ├── SOURCE_REQUIREMENT_ADMISSIBILITY records
         │       └── admissibility review digests
         │
@@ -1505,6 +1578,8 @@ The exact dependency rules are:
   exclusions, and composition claim;
 * a Capability review record depends on the exact subject and claim digest,
   never on the future M4 manifest digest;
+* a semantic relation depends on its exact relation kind, endpoints, and
+  relation-specific fields, never on the future M4 manifest digest;
 * a `SOURCE_REQUIREMENT_ADMISSIBILITY` record depends on the exact M3
   manifest, Requirement ID/wire digest, observed M2 review/resolution fields,
   and `reviewed_claim_digest_for(requirement)`, never on the future M4 manifest
@@ -1571,6 +1646,7 @@ frozen M3 artifact bytes and manifest
 frozen M4 dimension-path registry
 reviewed Capability definitions/references
 review authority records
+semantic relation records
 source Requirement-admissibility records
 reviewed Requirement-to-Capability links/decisions
 evolution records
@@ -1582,6 +1658,7 @@ The same frozen inputs must produce byte-identical:
 ```text
 Capability definitions
 review records
+semantic relation records
 admissibility review records
 evolution records
 link shards
@@ -1599,6 +1676,7 @@ Canonical ordering is explicit:
 Capability definitions    = (capability_family_id, capability_version)
 Review records            = (subject type, subject stable key, record_id)
 Evolution records         = (operation, sorted from refs, sorted to refs, event_id)
+Semantic relations        = (relation kind, from reference, to reference, relation_id)
 Links                     = (requirement_id, relation, capability ref, link_id)
 Mapping decisions         = (requirement_id)
 Dimension arrays          = path_key order
@@ -1699,6 +1777,7 @@ SOURCE_REQUIREMENT_ADMISSIBILITY decision and exact M3/M2 binding
 link identity and exact M3/M2 binding
 parameter extraction and binding equality
 DIRECT versus COMPOSITION_MEMBER relations
+persisted COMPOSES, REQUIRES, and SPECIALIZES relation records
 mapping decision disposition invariants
 review subject/claim binding and lifecycle transitions
 composition/dependency/specialization edge validation
