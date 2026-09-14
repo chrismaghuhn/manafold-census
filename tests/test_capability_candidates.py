@@ -25,8 +25,10 @@ from manafold_census.capability.input import M3RequirementCorpusV1
 from manafold_census.digest import sha256_bytes
 from manafold_census.semantic.evidence import StructuralFieldEvidenceV1
 from manafold_census.semantic.kind_payloads import (
+    ChooseModeParametersV1,
     DealDamageParametersV1,
     DrawCardsParametersV1,
+    UnresolvedParametersV1,
 )
 from manafold_census.semantic.kinds import (
     RequirementFamilyV1,
@@ -50,6 +52,8 @@ from manafold_census.semantic.primitives import (
     MultiplicityV1,
     QuantityModeV1,
     QuantityV1,
+    SemanticDescriptorV1,
+    SemanticShapeV1,
     UnknownReasonV1,
     UnknownValueV1,
 )
@@ -129,6 +133,88 @@ def _damage_requirement() -> RequirementV1:
             ResolutionStateV1.COMPLETE,
             ResolutionReasonV1.NONE,
             (),
+        ),
+    )
+
+
+def _choose_mode_requirement(
+    alternative_label: str = "first",
+    *,
+    unknown_path: str | None = None,
+    other_source: bool = False,
+) -> RequirementV1:
+    source = source_ref(
+        oracle_id=(
+            "abcdefab-abcd-4abc-8abc-abcdefabcdea"
+            if other_source
+            else "abcdefab-abcd-4abc-8abc-abcdefabcdef"
+        )
+    )
+    alternative_role = (
+        EntityRoleV1.CHOSEN if alternative_label == "first" else EntityRoleV1.AFFECTED
+    )
+    alternative = SemanticDescriptorV1(
+        SemanticShapeV1.ALTERNATIVE,
+        None,
+        EntityRefV1(alternative_role, MultiplicityV1.ONE, None),
+        None,
+        None,
+        (),
+    )
+    partial = unknown_path is not None
+    return RequirementV1.create(
+        source=source,
+        family=RequirementFamilyV1.CHOICE,
+        kind=RequirementKindV1.CHOOSE_MODE,
+        parameters=ChooseModeParametersV1(
+            EntityRefV1(EntityRoleV1.CHOOSER, MultiplicityV1.ONE, None),
+            QuantityV1(QuantityModeV1.EXACT, 1),
+            QuantityV1(QuantityModeV1.EXACT, 2),
+            (alternative,),
+        ),
+        evidence=(StructuralFieldEvidenceV1(source, "oracle_text", None, "Mode"),),
+        provenance=ProvenanceV1(
+            (DerivationV1(DerivationMethodV1.PARSER, "candidate-test", "1"),)
+        ),
+        review=ReviewV1(ReviewStatusV1.PROPOSED, None, None),
+        resolution=ResolutionV1(
+            ResolutionStateV1.PARTIAL if partial else ResolutionStateV1.COMPLETE,
+            ResolutionReasonV1.UNKNOWN_SEMANTICS
+            if partial
+            else ResolutionReasonV1.NONE,
+            (unknown_path,) if partial else (),
+        ),
+    )
+
+
+def _unresolved_requirement(
+    question: str,
+    *,
+    other_source: bool = False,
+) -> RequirementV1:
+    source = source_ref(
+        oracle_id=(
+            "abcdefab-abcd-4abc-8abc-abcdefabcdea"
+            if other_source
+            else "abcdefab-abcd-4abc-8abc-abcdefabcdef"
+        )
+    )
+    return RequirementV1.create(
+        source=source,
+        family=RequirementFamilyV1.UNKNOWN,
+        kind=RequirementKindV1.UNRESOLVED,
+        parameters=UnresolvedParametersV1(
+            "oracle_text", SemanticShapeV1.UNKNOWN, question, (), None
+        ),
+        evidence=(StructuralFieldEvidenceV1(source, "oracle_text", None, "Unknown"),),
+        provenance=ProvenanceV1(
+            (DerivationV1(DerivationMethodV1.PARSER, "candidate-test", "1"),)
+        ),
+        review=ReviewV1(ReviewStatusV1.PROPOSED, None, None),
+        resolution=ResolutionV1(
+            ResolutionStateV1.UNRESOLVED,
+            ResolutionReasonV1.UNSUPPORTED_SHAPE,
+            ("/parameters",),
         ),
     )
 
@@ -273,6 +359,54 @@ def test_unknown_observed_path_is_always_a_partition() -> None:
     )
 
     assert len(result.clusters) == 2
+
+
+def test_unregistered_payload_semantics_are_opaque_partitions() -> None:
+    result = group_requirement_candidates(
+        corpus_for_requirements(
+            (
+                _choose_mode_requirement("first"),
+                _choose_mode_requirement("second", other_source=True),
+            )
+        ),
+        candidate_grouping_policy(),
+    )
+
+    assert len(result.clusters) == 2
+
+
+def test_unregistered_resolution_unknown_paths_are_partitions() -> None:
+    result = group_requirement_candidates(
+        corpus_for_requirements(
+            (
+                _choose_mode_requirement(unknown_path="/parameters/alternatives"),
+                _choose_mode_requirement(
+                    unknown_path="/parameters/minimum", other_source=True
+                ),
+            )
+        ),
+        candidate_grouping_policy(),
+    )
+
+    assert len(result.clusters) == 2
+
+
+def test_unresolved_kind_uses_exact_opaque_partitioning() -> None:
+    result = group_requirement_candidates(
+        corpus_for_requirements(
+            (
+                _unresolved_requirement("first question"),
+                _unresolved_requirement("second question", other_source=True),
+            )
+        ),
+        candidate_grouping_policy(),
+    )
+
+    assert len(result.clusters) == 2
+    for cluster in result.clusters:
+        validate_document(
+            cluster.to_wire(), "capability-candidate-cluster.v1.schema.json"
+        )
 
 
 def test_policy_rejects_duplicate_or_overlapping_paths() -> None:
@@ -442,6 +576,23 @@ def test_candidate_variation_wire_rejects_stale_count() -> None:
         CandidateClusterV1.from_wire(wire)
 
 
+def test_candidate_variation_wire_rejects_wrong_registered_type() -> None:
+    cluster = group_requirement_candidates(
+        corpus_for_requirements((_draw_requirement(),)), candidate_grouping_policy()
+    ).clusters[0]
+    wire = cluster.to_wire()
+    variations = wire["parameter_variations"]
+    assert isinstance(variations, dict)
+    dimensions = variations["dimensions"]
+    assert isinstance(dimensions, dict)
+    quantity = dimensions["DRAW_CARDS_QUANTITY"]
+    assert isinstance(quantity, dict)
+    quantity["values"] = ["not-a-quantity"]
+
+    with pytest.raises((TypeError, ValueError)):
+        CandidateClusterV1.from_wire(wire)
+
+
 def test_policy_schema_rejects_duplicate_rule_entries() -> None:
     policy = candidate_grouping_policy().to_wire()
     rules = policy["rules"]
@@ -461,4 +612,27 @@ def test_pinned_proposal_import_is_disabled_by_default() -> None:
             expected_sha256="a" * 64,
             expected_m3_analysis_manifest_sha256=M3_SHA256,
             expected_requirement_set_digest="b" * 64,
+        )
+
+
+def test_pinned_proposal_rejects_non_text_outer_generator() -> None:
+    raw = canonical_json_bytes(
+        {
+            "schema": "census.capability-candidate-proposals.v1",
+            "generator_id": 7,
+            "generator_version": "1",
+            "input_m3_analysis_manifest_sha256": M3_SHA256,
+            "input_requirement_set_digest": "b" * 64,
+            "status": "PROPOSED",
+            "candidates": [],
+        }
+    )
+
+    with pytest.raises(TypeError, match="generator_id"):
+        import_pinned_candidate_proposals(
+            raw,
+            expected_sha256=sha256_bytes(raw),
+            expected_m3_analysis_manifest_sha256=M3_SHA256,
+            expected_requirement_set_digest="b" * 64,
+            enabled=True,
         )

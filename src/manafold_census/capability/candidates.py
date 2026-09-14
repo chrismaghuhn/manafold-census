@@ -11,6 +11,7 @@ from ..digest import domain_digest, sha256_bytes
 from ..semantic.kind_payloads import payload_to_wire
 from ..semantic.kinds import RequirementFamilyV1, RequirementKindV1
 from ..semantic.model import RequirementV1, _semantic_flags
+from ..semantic.primitives import _require_text
 from .candidate_model import (
     CANDIDATE_ID_DOMAIN,
     CANDIDATE_ID_PREFIX,
@@ -87,6 +88,67 @@ def _path_feature(
     )
 
 
+def _opaque_partition(
+    path: str, value: JSONValue, *, unknown: bool
+) -> dict[str, JSONValue]:
+    return {
+        "path": path,
+        "mode": "OPAQUE_PARTITION",
+        "state": "UNKNOWN" if unknown else "ABSENT" if value is None else "KNOWN",
+        "value": value,
+    }
+
+
+def _opaque_unknown_path(path: str) -> dict[str, JSONValue]:
+    return {
+        "path": path,
+        "mode": "OPAQUE_UNKNOWN_PATH",
+        "state": "UNKNOWN",
+        "value": {"unknown_path": path},
+    }
+
+
+def _opaque_features(
+    requirement: RequirementV1,
+    registered_paths: Sequence[M2DimensionPathV1],
+    registered_unknown_paths: set[str],
+    *,
+    unclassified_kind: bool,
+) -> tuple[list[dict[str, JSONValue]], bool]:
+    payload = payload_to_wire(
+        requirement.family, requirement.kind, requirement.parameters
+    )
+    registered_parameter_paths = {
+        dimension_spec_for(path).parameter_path for path in registered_paths
+    }
+    resolution_unknown_paths = set(requirement.resolution.unknown_paths)
+    tokens: list[dict[str, JSONValue]] = []
+    represented_paths = set(registered_unknown_paths)
+    if unclassified_kind:
+        tokens.append(_opaque_unknown_path("/kind"))
+        represented_paths.add("/kind")
+    opaque_payload_paths: set[str] = set()
+    for field in sorted(payload):
+        path = f"/parameters/{field}"
+        if path in registered_parameter_paths:
+            continue
+        typed = getattr(requirement.parameters, field, None)
+        tokens.append(
+            _opaque_partition(
+                path,
+                payload[field],
+                unknown=_semantic_flags(typed)[0] or path in resolution_unknown_paths,
+            )
+        )
+        opaque_payload_paths.add(path)
+    for path in sorted(resolution_unknown_paths):
+        if path in represented_paths or path in opaque_payload_paths:
+            continue
+        tokens.append(_opaque_unknown_path(path))
+    tokens.sort(key=lambda item: (str(item["path"]), canonical_json_bytes(item)))
+    return tokens, bool(tokens)
+
+
 def _signature(
     requirement: RequirementV1,
     rules: Mapping[
@@ -96,27 +158,29 @@ def _signature(
     policy_digest: str,
 ) -> tuple[dict[str, JSONValue], bool]:
     rule = rules.get((requirement.family, requirement.kind))
-    if rule is None:
-        return (
-            {
-                "family": requirement.family.value,
-                "kind": requirement.kind.value,
-                "resolution_state": requirement.resolution.state.value,
-                "policy_version": policy_version,
-                "policy_digest": policy_digest,
-                "unclassified_paths": [{"unknown_path": "/kind"}],
-            },
-            True,
-        )
-    dimensions = set(rule.dimension_paths)
+    registered_paths = (
+        () if rule is None else rule.dimension_paths + rule.partition_paths
+    )
+    dimensions = set(()) if rule is None else set(rule.dimension_paths)
+    ordered_paths = tuple(sorted(registered_paths, key=lambda item: item.value))
     entries: list[dict[str, JSONValue]] = []
     unknown = False
-    for path in sorted(
-        rule.dimension_paths + rule.partition_paths, key=lambda item: item.value
-    ):
+    for path in ordered_paths:
         entry, found = _path_feature(requirement, path, path in dimensions)
         entries.append(entry)
         unknown |= found
+    registered_unknown_paths = {
+        dimension_spec_for(path).parameter_path
+        for path, entry in zip(ordered_paths, entries, strict=True)
+        if entry["state"] == "UNKNOWN"
+    }
+    opaque, opaque_unknown = _opaque_features(
+        requirement,
+        registered_paths,
+        registered_unknown_paths,
+        unclassified_kind=rule is None,
+    )
+    unknown |= opaque_unknown
     return (
         {
             "family": requirement.family.value,
@@ -125,6 +189,7 @@ def _signature(
             "policy_version": policy_version,
             "policy_digest": policy_digest,
             "paths": cast(JSONValue, entries),
+            "opaque_partitions": cast(JSONValue, opaque),
         },
         unknown,
     )
@@ -291,6 +356,10 @@ def import_pinned_candidate_proposals(
     }
     if not isinstance(document, dict) or set(document) != keys:
         raise ValueError("pinned candidate proposal has an invalid wire")
+    generator_id = _require_text("generator_id", document["generator_id"])
+    generator_version = _require_text(
+        "generator_version", document["generator_version"]
+    )
     if (
         document["schema"] != "census.capability-candidate-proposals.v1"
         or document["status"] != "PROPOSED"
@@ -313,10 +382,7 @@ def import_pinned_candidate_proposals(
         for item in result
     ):
         raise ValueError("pinned candidate proposal input identity is stale")
-    generator = (
-        cast(str, document["generator_id"]),
-        cast(str, document["generator_version"]),
-    )
+    generator = (generator_id, generator_version)
     if tuple(item.candidate_id for item in result) != tuple(
         sorted(item.candidate_id for item in result)
     ):

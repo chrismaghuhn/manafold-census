@@ -113,7 +113,15 @@
       ]
     },
     "family": {
-      "enum": ["effect", "event", "choice", "cost", "control", "reference"]
+      "enum": [
+        "effect",
+        "event",
+        "choice",
+        "cost",
+        "control",
+        "reference",
+        "unknown"
+      ]
     },
     "kind": {
       "enum": [
@@ -132,7 +140,8 @@
         "modify_cost",
         "choose_mode",
         "conditional_effect",
-        "keyword_reference"
+        "keyword_reference",
+        "unresolved"
       ]
     },
     "parameter_variation": {

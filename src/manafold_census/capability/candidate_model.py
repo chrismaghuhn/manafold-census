@@ -22,6 +22,7 @@ from ..semantic.primitives import (
     _require_object,
     _require_text,
 )
+from .binding import _typed_known_value
 from .dimensions import M2DimensionPathV1, dimension_spec_for, registered_paths_for
 
 CANDIDATE_SCHEMA = "census.capability-candidate-cluster.v1"
@@ -256,7 +257,7 @@ def _validate_variations(
     if set(dimensions) != set(dimension_paths):
         raise ValueError("parameter_variations dimensions do not match proposed_claim")
     for path, raw in dimensions.items():
-        M2DimensionPathV1.from_wire(path)
+        path_key = M2DimensionPathV1.from_wire(path)
         if not isinstance(raw, dict) or set(raw) != {"distinct_count", "values"}:
             raise ValueError(f"parameter variation for {path} is invalid")
         distinct_count = _require_int(
@@ -272,6 +273,16 @@ def _validate_variations(
             raise ValueError(f"parameter variation for {path} has a stale count")
         if encoded_values != sorted(encoded_values):
             raise ValueError(f"parameter variation for {path} is not canonical")
+        spec = dimension_spec_for(path_key)
+        for item in values:
+            if item is None:
+                if not spec.optional:
+                    raise ValueError(f"null variation is not valid for {path}")
+            elif isinstance(item, dict) and set(item) == {"unknown_path"}:
+                if item["unknown_path"] != spec.parameter_path:
+                    raise ValueError(f"unknown variation path is not valid for {path}")
+            else:
+                _typed_known_value(path_key, item)
     _require_int(
         "unknown_requirement_count",
         value["unknown_requirement_count"],
