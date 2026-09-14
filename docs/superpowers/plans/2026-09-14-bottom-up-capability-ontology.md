@@ -249,8 +249,10 @@ by this planning task.
 | src/manafold_census/capability/definition.py | Future Capability definition lifecycle and activation seam |
 | src/manafold_census/capability/review.py | Generic M4 review authority and closed review subjects |
 | src/manafold_census/capability/admissibility.py | SOURCE_REQUIREMENT_ADMISSIBILITY authority and exact M3/M2 binding |
-| src/manafold_census/capability/link.py | Exact Requirement-to-Capability link wire, identity, and construction |
-| src/manafold_census/capability/mapping.py | Active-link validation, cardinality, and one-row mapping dispositions |
+| src/manafold_census/capability/link.py | Exact Requirement-to-Capability link wire, identity, and typed records |
+| src/manafold_census/capability/link_build.py | Deterministic direct and composition-member link construction |
+| src/manafold_census/capability/link_validation.py | Active-link binding/domain/exclusion validation and cardinality |
+| src/manafold_census/capability/mapping.py | Mapping review, identity, and one-row mapping dispositions |
 | src/manafold_census/capability/evolution.py | Composition, dependency, specialization, and append-only evolution records |
 | src/manafold_census/capability/input.py | Frozen M3 manifest loading and actual Requirement extraction |
 | src/manafold_census/capability/manifest.py | M4 file descriptors, shard identity, and ontology manifest |
@@ -260,8 +262,8 @@ by this planning task.
 | src/manafold_census/capability/report.py | Derived reports only; never an authority input |
 
 Every production module remains at or below the existing 500-line budget.
-identity.py, dimensions.py, claim.py, binding.py, link.py, mapping.py, and
-validate.py are deep module seams:
+identity.py, dimensions.py, claim.py, binding.py, link.py, link_build.py,
+link_validation.py, mapping.py, and validate.py are deep module seams:
 callers provide typed values and frozen inputs, while canonicalization,
 binding, and failure rules remain behind small interfaces.
 
@@ -1478,6 +1480,8 @@ Expected: no real M3 file, Requirement, or authority record is created.
 **Files:**
 
 - Create: src/manafold_census/capability/link.py
+- Create: src/manafold_census/capability/link_build.py
+- Create: src/manafold_census/capability/link_validation.py
 - Create: src/manafold_census/capability/mapping.py
 - Modify: src/manafold_census/capability/identity.py
 - Create: schemas/requirement-capability-link.v1.schema.json
@@ -1529,6 +1533,7 @@ def test_mapping_decision_preserves_unmapped_requirement() -> None:
         proposed_complete_requirement(),
         MappingDispositionV1.UNMAPPED,
         MappingReasonV1.NO_REVIEWED_CAPABILITY,
+        m3_analysis_manifest_sha256="a" * 64,
     )
 
     assert decision.active_link_ids == ()
@@ -1545,8 +1550,9 @@ Expected: collection fails because link and mapping modules do not exist.
 
 ### Step 2: Implement link identity and relation values
 
-Implement the link wire and identity in link.py; implement active-link
-validation and mapping dispositions in mapping.py:
+Implement the link wire and identity in link.py, construction helpers in
+link_build.py, active-link validation in link_validation.py, and mapping
+dispositions in mapping.py:
 
 ~~~python
 class LinkRelationV1(StrEnum):
@@ -1582,7 +1588,7 @@ The link ID is the domain digest of that claim. Review fields and report
 fields are outside the claim. A changed Requirement wire, M3 manifest, or
 Capability claim produces a stale or different link.
 
-### Step 3: Implement active-link route validation
+### Step 3: Implement active-link route validation in link_validation.py
 
 Implement validate_active_link with this exact branch:
 
@@ -1633,6 +1639,20 @@ SPECIAL_CASE
 EXPLICIT_REVIEW_CONFLICT
 ~~~
 
+The reason/disposition relationship is closed by this matrix:
+
+~~~text
+MAPPED                 → null
+UNMAPPED               → NO_REVIEWED_CAPABILITY | SPECIAL_CASE
+AMBIGUOUS              → MULTIPLE_PLAUSIBLE_CAPABILITIES | EXPLICIT_REVIEW_CONFLICT
+OUTLIER                → NO_REUSABLE_GENERALIZATION | SPECIAL_CASE
+INSUFFICIENT_EVIDENCE  → M2_REVIEW_NOT_TERMINAL | M4_ADMISSIBILITY_REVIEW_PENDING | M2_RESOLUTION_INCOMPLETE
+~~~
+
+Python and JSON Schema enforce the same matrix. The production
+mapping_decision helper requires m3_analysis_manifest_sha256 explicitly; it
+has no synthetic or implicit Snapshot default.
+
 RequirementMappingDecisionV1 has one row for every actual persisted M2
 Requirement in the selected M3 artifact. Its active_link_ids are empty unless
 the disposition is MAPPED. UNMAPPED means not selected in this snapshot, not
@@ -1668,7 +1688,7 @@ python -m pytest tests/test_capability_link.py -q
 ruff format --check src/manafold_census/capability tests/test_capability_link.py
 ruff check src/manafold_census/capability tests/test_capability_link.py
 mypy src/manafold_census/capability
-git add src/manafold_census/capability/link.py src/manafold_census/capability/mapping.py src/manafold_census/capability/identity.py tests/test_capability_link.py schemas/requirement-capability-link.v1.schema.json schemas/requirement-mapping-decision.v1.schema.json
+git add src/manafold_census/capability/link.py src/manafold_census/capability/link_build.py src/manafold_census/capability/link_validation.py src/manafold_census/capability/mapping.py src/manafold_census/capability/identity.py tests/test_capability_link.py schemas/requirement-capability-link.v1.schema.json schemas/requirement-mapping-decision.v1.schema.json
 git diff --cached --check
 git commit -m "feat: add M4 requirement capability links"
 ~~~
@@ -1679,7 +1699,7 @@ git commit -m "feat: add M4 requirement capability links"
 
 - Create: src/manafold_census/capability/evolution.py
 - Modify: src/manafold_census/capability/claim.py
-- Modify: src/manafold_census/capability/link.py
+- Modify: src/manafold_census/capability/link_validation.py
 - Create: schemas/capability-evolution.v1.schema.json
 - Create: schemas/capability-relations.v1.schema.json
 - Create: tests/test_capability_evolution.py

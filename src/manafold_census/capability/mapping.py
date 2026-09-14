@@ -7,30 +7,20 @@ from dataclasses import dataclass
 from enum import StrEnum
 from typing import ClassVar, cast
 
-from ..canonical import JSONValue, canonical_json_bytes
+from ..canonical import JSONValue
 from ..digest import domain_digest
-from ..semantic.identity import reviewed_claim_digest_for, wire_digest_for
-from ..semantic.model import RequirementV1, ResolutionStateV1, ReviewStatusV1
+from ..semantic.identity import wire_digest_for
+from ..semantic.model import RequirementV1
 from ..semantic.primitives import _require_enum, _require_object
-from .admissibility import SourceRequirementAdmissibilityV1
-from .binding import BindingStateV1, validate_binding_against_requirement
-from .definition import CapabilityDefinitionV1, CapabilityLifecycleStateV1
 from .link import (
     _LINK_ID_PATTERN,
     _REQUIREMENT_ID_PATTERN,
     _REVIEW_ID_PATTERN,
-    CompositionContextV1,
-    LinkAdmissibilityBasisV1,
-    LinkRelationV1,
-    M4RequirementAdmissibilityV1,
-    RequirementCapabilityLinkV1,
     _digest,
     _identifier,
     _values,
 )
-from .model import NucleusKindV1
 from .review import (
-    CapabilityLinkReviewSubjectV1,
     CapabilityReviewRecordV1,
     MappingDecisionReviewSubjectV1,
     ReviewDecisionV1,
@@ -39,6 +29,12 @@ from .review import (
 MAPPING_DECISION_SCHEMA = "census.requirement-mapping-decision.v1"
 MAPPING_DECISION_DOMAIN = "census.requirement-mapping-decision.v1"
 MAPPING_DECISION_PREFIX = "rmd_"
+
+
+def _requirement(value: object) -> RequirementV1:
+    if not isinstance(value, RequirementV1):
+        raise TypeError("requirement must be RequirementV1")
+    return value
 
 
 class MappingDispositionV1(StrEnum):
@@ -60,193 +56,33 @@ class MappingReasonV1(StrEnum):
     EXPLICIT_REVIEW_CONFLICT = "EXPLICIT_REVIEW_CONFLICT"
 
 
-def _requirement(value: object) -> RequirementV1:
-    if not isinstance(value, RequirementV1):
-        raise TypeError("requirement must be RequirementV1")
-    return value
-
-
-def _require_capability(value: object) -> CapabilityDefinitionV1:
-    if not isinstance(value, CapabilityDefinitionV1):
-        raise TypeError("capability must be CapabilityDefinitionV1")
-    return value
-
-
-def _validate_link_review(
-    link: RequirementCapabilityLinkV1,
-    reviews: Sequence[CapabilityReviewRecordV1],
-) -> None:
-    if link.review_ref is None:
-        raise ValueError("active link requires accepted review")
-    records = tuple(reviews)
-    if any(not isinstance(record, CapabilityReviewRecordV1) for record in records):
-        raise TypeError("reviews must contain CapabilityReviewRecordV1 values")
-    subject = CapabilityLinkReviewSubjectV1(link.link_id, link.link_claim_digest)
-    matching = tuple(record for record in records if record.subject == subject)
-    if any(record.decision is ReviewDecisionV1.ACCEPTED for record in matching) and any(
-        record.decision is ReviewDecisionV1.REJECTED for record in matching
-    ):
-        raise ValueError("conflicting accepted and rejected link reviews")
-    referenced = tuple(
-        record for record in matching if record.record_id == link.review_ref
-    )
-    if len(referenced) != 1 or referenced[0].decision is not ReviewDecisionV1.ACCEPTED:
-        raise ValueError("active link requires an exact accepted review")
-
-
-def _validate_active_bindings(
-    link: RequirementCapabilityLinkV1,
-    requirement: RequirementV1,
-    capability: CapabilityDefinitionV1,
-) -> None:
-    declared = {dimension.path_key for dimension in capability.claim.dimensions}
-    bound = {binding.path_key for binding in link.parameter_bindings}
-    if not bound.issubset(declared):
-        raise ValueError("link binding is not declared by the Capability claim")
-    for binding in link.parameter_bindings:
-        validate_binding_against_requirement(requirement, binding)
-        if binding.state is BindingStateV1.UNKNOWN:
-            raise ValueError("active link cannot contain UNKNOWN binding")
-    required = {
-        dimension.path_key
-        for dimension in capability.claim.dimensions
-        if dimension.required
-    }
-    if not required.issubset(bound):
-        raise ValueError("active link is missing a required dimension binding")
-    if any(
-        binding.state is BindingStateV1.NOT_APPLICABLE and binding.path_key in required
-        for binding in link.parameter_bindings
-    ):
-        raise ValueError("active link is missing a required dimension binding")
-
-
-def validate_active_link(
-    link: RequirementCapabilityLinkV1,
-    requirement: RequirementV1,
-    capability: CapabilityDefinitionV1,
-    *,
-    reviews: Sequence[CapabilityReviewRecordV1],
-    admissibility_record: SourceRequirementAdmissibilityV1 | None = None,
-) -> None:
-    if not isinstance(link, RequirementCapabilityLinkV1):
-        raise TypeError("link must be RequirementCapabilityLinkV1")
-    requirement = _requirement(requirement)
-    capability = _require_capability(capability)
-    if capability.lifecycle is not CapabilityLifecycleStateV1.ACTIVE:
-        raise ValueError("active link requires an ACTIVE Capability")
-    if link.capability != capability.capability_ref:
-        raise ValueError("link Capability reference does not match Capability")
-    if link.requirement_id != requirement.requirement_id:
-        raise ValueError("link Requirement ID does not match")
-    if link.requirement_wire_digest != wire_digest_for(requirement):
-        raise ValueError("Requirement wire digest does not match")
-    if (
-        link.relation is LinkRelationV1.DIRECT
-        and capability.claim.family_key.nucleus_kind is not NucleusKindV1.ATOMIC
-    ):
-        raise ValueError("DIRECT link requires an atomic Capability")
-
-    if requirement.review.status is ReviewStatusV1.ACCEPTED:
-        if requirement.resolution.state is not ResolutionStateV1.COMPLETE:
-            raise ValueError("M2 ACCEPTED requirement is not complete")
-        expected_review_digest = reviewed_claim_digest_for(requirement)
-        if link.requirement_reviewed_claim_digest != expected_review_digest:
-            raise ValueError("Requirement reviewed claim digest does not match")
-        if link.m4_requirement_admissibility is None or (
-            link.m4_requirement_admissibility.basis
-            is not LinkAdmissibilityBasisV1.M2_TERMINAL_ACCEPTANCE
-        ):
-            raise ValueError("M2 ACCEPTED requirement requires terminal admissibility")
-        if admissibility_record is not None:
-            raise ValueError("M2 terminal route cannot contain an SRA record")
-    elif requirement.review.status in (
-        ReviewStatusV1.PROPOSED,
-        ReviewStatusV1.IN_REVIEW,
-    ):
-        if requirement.resolution.state is not ResolutionStateV1.COMPLETE:
-            raise ValueError("Requirement is not admissible for active link")
-        expected_review_digest = reviewed_claim_digest_for(requirement)
-        if link.requirement_reviewed_claim_digest != expected_review_digest:
-            raise ValueError("Requirement reviewed claim digest does not match")
-        if link.m4_requirement_admissibility is None or (
-            link.m4_requirement_admissibility.basis
-            is not LinkAdmissibilityBasisV1.SOURCE_REQUIREMENT_ADMISSIBILITY
-        ):
-            raise ValueError("active link requires SOURCE_REQUIREMENT_ADMISSIBILITY")
-        if not isinstance(admissibility_record, SourceRequirementAdmissibilityV1):
-            raise ValueError("active link requires an accepted exact SRA record")
-        M4RequirementAdmissibilityV1.source(admissibility_record)
-        admissibility_record.validate_m3_manifest(link.m3_analysis_manifest_sha256)
-        admissibility_record.validate_against_requirement(requirement)
-        if (
-            link.m4_requirement_admissibility.record_id
-            != admissibility_record.record_id
-            or link.m4_requirement_admissibility.review_digest
-            != admissibility_record.review_digest
-        ):
-            raise ValueError("link SRA reference does not match the exact SRA record")
-    else:
-        raise ValueError("M2 REJECTED requirement is not admissible")
-
-    _validate_active_bindings(link, requirement, capability)
-    _validate_link_review(link, reviews)
-
-
-@dataclass(frozen=True, slots=True)
-class MappingCandidateValidationV1:
-    is_ambiguous: bool
-
-
-def validate_mapping_candidates(
-    links: Sequence[RequirementCapabilityLinkV1],
-) -> MappingCandidateValidationV1:
-    groups: dict[tuple[str, bytes], set[str]] = {}
-    for link in links:
-        if not isinstance(link, RequirementCapabilityLinkV1):
-            raise TypeError("links must contain RequirementCapabilityLinkV1 values")
-        context = (
-            b""
-            if link.composition_context is None
-            else canonical_json_bytes(link.composition_context.to_wire())
-        )
-        groups.setdefault((link.requirement_id, context), set()).add(link.link_id)
-    return MappingCandidateValidationV1(any(len(ids) > 1 for ids in groups.values()))
-
-
-def validate_active_links(links: Sequence[RequirementCapabilityLinkV1]) -> None:
-    active = [
-        link
-        for link in links
-        if isinstance(link, RequirementCapabilityLinkV1) and link.review_ref is not None
-    ]
-    if len(active) != sum(
-        isinstance(link, RequirementCapabilityLinkV1) for link in links
-    ):
-        raise TypeError("links must contain RequirementCapabilityLinkV1 values")
-    groups: dict[tuple[str, bytes], list[RequirementCapabilityLinkV1]] = {}
-    for link in active:
-        context = (
-            b""
-            if link.composition_context is None
-            else canonical_json_bytes(link.composition_context.to_wire())
-        )
-        groups.setdefault((link.requirement_id, context), []).append(link)
-    for group in groups.values():
-        direct = [link for link in group if link.relation is LinkRelationV1.DIRECT]
-        members = [
-            link for link in group if link.relation is LinkRelationV1.COMPOSITION_MEMBER
-        ]
-        if len(direct) > 1:
-            raise ValueError("multiple active DIRECT links")
-        if direct and members:
-            raise ValueError("DIRECT and COMPOSITION_MEMBER links cannot coexist")
-        component_keys = [
-            cast(CompositionContextV1, link.composition_context).component_key
-            for link in members
-        ]
-        if len(component_keys) != len(set(component_keys)):
-            raise ValueError("duplicate active composition component")
+_REASON_MATRIX: dict[MappingDispositionV1, frozenset[MappingReasonV1]] = {
+    MappingDispositionV1.UNMAPPED: frozenset(
+        {
+            MappingReasonV1.NO_REVIEWED_CAPABILITY,
+            MappingReasonV1.SPECIAL_CASE,
+        }
+    ),
+    MappingDispositionV1.AMBIGUOUS: frozenset(
+        {
+            MappingReasonV1.MULTIPLE_PLAUSIBLE_CAPABILITIES,
+            MappingReasonV1.EXPLICIT_REVIEW_CONFLICT,
+        }
+    ),
+    MappingDispositionV1.OUTLIER: frozenset(
+        {
+            MappingReasonV1.NO_REUSABLE_GENERALIZATION,
+            MappingReasonV1.SPECIAL_CASE,
+        }
+    ),
+    MappingDispositionV1.INSUFFICIENT_EVIDENCE: frozenset(
+        {
+            MappingReasonV1.M2_REVIEW_NOT_TERMINAL,
+            MappingReasonV1.M4_ADMISSIBILITY_REVIEW_PENDING,
+            MappingReasonV1.M2_RESOLUTION_INCOMPLETE,
+        }
+    ),
+}
 
 
 @dataclass(frozen=True, slots=True)
@@ -315,6 +151,8 @@ class RequirementMappingDecisionV1:
                 )
             if reason is None:
                 raise ValueError("non-MAPPED decision requires a reason")
+            if reason not in _REASON_MATRIX[disposition]:
+                raise ValueError("reason is not allowed for this mapping disposition")
         if (
             disposition
             in (
@@ -421,7 +259,7 @@ def mapping_decision(
     disposition: MappingDispositionV1,
     reason: MappingReasonV1 | None,
     *,
-    m3_analysis_manifest_sha256: str = "a" * 64,
+    m3_analysis_manifest_sha256: str,
     active_link_ids: Sequence[str] = (),
     candidate_link_claims: Sequence[str] = (),
     review_ref: str | None = None,

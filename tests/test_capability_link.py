@@ -8,13 +8,15 @@ import pytest
 from capability_fixtures import draw_family_key
 from jsonschema import Draft202012Validator
 from jsonschema.exceptions import ValidationError
+from referencing import Registry, Resource
+from referencing.jsonschema import DRAFT202012
 
 from manafold_census.capability.admissibility import (
     AdmissibilityDecisionV1,
     SourceRequirementAdmissibilityV1,
 )
 from manafold_census.capability.binding import ParameterBindingV1
-from manafold_census.capability.claim import CapabilityClaimV1
+from manafold_census.capability.claim import CapabilityClaimV1, ExclusionV1
 from manafold_census.capability.definition import (
     CapabilityDefinitionV1,
     CapabilityLifecycleStateV1,
@@ -29,15 +31,25 @@ from manafold_census.capability.dimensions import (
 from manafold_census.capability.identity import (
     capability_claim_digest_for,
     capability_family_id_for,
+    capability_ref_for,
 )
 from manafold_census.capability.link import (
     LINK_ID_DOMAIN,
     LINK_ID_PREFIX,
+    CompositionContextV1,
     LinkAdmissibilityBasisV1,
     LinkRelationV1,
     M4RequirementAdmissibilityV1,
     RequirementCapabilityLinkV1,
+)
+from manafold_census.capability.link_build import (
+    composition_member_link,
     direct_link,
+)
+from manafold_census.capability.link_validation import (
+    validate_active_link,
+    validate_active_links,
+    validate_mapping_candidates,
 )
 from manafold_census.capability.mapping import (
     MappingDispositionV1,
@@ -46,10 +58,12 @@ from manafold_census.capability.mapping import (
     mapping_decision,
     mapping_decision_claim_digest_for,
     mapping_decision_id_for,
-    validate_active_link,
-    validate_active_links,
-    validate_mapping_candidates,
     validate_mapping_decision,
+)
+from manafold_census.capability.model import (
+    CapabilityFamilyKeyV1,
+    CapabilityRefV1,
+    NucleusKindV1,
 )
 from manafold_census.capability.review import (
     CapabilityLinkReviewSubjectV1,
@@ -62,7 +76,10 @@ from manafold_census.semantic.evidence import (
     StructuralFieldEvidenceV1,
 )
 from manafold_census.semantic.identity import reviewed_claim_digest_for, wire_digest_for
-from manafold_census.semantic.kind_payloads import DrawCardsParametersV1
+from manafold_census.semantic.kind_payloads import (
+    DrawCardsParametersV1,
+    SelectParametersV1,
+)
 from manafold_census.semantic.kinds import RequirementFamilyV1, RequirementKindV1
 from manafold_census.semantic.model import (
     DerivationMethodV1,
@@ -81,6 +98,9 @@ from manafold_census.semantic.primitives import (
     MultiplicityV1,
     QuantityModeV1,
     QuantityV1,
+    SemanticDescriptorV1,
+    SemanticShapeV1,
+    SubjectKindV1,
 )
 
 M3_MANIFEST_SHA256 = "a" * 64
@@ -178,6 +198,131 @@ def _capability(*, required: bool = True) -> CapabilityDefinitionV1:
     )
 
 
+def _damage_capability() -> CapabilityDefinitionV1:
+    claim = CapabilityClaimV1(
+        family_key=CapabilityFamilyKeyV1(
+            "1",
+            NucleusKindV1.ATOMIC,
+            ((RequirementFamilyV1.EFFECT, RequirementKindV1.DEAL_DAMAGE),),
+        ),
+        capability_version=1,
+        m2_requirement_schema="census.semantic-requirement.v1",
+        m2_interpretation_version="1",
+        m4_dimension_registry_version="1",
+        dimensions=(
+            CapabilityDimensionV1(
+                M2DimensionPathV1.DEAL_DAMAGE_AMOUNT,
+                DimensionKindV1.QUANTITY,
+                True,
+                DimensionDomainKindV1.ANY_TYPED_VALUE,
+            ),
+        ),
+        exclusions=(),
+        composition=None,
+    )
+    return CapabilityDefinitionV1(
+        capability_family_id=capability_family_id_for(claim.family_key),
+        capability_version=claim.capability_version,
+        claim_digest=capability_claim_digest_for(claim),
+        claim=claim,
+        display_name="Deal damage",
+        lifecycle=CapabilityLifecycleStateV1.ACTIVE,
+        provenance=CapabilityProvenanceV1("b" * 64, ("ccg_" + "b" * 64,), ()),
+        review_ref="mrv_" + "c" * 64,
+    )
+
+
+def _descriptor() -> SemanticDescriptorV1:
+    return SemanticDescriptorV1(
+        SemanticShapeV1.RESTRICTION,
+        None,
+        None,
+        None,
+        None,
+        (),
+    )
+
+
+def _select_requirement() -> RequirementV1:
+    source = SourceRecordRefV1(
+        "census.structural-card.v1",
+        "1" * 64,
+        ORACLE_ID,
+        SOURCE_CARD_ID,
+        "4" * 64,
+    )
+    return RequirementV1.create(
+        source=source,
+        family=RequirementFamilyV1.CHOICE,
+        kind=RequirementKindV1.SELECT,
+        parameters=SelectParametersV1(
+            EntityRefV1(EntityRoleV1.CHOOSER, MultiplicityV1.ONE, None),
+            SubjectKindV1.OBJECT,
+            QuantityV1(QuantityModeV1.EXACT, 1),
+            _descriptor(),
+            None,
+        ),
+        evidence=(StructuralFieldEvidenceV1(source, "oracle_text", None, "Choose"),),
+        provenance=ProvenanceV1(
+            (DerivationV1(DerivationMethodV1.PARSER, "task5-test", "1"),)
+        ),
+        review=ReviewV1(ReviewStatusV1.PROPOSED, None, None),
+        resolution=ResolutionV1(
+            ResolutionStateV1.COMPLETE,
+            ResolutionReasonV1.NONE,
+            (),
+        ),
+    )
+
+
+def _select_capability(
+    *,
+    allowed: tuple[str, ...] = ("object",),
+    exclusions: tuple[ExclusionV1, ...] = (),
+) -> CapabilityDefinitionV1:
+    claim = CapabilityClaimV1(
+        family_key=CapabilityFamilyKeyV1(
+            "1",
+            NucleusKindV1.ATOMIC,
+            ((RequirementFamilyV1.CHOICE, RequirementKindV1.SELECT),),
+        ),
+        capability_version=1,
+        m2_requirement_schema="census.semantic-requirement.v1",
+        m2_interpretation_version="1",
+        m4_dimension_registry_version="1",
+        dimensions=(
+            CapabilityDimensionV1(
+                M2DimensionPathV1.SELECT_SUBJECT_KIND,
+                DimensionKindV1.M2_ENUM,
+                True,
+                DimensionDomainKindV1.M2_ENUM_SUBSET,
+                allowed_enum_values=allowed,
+            ),
+        )
+        if allowed
+        else (),
+        exclusions=exclusions,
+        composition=None,
+    )
+    return CapabilityDefinitionV1(
+        capability_family_id=capability_family_id_for(claim.family_key),
+        capability_version=claim.capability_version,
+        claim_digest=capability_claim_digest_for(claim),
+        claim=claim,
+        display_name="Select",
+        lifecycle=CapabilityLifecycleStateV1.ACTIVE,
+        provenance=CapabilityProvenanceV1("b" * 64, ("ccg_" + "e" * 64,), ()),
+        review_ref="mrv_" + "f" * 64,
+    )
+
+
+def _select_binding() -> ParameterBindingV1:
+    return ParameterBindingV1.known(
+        M2DimensionPathV1.SELECT_SUBJECT_KIND,
+        "object",
+    )
+
+
 def _sra(requirement: RequirementV1) -> SourceRequirementAdmissibilityV1:
     return SourceRequirementAdmissibilityV1.for_requirement(
         requirement,
@@ -206,11 +351,31 @@ def _link_review(link: RequirementCapabilityLinkV1) -> CapabilityReviewRecordV1:
     )
 
 
+def _activate(link: RequirementCapabilityLinkV1) -> RequirementCapabilityLinkV1:
+    return replace(link, review_ref=_link_review(link).record_id)
+
+
 def _validated_schema(name: str, document: dict[str, object]) -> None:
     schema_path = Path(__file__).parents[1] / "schemas" / name
     schema = json.loads(schema_path.read_text(encoding="utf-8"))
     Draft202012Validator.check_schema(schema)
-    Draft202012Validator(schema).validate(document)
+    if name == "requirement-capability-link.v1.schema.json":
+        claim = json.loads(
+            (
+                Path(__file__).parents[1]
+                / "schemas"
+                / "capability-claim.v1.schema.json"
+            ).read_text(encoding="utf-8")
+        )
+        claim_id = claim["$id"]
+        assert isinstance(claim_id, str)
+        registry = Registry().with_resource(
+            claim_id,
+            Resource.from_contents(claim, default_specification=DRAFT202012),
+        )
+        Draft202012Validator(schema, registry=registry).validate(document)
+    else:
+        Draft202012Validator(schema).validate(document)
 
 
 def test_direct_link_binds_requirement_and_capability_claims() -> None:
@@ -352,6 +517,86 @@ def test_active_accepted_m2_requirement_uses_terminal_route_without_sra() -> Non
         LinkAdmissibilityBasisV1.M2_TERMINAL_ACCEPTANCE
     )
     validate_active_link(active, requirement, capability, reviews=(review,))
+
+
+def test_direct_active_link_requires_the_exact_requirement_operation_anchor() -> None:
+    requirement = _requirement()
+    capability = _damage_capability()
+    sra = _sra(requirement)
+    link = RequirementCapabilityLinkV1.create(
+        m3_analysis_manifest_sha256=M3_MANIFEST_SHA256,
+        requirement_id=requirement.requirement_id,
+        requirement_wire_digest=wire_digest_for(requirement),
+        requirement_reviewed_claim_digest=reviewed_claim_digest_for(requirement),
+        capability=capability_ref_for(capability.claim),
+        relation=LinkRelationV1.DIRECT,
+        parameter_bindings=(
+            ParameterBindingV1.known(
+                M2DimensionPathV1.DEAL_DAMAGE_AMOUNT,
+                {"mode": "exact", "value": 2},
+            ),
+        ),
+        m4_requirement_admissibility=M4RequirementAdmissibilityV1.source(sra),
+        composition_context=None,
+    )
+    active = _activate(link)
+
+    with pytest.raises(ValueError, match="operation anchor"):
+        validate_active_link(
+            active,
+            requirement,
+            capability,
+            reviews=(_link_review(link),),
+            admissibility_record=sra,
+        )
+
+
+def test_active_link_enforces_a_typed_dimension_domain() -> None:
+    requirement = _select_requirement()
+    capability = _select_capability(allowed=("player",))
+    link = direct_link(
+        requirement=requirement,
+        capability=capability,
+        m3_manifest_sha256=M3_MANIFEST_SHA256,
+        admissibility=_sra(requirement),
+        parameter_bindings=(_select_binding(),),
+    )
+    review = _link_review(link)
+
+    with pytest.raises(ValueError, match="domain"):
+        validate_active_link(
+            replace(link, review_ref=review.record_id),
+            requirement,
+            capability,
+            reviews=(review,),
+            admissibility_record=_sra(requirement),
+        )
+
+
+def test_active_link_enforces_capability_exclusions() -> None:
+    requirement = _select_requirement()
+    exclusion = ExclusionV1(
+        M2DimensionPathV1.SELECT_SUBJECT_KIND,
+        DimensionDomainKindV1.M2_ENUM_SUBSET,
+        excluded_enum_values=("object",),
+    )
+    capability = _select_capability(allowed=(), exclusions=(exclusion,))
+    link = direct_link(
+        requirement=requirement,
+        capability=capability,
+        m3_manifest_sha256=M3_MANIFEST_SHA256,
+        admissibility=_sra(requirement),
+    )
+    review = _link_review(link)
+
+    with pytest.raises(ValueError, match="exclusion"):
+        validate_active_link(
+            replace(link, review_ref=review.record_id),
+            requirement,
+            capability,
+            reviews=(review,),
+            admissibility_record=_sra(requirement),
+        )
 
 
 @pytest.mark.parametrize(
@@ -510,6 +755,61 @@ def test_two_active_direct_links_fail_but_proposals_remain_visible() -> None:
         )
 
 
+def test_direct_and_component_links_cannot_be_active_for_one_requirement() -> None:
+    requirement = _requirement()
+    capability = _capability()
+    sra = _sra(requirement)
+    direct = direct_link(
+        requirement=requirement,
+        capability=capability,
+        m3_manifest_sha256=M3_MANIFEST_SHA256,
+        admissibility=sra,
+        parameter_bindings=(_quantity_binding(),),
+    )
+    member = composition_member_link(
+        requirement=requirement,
+        capability=capability,
+        m3_manifest_sha256=M3_MANIFEST_SHA256,
+        admissibility=sra,
+        composition_context=CompositionContextV1(
+            capability.capability_ref,
+            "component",
+        ),
+        parameter_bindings=(_quantity_binding(),),
+    )
+
+    with pytest.raises(ValueError, match="DIRECT and COMPOSITION_MEMBER"):
+        validate_active_links((_activate(direct), _activate(member)))
+
+
+def test_component_links_require_one_shared_composition_context() -> None:
+    requirement = _requirement()
+    capability = _capability()
+    sra = _sra(requirement)
+    first = composition_member_link(
+        requirement=requirement,
+        capability=capability,
+        m3_manifest_sha256=M3_MANIFEST_SHA256,
+        admissibility=sra,
+        composition_context=CompositionContextV1(capability.capability_ref, "first"),
+        parameter_bindings=(_quantity_binding(),),
+    )
+    second = composition_member_link(
+        requirement=requirement,
+        capability=capability,
+        m3_manifest_sha256=M3_MANIFEST_SHA256,
+        admissibility=sra,
+        composition_context=CompositionContextV1(
+            CapabilityRefV1("capfam_" + "1" * 64, 1, "2" * 64),
+            "second",
+        ),
+        parameter_bindings=(_quantity_binding(),),
+    )
+
+    with pytest.raises(ValueError, match="same composition context"):
+        validate_active_links((_activate(first), _activate(second)))
+
+
 @pytest.mark.parametrize(
     ("disposition", "reason"),
     [
@@ -533,6 +833,7 @@ def test_mapping_decision_preserves_non_link_dispositions(
         _requirement(),
         disposition,
         reason,
+        m3_analysis_manifest_sha256=M3_MANIFEST_SHA256,
         review_ref=(
             "mrv_" + "a" * 64
             if disposition
@@ -567,6 +868,26 @@ def test_mapping_decision_rejects_active_links_for_non_mapped_disposition() -> N
         )
 
 
+def test_mapping_reason_must_match_the_closed_disposition_matrix() -> None:
+    with pytest.raises(ValueError, match="reason"):
+        mapping_decision(
+            _requirement(),
+            MappingDispositionV1.UNMAPPED,
+            MappingReasonV1.MULTIPLE_PLAUSIBLE_CAPABILITIES,
+            m3_analysis_manifest_sha256=M3_MANIFEST_SHA256,
+        )
+
+    wire = mapping_decision(
+        _requirement(),
+        MappingDispositionV1.UNMAPPED,
+        MappingReasonV1.NO_REVIEWED_CAPABILITY,
+        m3_analysis_manifest_sha256=M3_MANIFEST_SHA256,
+    ).to_wire()
+    wire["reason"] = "MULTIPLE_PLAUSIBLE_CAPABILITIES"
+    with pytest.raises(ValidationError):
+        _validated_schema("requirement-mapping-decision.v1.schema.json", wire)
+
+
 def test_link_wire_rejects_unknown_fields_and_noncanonical_bindings() -> None:
     link = direct_link(
         requirement=_requirement(),
@@ -582,11 +903,56 @@ def test_link_wire_rejects_unknown_fields_and_noncanonical_bindings() -> None:
     _validated_schema("requirement-capability-link.v1.schema.json", link.to_wire())
 
 
+def test_link_schema_reuses_the_closed_m2_path_registry() -> None:
+    link = direct_link(
+        requirement=_requirement(),
+        capability=_capability(),
+        m3_manifest_sha256=M3_MANIFEST_SHA256,
+        admissibility=None,
+        parameter_bindings=(_quantity_binding(),),
+    )
+    wire = link.to_wire()
+    bindings = wire["parameter_bindings"]
+    assert isinstance(bindings, list)
+    binding = bindings[0]
+    assert isinstance(binding, dict)
+    binding["path_key"] = "DRAW_CARDS_NOT_REGISTERED"
+
+    with pytest.raises(ValidationError):
+        _validated_schema("requirement-capability-link.v1.schema.json", wire)
+
+
+def test_link_schema_matches_relation_and_composition_context_shapes() -> None:
+    link = direct_link(
+        requirement=_requirement(),
+        capability=_capability(),
+        m3_manifest_sha256=M3_MANIFEST_SHA256,
+        admissibility=None,
+    )
+    direct_with_context = link.to_wire()
+    direct_with_context["composition_context"] = {
+        "composite": link.capability.to_wire(),
+        "component_key": "component",
+    }
+    with pytest.raises(ValidationError):
+        _validated_schema(
+            "requirement-capability-link.v1.schema.json", direct_with_context
+        )
+
+    member_without_context = link.to_wire()
+    member_without_context["relation"] = "COMPOSITION_MEMBER"
+    with pytest.raises(ValidationError):
+        _validated_schema(
+            "requirement-capability-link.v1.schema.json", member_without_context
+        )
+
+
 def test_mapping_schema_rejects_unknown_disposition() -> None:
     decision = mapping_decision(
         _requirement(),
         MappingDispositionV1.UNMAPPED,
         MappingReasonV1.NO_REVIEWED_CAPABILITY,
+        m3_analysis_manifest_sha256=M3_MANIFEST_SHA256,
     )
     wire = decision.to_wire()
     wire["disposition"] = "MAPS_TO"
@@ -600,6 +966,7 @@ def test_mapping_review_binds_the_exact_decision_claim() -> None:
         _requirement(),
         MappingDispositionV1.AMBIGUOUS,
         MappingReasonV1.MULTIPLE_PLAUSIBLE_CAPABILITIES,
+        m3_analysis_manifest_sha256=M3_MANIFEST_SHA256,
         review_ref="mrv_" + "0" * 64,
     )
     review = CapabilityReviewRecordV1.create(

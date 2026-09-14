@@ -97,6 +97,28 @@
       ]
     }
   },
+  "oneOf": [
+    {
+      "properties": {
+        "relation": {
+          "const": "DIRECT"
+        },
+        "composition_context": {
+          "type": "null"
+        }
+      }
+    },
+    {
+      "properties": {
+        "relation": {
+          "const": "COMPOSITION_MEMBER"
+        },
+        "composition_context": {
+          "$ref": "#/$defs/composition_context"
+        }
+      }
+    }
+  ],
   "$defs": {
     "digest": {
       "type": "string",
@@ -138,8 +160,7 @@
       ],
       "properties": {
         "path_key": {
-          "type": "string",
-          "pattern": "^[A-Z0-9_]+$"
+          "$ref": "capability-claim.v1.schema.json#/$defs/path_key"
         },
         "binding": {
           "oneOf": [

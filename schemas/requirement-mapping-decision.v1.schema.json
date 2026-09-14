@@ -100,10 +100,7 @@
     {
       "properties": {
         "disposition": {
-          "enum": [
-            "UNMAPPED",
-            "INSUFFICIENT_EVIDENCE"
-          ]
+          "const": "UNMAPPED"
         },
         "active_link_ids": {
           "const": []
@@ -111,13 +108,7 @@
         "reason": {
           "enum": [
             "NO_REVIEWED_CAPABILITY",
-            "M2_REVIEW_NOT_TERMINAL",
-            "M4_ADMISSIBILITY_REVIEW_PENDING",
-            "M2_RESOLUTION_INCOMPLETE",
-            "MULTIPLE_PLAUSIBLE_CAPABILITIES",
-            "NO_REUSABLE_GENERALIZATION",
-            "SPECIAL_CASE",
-            "EXPLICIT_REVIEW_CONFLICT"
+            "SPECIAL_CASE"
           ]
         }
       }
@@ -125,29 +116,57 @@
     {
       "properties": {
         "disposition": {
-          "enum": [
-            "AMBIGUOUS",
-            "OUTLIER"
-          ]
+          "const": "AMBIGUOUS"
         },
         "active_link_ids": {
           "const": []
         },
         "reason": {
           "enum": [
-            "NO_REVIEWED_CAPABILITY",
-            "M2_REVIEW_NOT_TERMINAL",
-            "M4_ADMISSIBILITY_REVIEW_PENDING",
-            "M2_RESOLUTION_INCOMPLETE",
             "MULTIPLE_PLAUSIBLE_CAPABILITIES",
-            "NO_REUSABLE_GENERALIZATION",
-            "SPECIAL_CASE",
             "EXPLICIT_REVIEW_CONFLICT"
           ]
         },
         "review_ref": {
           "type": "string",
           "pattern": "^mrv_[0-9a-f]{64}$"
+        }
+      }
+    },
+    {
+      "properties": {
+        "disposition": {
+          "const": "OUTLIER"
+        },
+        "active_link_ids": {
+          "const": []
+        },
+        "reason": {
+          "enum": [
+            "NO_REUSABLE_GENERALIZATION",
+            "SPECIAL_CASE"
+          ]
+        },
+        "review_ref": {
+          "type": "string",
+          "pattern": "^mrv_[0-9a-f]{64}$"
+        }
+      }
+    },
+    {
+      "properties": {
+        "disposition": {
+          "const": "INSUFFICIENT_EVIDENCE"
+        },
+        "active_link_ids": {
+          "const": []
+        },
+        "reason": {
+          "enum": [
+            "M2_REVIEW_NOT_TERMINAL",
+            "M4_ADMISSIBILITY_REVIEW_PENDING",
+            "M2_RESOLUTION_INCOMPLETE"
+          ]
         }
       }
     }
