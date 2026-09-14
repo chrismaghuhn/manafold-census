@@ -13,6 +13,8 @@ database, model dependency, engine integration, or implementation plan.
 ```text
 M4_IMPLEMENTATION_PLAN_AUTHORIZED = NO
 M4_IMPLEMENTATION_AUTHORIZED      = NO
+M4_DESIGN_SPECIFICATION_FIX_01   = READY_FOR_INDEPENDENT_REVIEW
+M4_DESIGN_SPECIFICATION           = NOT_YET_FROZEN
 CAPABILITY_SCHEMA_CREATED          = NO
 CAPABILITY_ONTOLOGY_CREATED       = NO
 REAL_REQUIREMENT_MAPPING_STARTED  = NO
@@ -485,26 +487,29 @@ display_name         = human-readable navigation text, outside claim identity
 
 ### Family key and family identity
 
-The family key is a closed, canonical projection containing no card,
-Requirement occurrence, pattern, producer, reviewer, filesystem path,
-timestamp, or engine data. Controlled M2 parameter path keys are deliberately
-included because they identify typed semantic dimensions, not storage
-locations:
+`CapabilityFamilyKeyV1` is the stable semantic nucleus only. It contains no
+card, Requirement occurrence, pattern, producer, reviewer, filesystem path,
+timestamp, engine data, dimension path, domain, exclusion, or registry
+interpretation. Its only semantic coordinates are a closed nucleus kind and a
+sorted operation anchor:
 
 ```json
 {
   "family_key_schema": "census.capability-family-key.v1",
-  "m2_requirement_schema": "census.semantic-requirement.v1",
-  "operation_kinds": [
+  "nucleus_contract_version": "1",
+  "nucleus_kind": "ATOMIC",
+  "operation_anchor": [
     {"family": "effect", "kind": "draw_cards"}
-  ],
-  "dimension_path_keys": [
-    "DRAW_CARDS_DRAWER",
-    "DRAW_CARDS_QUANTITY"
-  ],
-  "composition_shape": null
+  ]
 }
 ```
+
+For an atomic Capability, `operation_anchor` is the exact M2 family/kind
+anchor. A composite Capability uses `nucleus_kind=COMPOSITE` and the sorted
+set of observed M2 operation anchors that its stable semantic nucleus unites;
+its component references, roles, order, and requiredness remain in the
+versioned claim. A family-key change is reserved for a changed operation
+nucleus, not for a changed dimension interpretation.
 
 The family identity is:
 
@@ -515,10 +520,13 @@ capability_family_id = "capfam_" + domain_digest(
 )
 ```
 
-The exact M2 kind/path registry version is included in the canonical family
-key so a future incompatible registry cannot collide with a historical
-family. A family key is not a display string and is never derived from the
-name of a card or an engine.
+The family key is not a display string and is never derived from the name of a
+card or an engine. A future incompatible nucleus contract, including an
+incompatible M2 semantic interpretation, increments
+`nucleus_contract_version`, changes the `family_key_schema`, or changes the
+operation anchor and therefore creates a new family identity. A compatible
+change to how a claim interprets a registered M2 path belongs in the versioned
+claim and does not change the family identity.
 
 ### Versioned claim
 
@@ -529,6 +537,9 @@ The claim payload is separate from lifecycle and review metadata:
   "claim_schema": "census.capability-claim.v1",
   "family_key": "<canonical family key>",
   "capability_version": 1,
+  "m2_requirement_schema": "census.semantic-requirement.v1",
+  "m2_interpretation_version": "1",
+  "m4_dimension_registry_version": "1",
   "dimensions": [
     {
       "path_key": "DRAW_CARDS_DRAWER",
@@ -555,6 +566,22 @@ claim_digest = domain_digest(
     "census.capability-claim.v1",
     canonical_claim_payload
 )
+```
+
+The versioned claim, not the family key, owns the M2 interpretation version,
+M4 dimension-registry version, dimension path keys, requiredness, typed
+domains, unknown policy, exclusions, and composition details. The decisive
+rules are:
+
+```text
+same family nucleus + changed semantic claim
+    → same capability_family_id
+    → capability_version increments
+    → claim_digest changes
+
+changed family nucleus
+    → new capability_family_id
+    → explicit evolution relation where applicable
 ```
 
 The full definition wire shape is conceptually:
@@ -596,12 +623,14 @@ The following do not create a new semantic Capability version by themselves:
 * adding a report-only count; or
 * recording an additional, exact provenance source while the claim is unchanged.
 
-The following require a new version or family:
+The following require a new version or family, according to the nucleus rule
+above:
 
 * any change to the claim payload, dimensions, typed domains, exclusions, or
   composition;
-* changing the M2 schema or M4 path registry used to interpret the claim;
-* changing the operation nucleus; and
+* changing the M2 schema, compatible M2 interpretation version, or M4 path
+  registry used to interpret the claim;
+* changing the operation nucleus; or
 * changing a previously atomic capability into a different abstraction.
 
 If the family nucleus remains the same, increment the explicit version and
@@ -657,6 +686,31 @@ The exact rules are:
 The review artifact is a closed M4 authority record, not an authentication
 system:
 
+The digest projection is explicit and acyclic:
+
+```text
+review_claim_payload = canonical projection of:
+    review schema / authority version
+    exact subject
+    decision
+    reviewer identity
+    any subject-specific closed review fields
+
+review_digest = domain_digest(
+    "census.capability-review-record.v1",
+    review_claim_payload
+)
+
+record_id = "mrv_" + review_digest
+```
+
+`review_claim_payload` excludes `record_id`, `review_digest`, any future
+manifest digest, filesystem path, timestamp, and runtime order. The complete
+wire may carry `review_digest` for audit, but that field is excluded from the
+projection and is never hashed as part of its own input. A file or manifest
+descriptor may hash the complete bytes after the record has been constructed;
+that file digest is not the review identity.
+
 ```json
 {
   "schema": "census.capability-review.v1",
@@ -671,7 +725,7 @@ system:
   },
   "decision": "ACCEPTED",
   "reviewer_id": "maintainer:<stable-id>",
-  "record_sha256": "<sha256>"
+  "review_digest": "<sha256>"
 }
 ```
 
@@ -684,9 +738,10 @@ MAPPING_DECISION
 EVOLUTION
 ```
 
-`record_sha256` is recomputed from canonical record bytes. The review record
-binds the exact claim digest and subject fields. Reviewer identity is stored as
-minimal stable workflow metadata; it does not claim external authentication.
+`review_digest` is recomputed from the explicit review projection above. The
+review record binds the exact claim digest and subject fields. Reviewer identity
+is stored as minimal stable workflow metadata; it does not claim external
+authentication.
 The review decision is closed to `ACCEPTED` or `REJECTED`; a missing decision
 is pending and is not an authority value.
 
@@ -699,6 +754,95 @@ Conflicting accepted and rejected decisions for the same subject are an
 authority disagreement and block active publication until a new explicit
 review authority record resolves the disagreement. There is no majority vote,
 producer priority, or runtime-order tie-breaker.
+
+### Source Requirement admissibility seam
+
+M4 has a separate downstream authority seam for deciding whether an exact M3-
+bound Requirement is eligible to support an active Capability mapping. Its
+canonical name is `SOURCE_REQUIREMENT_ADMISSIBILITY`.
+
+This seam exists because M3's authoritative producers intentionally emit only
+M2 `PROPOSED` Requirements, while M5 needs reviewed Capability mappings before
+M6's broader semantic-quality work. It does not promote or rewrite the M2
+Requirement:
+
+```text
+M3 Requirement remains PROPOSED
+        ↓
+M4 SOURCE_REQUIREMENT_ADMISSIBILITY review
+        ↓
+exact reviewed_claim_digest_for(requirement)
+        ↓
+ACCEPTED_FOR_CAPABILITY_MAPPING
+        ↓
+M4 Capability and link review
+```
+
+The admissibility decision is closed to:
+
+```text
+ACCEPTED_FOR_CAPABILITY_MAPPING
+REJECTED_FOR_CAPABILITY_MAPPING
+```
+
+An absent record is pending. An accepted admissibility record is valid only
+when the observed M2 review status is `PROPOSED` or `IN_REVIEW`, the observed
+M2 resolution state is `COMPLETE`, the Requirement wire digest matches the
+selected M3 artifact, and the stored digest equals the result of the existing
+M2 `reviewed_claim_digest_for(requirement)` helper. M2 `REJECTED` is never
+admissible. M2 `PARTIAL` or `UNRESOLVED` is never sufficient for an active
+`DIRECT` link.
+
+The subject-specific wire shape is:
+
+```json
+{
+  "schema": "census.source-requirement-admissibility.v1",
+  "authority_id": "m4.source-requirement-admissibility",
+  "authority_version": "1",
+  "record_id": "sra_<sha256>",
+  "review_digest": "<sha256>",
+  "m3_analysis_manifest_sha256": "<sha256>",
+  "requirement_id": "srq_<sha256>",
+  "requirement_wire_digest": "<existing M2 wire digest>",
+  "m2_review_status_observed": "PROPOSED",
+  "m2_resolution_state_observed": "COMPLETE",
+  "m2_reviewed_claim_digest": "<reviewed_claim_digest_for(requirement)>",
+  "decision": "ACCEPTED_FOR_CAPABILITY_MAPPING",
+  "reviewer_id": "maintainer:<stable-id>"
+}
+```
+
+Its digest projection contains all fields above except `record_id`,
+`review_digest`, future manifest digests, filesystem paths, timestamps, and
+runtime order. It uses the domain
+`census.source-requirement-admissibility.v1`; `record_id` is `sra_` plus that
+digest. No field is hashed over complete bytes that already contain itself.
+
+For an M2 `ACCEPTED` and `COMPLETE` Requirement, an admissibility record is
+not required. The link records the closed basis
+`M2_TERMINAL_ACCEPTANCE`. For a `PROPOSED` or `IN_REVIEW` and `COMPLETE`
+Requirement, the link must record the exact accepted admissibility record.
+The link basis is therefore either `M2_TERMINAL_ACCEPTANCE` or
+`SOURCE_REQUIREMENT_ADMISSIBILITY`; there is no third implicit basis.
+
+```text
+M4 admissibility != M2 ACCEPTED
+M4 admissibility does not mutate RequirementV1.review
+M4 admissibility is not engine support or semantic certification
+```
+
+M5 and the Explorer must display both statuses independently:
+
+```text
+M2 review status / resolution
+M4 source-requirement admissibility basis and decision
+M4 Capability/link review status
+```
+
+M6 may later improve M2/M3 semantic quality or create terminal M2 reviews. It
+does not retroactively redefine the M4/M5 V1 completion contract or rewrite a
+historical M4 snapshot.
 
 ## Requirement-to-Capability link contract
 
@@ -724,6 +868,11 @@ version, relation, and typed parameter bindings:
   },
   "relation": "DIRECT",
   "parameter_bindings": ["<sorted binding objects>"],
+  "m4_requirement_admissibility": {
+    "basis": "M2_TERMINAL_ACCEPTANCE",
+    "record_id": null,
+    "review_digest": null
+  },
   "composition_context": null
 }
 ```
@@ -742,8 +891,20 @@ filesystem path. The link record may carry those values outside the claim.
 source-scoped M2 identity; both values are required so a changed Requirement
 wire is detectably stale even when its source-scoped identity remains the same.
 
-An active link to an accepted Requirement also records and validates the exact
-M2 `reviewed_claim_digest`. A proposal link may carry a null M2 review digest,
+An active link records and validates the exact M2
+`reviewed_claim_digest_for(requirement)`. It is eligible through exactly one
+of these routes:
+
+```text
+M2 review = ACCEPTED, resolution = COMPLETE,
+    basis = M2_TERMINAL_ACCEPTANCE, admissibility record = null
+
+M2 review = PROPOSED or IN_REVIEW, resolution = COMPLETE,
+    basis = SOURCE_REQUIREMENT_ADMISSIBILITY,
+    admissibility record = accepted exact SRA record
+```
+
+A proposal link may carry a null M2 review digest and no admissibility record,
 but it cannot enter the active ontology manifest.
 
 ### Link relation vocabulary
@@ -780,8 +941,8 @@ The model supports many-to-many relationships with explicit rules:
   definition declares every component key;
 * a Requirement may not have both an active `DIRECT` link and active component
   links in the same mapping context; and
-* a Capability version with no accepted complete supporting Requirement may be
-  proposed but not active.
+* a Capability version with no supporting Requirement that satisfies one of
+  the active admissibility routes may be proposed but not active.
 
 Multiple plausible links are represented as `AMBIGUOUS` in the mapping
 decision artifact. They are not resolved by choosing the first candidate,
@@ -830,7 +991,7 @@ Their meanings are distinct:
 The mapping reason is also closed. It uses only codes such as
 `NO_REVIEWED_CAPABILITY`, `M2_REVIEW_NOT_TERMINAL`,
 `M2_RESOLUTION_INCOMPLETE`, `MULTIPLE_PLAUSIBLE_CAPABILITIES`,
-`NO_REUSABLE_GENERALIZATION`, `SPECIAL_CASE`, and
+`M4_ADMISSIBILITY_REVIEW_PENDING`, `NO_REUSABLE_GENERALIZATION`, `SPECIAL_CASE`, and
 `EXPLICIT_REVIEW_CONFLICT`, selected according to disposition. It is never
 an arbitrary expression or executable predicate.
 
@@ -965,19 +1126,28 @@ derived reports and review worklists
 
 This is contract machinery, not semantic population.
 
-### No real active member from the current five
+### No automatic active member from the current five
 
-The current five Requirements cannot create an `ACTIVE` Capability member.
-They are all `review.status=PROPOSED`, even though each has a complete-looking
-`draw_cards` payload. M2's review contract deliberately distinguishes a
-proposal from a human-reviewed result. M4 therefore cannot claim that the
-observed draw phrase is established Capability authority.
+The current five Requirements cannot create an `ACTIVE` Capability member
+automatically. They are all `review.status=PROPOSED`, even though each has a
+complete-looking `draw_cards` payload, and no M4
+`SOURCE_REQUIREMENT_ADMISSIBILITY` review exists for them. M2's review
+contract remains unchanged; a separately authorized M4 review could later
+admit an exact complete Requirement for this mapping purpose. The present
+design artifact therefore authorizes zero real `ACTIVE` Capabilities and does
+not claim that the observed draw phrase is established Capability authority.
 
 A future active-member gate is:
 
 * the supplied M3 artifact rereads and validates against its exact manifest SHA;
 * all linked Requirements are present in that M3 bundle corpus;
-* every linked Requirement is M2 `ACCEPTED` and `COMPLETE`;
+* every linked Requirement satisfies exactly one admissibility route:
+  * M2 `ACCEPTED` and `COMPLETE`, with a valid M2 reviewed claim digest; or
+  * M2 `PROPOSED` or `IN_REVIEW`, `COMPLETE`, and an accepted exact
+    `SOURCE_REQUIREMENT_ADMISSIBILITY` record binding that same reviewed claim
+    digest;
+* M2 `REJECTED` is never admissible, and M2 `PARTIAL` or `UNRESOLVED` is never
+  sufficient for an active `DIRECT` link;
 * the Capability claim and all typed dimensions validate;
 * default reuse evidence has at least two distinct M1 source identities, or an
   accepted `SINGLE_OBSERVATION_GENERALIZATION` decision exists;
@@ -988,8 +1158,9 @@ A future active-member gate is:
 For the present five, the only truthful M4 staging result would be one
 non-authoritative candidate group for `effect/draw_cards`, plus five explicit
 `INSUFFICIENT_EVIDENCE` mapping decisions with reason
-`M2_REVIEW_NOT_TERMINAL`. It would create no Capability definition in the
-authoritative ontology and no active link.
+`M4_ADMISSIBILITY_REVIEW_PENDING`. It would create no Capability definition in
+the authoritative ontology and no active link. Future admissibility and
+Capability/link review is a separately authorized M4 review/data action.
 
 ### Claims that remain unmade
 
@@ -1009,7 +1180,8 @@ that five proposed Requirements are globally representative
 
 It may claim only that the M4 machinery is defined for a frozen M3 artifact,
 that the observed five Requirements are eligible for candidate grouping, and
-that no active ontology member is authorized from their current review state.
+that no active ontology member is authorized because no exact M4
+Requirement-admissibility review exists for their current M2 claims.
 
 ### Future M3 expansion
 
@@ -1222,6 +1394,7 @@ evolution, and derived views have different owners and cardinalities.
 | `capability-candidate-clusters` | Deterministic or pinned model proposal groups | Non-authoritative proposal |
 | `capability-definitions` | Versioned typed Capability claims and lifecycle | Authoritative M4 definition set |
 | `capability-review-authority` | Exact accepted/rejected review records | Authoritative review input |
+| `source-requirement-admissibility` | Exact M4 decision that a complete non-terminal M2 Requirement may support a Capability mapping | Authoritative M4 mapping-authority input |
 | `requirement-capability-links` | Exact active/historical mapping links | Authoritative downstream mapping |
 | `requirement-mapping-decisions` | One explicit current disposition per M3 Requirement | Authoritative M4 mapping coverage |
 | `capability-evolution` | Immutable split/merge/supersession/retirement events | Authoritative M4 history |
@@ -1235,6 +1408,7 @@ The initial reference artifact uses canonical JSONL rather than a database:
 ```text
 capabilities.jsonl
 review-authority.jsonl
+requirement-admissibility.jsonl
 evolution.jsonl
 links/0.jsonl ... links/f.jsonl
 mapping-decisions/0.jsonl ... mapping-decisions/f.jsonl
@@ -1272,6 +1446,7 @@ manual file.
   "requirement_set_digest": "<M4 requirement-set digest>",
   "capability_file": "<descriptor>",
   "review_file": "<descriptor>",
+  "admissibility_file": "<descriptor>",
   "evolution_file": "<descriptor>",
   "link_shards": ["<16 ordered descriptors>"],
   "mapping_decision_shards": ["<16 ordered descriptors>"]
@@ -1310,6 +1485,9 @@ frozen M3 analysis-manifest.json bytes
         ├── accepted review records
         │       └── review record digests
         │
+        ├── SOURCE_REQUIREMENT_ADMISSIBILITY records
+        │       └── admissibility review digests
+        │
         ├── links and mapping decisions
         │       └── link/decision claim digests
         │
@@ -1325,8 +1503,12 @@ The exact dependency rules are:
   Capability claim unless a separate accepted review materializes the claim;
 * a Capability claim digest depends only on its typed family key, dimensions,
   exclusions, and composition claim;
-* a review record depends on the exact subject and claim digest, never on the
-  future M4 manifest digest;
+* a Capability review record depends on the exact subject and claim digest,
+  never on the future M4 manifest digest;
+* a `SOURCE_REQUIREMENT_ADMISSIBILITY` record depends on the exact M3
+  manifest, Requirement ID/wire digest, observed M2 review/resolution fields,
+  and `reviewed_claim_digest_for(requirement)`, never on the future M4 manifest
+  digest;
 * a link depends on the exact M3 manifest SHA, Requirement ID/wire/review
   projection, Capability reference, relation, and bindings;
 * mapping decisions depend on exact Requirement/link claim references but not
@@ -1389,6 +1571,7 @@ frozen M3 artifact bytes and manifest
 frozen M4 dimension-path registry
 reviewed Capability definitions/references
 review authority records
+source Requirement-admissibility records
 reviewed Requirement-to-Capability links/decisions
 evolution records
 build profile
@@ -1399,6 +1582,7 @@ The same frozen inputs must produce byte-identical:
 ```text
 Capability definitions
 review records
+admissibility review records
 evolution records
 link shards
 mapping-decision shards
@@ -1448,7 +1632,7 @@ The following classes remain separate:
 
 | Condition | M4 representation | Publication behavior |
 | --- | --- | --- |
-| M2 Requirement is proposed, partial, unresolved, or lacks exact review | `INSUFFICIENT_EVIDENCE` or proposal-only link | May publish explicit coverage state; never active mapping |
+| M2 Requirement is non-terminal without accepted `SOURCE_REQUIREMENT_ADMISSIBILITY`, partial, unresolved, or lacks an exact review digest | `INSUFFICIENT_EVIDENCE` or proposal-only link | May publish explicit coverage state; never active mapping |
 | Two plausible Capability mappings remain | `AMBIGUOUS` with exact candidate claims | May publish if decision wire is valid; no active link |
 | Maintainer decides no reusable abstraction is justified | `OUTLIER` with closed reason and review | May publish; no Capability is created |
 | No mapping has been selected yet | `UNMAPPED` | May publish as explicit not-yet-mapped state |
@@ -1511,6 +1695,7 @@ family identity stability and version separation
 claim digest and display-name separation
 dimension path registry and typed domain validation
 required/optional/unknown dimension semantics
+SOURCE_REQUIREMENT_ADMISSIBILITY decision and exact M3/M2 binding
 link identity and exact M3/M2 binding
 parameter extraction and binding equality
 DIRECT versus COMPOSITION_MEMBER relations
@@ -1545,13 +1730,15 @@ link to an unknown Capability family/version
 link with a stale Capability claim digest
 link with a stale M2 Requirement wire/review digest
 active link to PROPOSED, SUPERSEDED, or RETIRED Capability
-active link to M2 PROPOSED/PARTIAL/UNRESOLVED Requirement
+active link to M2 PROPOSED/IN_REVIEW without accepted admissibility, or any M2 PARTIAL/UNRESOLVED Requirement
+active link missing the exact accepted `SOURCE_REQUIREMENT_ADMISSIBILITY` record
 multiple active DIRECT links in one context
 composition link missing a declared component or required component
 implicit composition inferred from link count
 duplicate Capability identity
 generated cluster promoted automatically to ACTIVE
 review record for a different claim or subject
+accepted `SOURCE_REQUIREMENT_ADMISSIBILITY` record for M2 REJECTED or incomplete Requirement
 conflicting accepted review decisions
 invalid lifecycle transition
 self-edge, duplicate component, missing endpoint, or cycle
@@ -1595,6 +1782,8 @@ real cards. The fixture set must include:
 two draw Requirements with different exact quantities sharing one candidate
 two different operation kinds that must not share a Capability
 one accepted complete Requirement mapping directly to one Capability
+one complete PROPOSED Requirement admitted by an accepted
+SOURCE_REQUIREMENT_ADMISSIBILITY record and mapped directly
 one Requirement with two accepted composition-member links
 unmapped Requirement
 ambiguous Requirement with two candidate links
@@ -1744,9 +1933,10 @@ its coverage.
 ## Critical audit of Issue #7
 
 Issue #7 establishes the right direction and the important
-`Requirement != Capability` and engine-independence boundaries, but it is not
-implementation-ready without the contracts below. The findings are an audit
-of the issue, not edits to it.
+`Requirement != Capability` and engine-independence boundaries. Its original
+wording left several authority contracts open. The findings below are an audit
+of the issue, not edits to it; this specification resolves the three reviewed
+contract blockers without changing the issue.
 
 | ID | Severity | Classification | Finding and recommended clarification |
 | --- | --- | --- | --- |
@@ -1759,15 +1949,18 @@ of the issue, not edits to it.
 | M4-AUDIT-07 | `MINOR` | Maintainer ergonomics gap | Batch review, frequency-ranked worklists, representative examples, and outlier navigation are implied but not specified. Add deterministic candidate IDs, integer ranking, exact member materialization, and no hidden bulk acceptance. |
 | M4-AUDIT-08 | `MINOR` | Provenance/security gap | The issue names representative cards/patterns but does not state that these are evidence/report context and cannot enter Capability identity. Add the identity exclusion list and the optional pinned-model proposal boundary. |
 | M4-AUDIT-09 | `MINOR` | Documentation gap | Issue #7 remains `M4 = PLANNED`, which is correct as an authorization state, but parent/child status prose is stale after M3 merge. The issue should later be reconciled with current milestone evidence without weakening authorization gates. |
+| M4-AUDIT-10 | `BLOCKER (RESOLVED HERE)` | Cross-milestone authority gap | M3 intentionally emits only `PROPOSED` Requirements, M5 needs useful V1 Capability mappings, and M6 performs post-V1 quality closure. The `SOURCE_REQUIREMENT_ADMISSIBILITY` seam now admits an exact complete M3-bound claim for M4 mapping without changing M2 or M3, so M5 can expose M2 and M4 status independently. |
 
-There is no blocker to completing the M4 design. The `MAJOR` findings are
-implementation-authority blockers if left unspecified; this document resolves
-them normatively without changing Issue #7.
+The three reviewed blockers are resolved here: family nucleus versus claim
+versioning, non-cyclic review identity, and the M3-to-M5 bridge through
+M4-owned Requirement admissibility. The remaining `MINOR` finding is a later
+Issue/documentation reconciliation and does not block this design artifact.
 
 ## Open decisions
 
-Core Capability identity, authority, versioning, mapping, failure semantics,
-and M3 binding are closed above. The following residual decisions are
+Core Capability identity, authority, versioning, mapping, source Requirement
+admissibility, failure semantics, and M3 binding are closed above. The
+following residual decisions are
 deliberately non-blocking and have safe fail-closed defaults.
 
 | OD-ID | Question | Recommended direction | Deadline | Safe default |
@@ -1810,8 +2003,10 @@ critical Issue #7 audit and residual open decisions
 The current sparse corpus is represented honestly: M4 machinery is permitted,
 one non-authoritative draw candidate group is conceivable, and no real active
 Capability or Requirement mapping is authorized from the five proposed M2
-Requirements.
+Requirements because no accepted `SOURCE_REQUIREMENT_ADMISSIBILITY` records
+exist yet.
 
 ```text
-M4_DESIGN_SPECIFICATION = READY_FOR_INDEPENDENT_REVIEW
+M4_DESIGN_SPECIFICATION_FIX_01 = READY_FOR_INDEPENDENT_REVIEW
+M4_DESIGN_SPECIFICATION         = NOT_YET_FROZEN
 ```
