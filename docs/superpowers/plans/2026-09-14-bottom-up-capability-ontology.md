@@ -895,8 +895,7 @@ Provide the downstream recomputation seam:
 def validate_binding_against_requirement(
     requirement: RequirementV1,
     binding: ParameterBindingV1,
-) -> None:
-    ...
+) -> None: ...
 ~~~
 
 The validator requires the path's registered family/kind to equal the
