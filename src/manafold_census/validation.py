@@ -41,18 +41,27 @@ def _read_json_document(path: Path) -> dict[str, Any]:
 
 def _schema_validator(schema_path: Path, schema_document: dict[str, Any]) -> Any:
     if schema_path.name != "source-lock.v1.schema.json":
-        if schema_path.name == "semantic-requirement-bundle.v1.schema.json":
-            requirement_path = SCHEMA_DIRECTORY / "semantic-requirement.v1.schema.json"
-            requirement_document = _read_json_document(requirement_path)
-            requirement_id = requirement_document.get("$id")
-            if not isinstance(requirement_id, str):
-                raise ValueError("requirement schema must define a string $id")
-            registry = Registry().with_resource(
-                requirement_id,
-                Resource.from_contents(
-                    requirement_document, default_specification=DRAFT202012
-                ),
-            )
+        if schema_path.name in {
+            "semantic-requirement-bundle.v1.schema.json",
+            "card-analysis.v1.schema.json",
+            "negative-requirement-authority.v1.schema.json",
+        }:
+            registry = Registry()
+            for filename, label in (
+                ("semantic-requirement.v1.schema.json", "requirement"),
+                ("semantic-requirement-bundle.v1.schema.json", "bundle"),
+            ):
+                document = _read_json_document(SCHEMA_DIRECTORY / filename)
+                schema_id = document.get("$id")
+                if not isinstance(schema_id, str):
+                    raise ValueError(f"{label} schema must define a string $id")
+                registry = registry.with_resource(
+                    schema_id,
+                    Resource.from_contents(
+                        document,
+                        default_specification=DRAFT202012,
+                    ),
+                )
             return Draft202012Validator(schema_document, registry=registry)
         return Draft202012Validator(schema_document)
 

@@ -1,0 +1,88 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://manafold-census.invalid/schemas/producer-registry.v1.schema.json",
+  "title": "Manafold Census M3 Producer Registry V1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "producers"],
+  "properties": {
+    "schema": {
+      "const": "census.producer-registry.v1"
+    },
+    "producers": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/producer"
+      }
+    }
+  },
+  "$defs": {
+    "digest": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "producer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "producer_id",
+        "producer_version",
+        "derivation_method",
+        "input_schema",
+        "input_fields",
+        "pattern_registry_digest",
+        "deterministic",
+        "supports_relationships"
+      ],
+      "properties": {
+        "producer_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "producer_version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "derivation_method": {
+          "enum": [
+            "HUMAN_AUTHORED",
+            "DETERMINISTIC_RULE",
+            "PARSER",
+            "HEURISTIC",
+            "MODEL",
+            "IMPORTED_ANNOTATION"
+          ]
+        },
+        "input_schema": {
+          "type": "string",
+          "minLength": 1
+        },
+        "input_fields": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "pattern_registry_digest": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/digest"
+            }
+          ]
+        },
+        "deterministic": {
+          "type": "boolean"
+        },
+        "supports_relationships": {
+          "type": "boolean"
+        }
+      }
+    }
+  }
+}

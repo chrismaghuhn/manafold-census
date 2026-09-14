@@ -1,0 +1,203 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://manafold-census.invalid/schemas/analysis-trace.v1.schema.json",
+  "title": "Manafold Census M3 Analysis Trace Event V1",
+  "oneOf": [
+    {"$ref": "#/$defs/producer_event"},
+    {"$ref": "#/$defs/negative_authority_event"}
+  ],
+  "$defs": {
+    "card_source_key": {
+      "type": "array",
+      "minItems": 4,
+      "maxItems": 4,
+      "prefixItems": [
+        {"const": "census.structural-card.v1"},
+        {"type": "string", "format": "uuid"},
+        {"type": "string", "format": "uuid"},
+        {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      ],
+      "items": false
+    },
+    "authority_ref": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "authority_id",
+        "authority_version",
+        "record_id",
+        "record_sha256",
+        "scope_digest"
+      ],
+      "properties": {
+        "authority_id": {"type": "string", "minLength": 1},
+        "authority_version": {"type": "string", "minLength": 1},
+        "record_id": {"type": "string", "pattern": "^nra_[0-9a-f]{64}$"},
+        "record_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "scope_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      }
+    },
+    "producer_event": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema",
+        "card_source_key",
+        "producer_id",
+        "producer_version",
+        "pattern_id",
+        "pattern_version",
+        "pattern_digest",
+        "source_field",
+        "face_index",
+        "exact_fragment",
+        "clause_ordinal",
+        "parser_span",
+        "candidate_requirement_id",
+        "local_candidate_key",
+        "disposition"
+      ],
+      "properties": {
+        "schema": {"const": "census.analysis-trace.v1"},
+        "card_source_key": {"$ref": "#/$defs/card_source_key"},
+        "producer_id": {"type": "string", "minLength": 1},
+        "producer_version": {"type": "string", "minLength": 1},
+        "pattern_id": {"type": ["string", "null"]},
+        "pattern_version": {"type": ["string", "null"]},
+        "pattern_digest": {
+          "anyOf": [
+            {"type": "null"},
+            {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+          ]
+        },
+        "source_field": {
+          "anyOf": [
+            {"type": "null"},
+            {"enum": ["oracle_text", "keywords"]}
+          ]
+        },
+        "face_index": {
+          "anyOf": [
+            {"type": "null"},
+            {"type": "integer", "minimum": 0}
+          ]
+        },
+        "exact_fragment": {"type": ["string", "null"]},
+        "clause_ordinal": {
+          "anyOf": [
+            {"type": "null"},
+            {"type": "integer", "minimum": 0}
+          ]
+        },
+        "parser_span": {
+          "anyOf": [
+            {"type": "null"},
+            {
+              "type": "array",
+              "prefixItems": [
+                {"type": "integer", "minimum": 0},
+                {"type": "integer", "minimum": 0}
+              ],
+              "items": false,
+              "minItems": 2,
+              "maxItems": 2
+            }
+          ]
+        },
+        "candidate_requirement_id": {
+          "anyOf": [
+            {"type": "null"},
+            {"type": "string", "pattern": "^srq_[0-9a-f]{64}$"}
+          ]
+        },
+        "local_candidate_key": {"type": ["string", "null"]},
+        "disposition": {
+          "enum": [
+            "CANDIDATE_EMITTED",
+            "PRODUCER_NO_MATCH",
+            "PRODUCER_UNSUPPORTED_SHAPE",
+            "CANDIDATE_RETAINED",
+            "DISPUTED_IDENTITY_OMITTED"
+          ]
+        }
+      },
+      "allOf": [
+        {
+          "oneOf": [
+            {
+              "properties": {
+                "pattern_id": {"type": "null"},
+                "pattern_version": {"type": "null"},
+                "pattern_digest": {"type": "null"}
+              }
+            },
+            {
+              "properties": {
+                "pattern_id": {"type": "string", "minLength": 1},
+                "pattern_version": {"type": "string", "minLength": 1},
+                "pattern_digest": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "if": {
+            "properties": {"source_field": {"const": "keywords"}}
+          },
+          "then": {
+            "properties": {
+              "face_index": {"type": "null"},
+              "exact_fragment": {"type": "null"}
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {"source_field": {"type": "null"}}
+          },
+          "then": {
+            "properties": {
+              "face_index": {"type": "null"},
+              "exact_fragment": {"type": "null"}
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {"face_index": {"type": "integer"}}
+          },
+          "then": {
+            "properties": {"source_field": {"const": "oracle_text"}}
+          }
+        },
+        {
+          "if": {
+            "properties": {"exact_fragment": {"type": "string"}}
+          },
+          "then": {
+            "properties": {"source_field": {"const": "oracle_text"}}
+          }
+        }
+      ]
+    },
+    "negative_authority_event": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema", "card_source_key", "authority", "disposition"],
+      "properties": {
+        "schema": {"const": "census.analysis-trace.v1"},
+        "card_source_key": {"$ref": "#/$defs/card_source_key"},
+        "authority": {"$ref": "#/$defs/authority_ref"},
+        "disposition": {
+          "enum": [
+            "NEGATIVE_AUTHORITY_APPLIED",
+            "NEGATIVE_AUTHORITY_CONFLICT"
+          ]
+        }
+      }
+    }
+  }
+}

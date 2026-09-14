@@ -1,0 +1,83 @@
+{
+  "schema": "census.pattern-registry.v1",
+  "rules": [
+    {
+      "schema": "census.pattern-rule.v1",
+      "pattern_id": "m3.exact-clause.draw",
+      "pattern_version": "1",
+      "matcher_kind": "EXACT_FRAGMENT",
+      "source_scope": {
+        "field": "oracle_text",
+        "face_index": null
+      },
+      "normalization_profile": "NONE",
+      "match_text": "Draw two cards.",
+      "output_template": {
+        "family": "effect",
+        "kind": "draw_cards",
+        "parameters": {
+          "drawer": {
+            "role": "source",
+            "multiplicity": "one",
+            "ordinal": null
+          },
+          "quantity": {
+            "mode": "exact",
+            "value": 2
+          }
+        }
+      },
+      "evidence_policy": "EXACT_FRAGMENT",
+      "producer_id": "m3.exact-rule",
+      "producer_version": "1",
+      "m2_contract_version": "census.semantic-requirement.v1"
+    },
+    {
+      "schema": "census.pattern-rule.v1",
+      "pattern_id": "m3.keyword.flying",
+      "pattern_version": "1",
+      "matcher_kind": "EXACT_FIELD_TEXT",
+      "source_scope": {
+        "field": "keywords",
+        "face_index": null
+      },
+      "normalization_profile": "NONE",
+      "match_text": "Flying",
+      "output_template": {
+        "family": "effect",
+        "kind": "draw_cards",
+        "parameters": {
+          "drawer": {
+            "role": "source",
+            "multiplicity": "one",
+            "ordinal": null
+          },
+          "quantity": {
+            "mode": "exact",
+            "value": 2
+          }
+        }
+      },
+      "evidence_policy": "EXACT_FIELD",
+      "producer_id": "m3.keyword-rule",
+      "producer_version": "1",
+      "m2_contract_version": "census.semantic-requirement.v1"
+    }
+  ],
+  "eligibility": [
+    {
+      "pattern_id": "m3.exact-clause.draw",
+      "pattern_version": "1",
+      "eligibility": "REVIEWED_FOR_REUSE",
+      "review_record_id": "fixture-pattern-review",
+      "review_record_sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+    },
+    {
+      "pattern_id": "m3.keyword.flying",
+      "pattern_version": "1",
+      "eligibility": "NOT_ELIGIBLE",
+      "review_record_id": "fixture-pattern-rejected",
+      "review_record_sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+    }
+  ]
+}

@@ -1,0 +1,391 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://manafold-census.invalid/schemas/pattern-registry.v1.schema.json",
+  "title": "Manafold Census M3 Pattern Registry V1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "rules", "eligibility"],
+  "properties": {
+    "schema": {
+      "const": "census.pattern-registry.v1"
+    },
+    "rules": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/rule"
+      }
+    },
+    "eligibility": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/eligibility"
+      }
+    }
+  },
+  "$defs": {
+    "digest": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "source_scope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["field", "face_index"],
+      "properties": {
+        "field": {
+          "enum": ["oracle_text", "keywords"]
+        },
+        "face_index": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9223372036854775807
+            }
+          ]
+        }
+      }
+    },
+    "output_template": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["family", "kind", "parameters"],
+          "properties": {
+            "family": {"const": "effect"},
+            "kind": {"const": "move_between_zones"},
+            "parameters": {
+              "$ref": "https://manafold-census.invalid/schemas/semantic-requirement.v1.schema.json#/$defs/move_between_zones"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["family", "kind", "parameters"],
+          "properties": {
+            "family": {"const": "effect"},
+            "kind": {"const": "create_object"},
+            "parameters": {
+              "$ref": "https://manafold-census.invalid/schemas/semantic-requirement.v1.schema.json#/$defs/create_object"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["family", "kind", "parameters"],
+          "properties": {
+            "family": {"const": "choice"},
+            "kind": {"const": "select"},
+            "parameters": {
+              "$ref": "https://manafold-census.invalid/schemas/semantic-requirement.v1.schema.json#/$defs/select"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["family", "kind", "parameters"],
+          "properties": {
+            "family": {"const": "effect"},
+            "kind": {"const": "modify_characteristic"},
+            "parameters": {
+              "$ref": "https://manafold-census.invalid/schemas/semantic-requirement.v1.schema.json#/$defs/modify_characteristic"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["family", "kind", "parameters"],
+          "properties": {
+            "family": {"const": "effect"},
+            "kind": {"const": "apply_continuous_effect"},
+            "parameters": {
+              "$ref": "https://manafold-census.invalid/schemas/semantic-requirement.v1.schema.json#/$defs/apply_continuous_effect"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["family", "kind", "parameters"],
+          "properties": {
+            "family": {"const": "effect"},
+            "kind": {"const": "search_zone"},
+            "parameters": {
+              "$ref": "https://manafold-census.invalid/schemas/semantic-requirement.v1.schema.json#/$defs/search_zone"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["family", "kind", "parameters"],
+          "properties": {
+            "family": {"const": "effect"},
+            "kind": {"const": "draw_cards"},
+            "parameters": {
+              "$ref": "https://manafold-census.invalid/schemas/semantic-requirement.v1.schema.json#/$defs/draw_cards"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["family", "kind", "parameters"],
+          "properties": {
+            "family": {"const": "effect"},
+            "kind": {"const": "deal_damage"},
+            "parameters": {
+              "$ref": "https://manafold-census.invalid/schemas/semantic-requirement.v1.schema.json#/$defs/deal_damage"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["family", "kind", "parameters"],
+          "properties": {
+            "family": {"const": "effect"},
+            "kind": {"const": "create_delayed_effect"},
+            "parameters": {
+              "$ref": "https://manafold-census.invalid/schemas/semantic-requirement.v1.schema.json#/$defs/create_delayed_effect"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["family", "kind", "parameters"],
+          "properties": {
+            "family": {"const": "event"},
+            "kind": {"const": "trigger_from_event"},
+            "parameters": {
+              "$ref": "https://manafold-census.invalid/schemas/semantic-requirement.v1.schema.json#/$defs/trigger_from_event"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["family", "kind", "parameters"],
+          "properties": {
+            "family": {"const": "event"},
+            "kind": {"const": "replace_event"},
+            "parameters": {
+              "$ref": "https://manafold-census.invalid/schemas/semantic-requirement.v1.schema.json#/$defs/replace_event"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["family", "kind", "parameters"],
+          "properties": {
+            "family": {"const": "cost"},
+            "kind": {"const": "pay_cost"},
+            "parameters": {
+              "$ref": "https://manafold-census.invalid/schemas/semantic-requirement.v1.schema.json#/$defs/pay_cost"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["family", "kind", "parameters"],
+          "properties": {
+            "family": {"const": "cost"},
+            "kind": {"const": "modify_cost"},
+            "parameters": {
+              "$ref": "https://manafold-census.invalid/schemas/semantic-requirement.v1.schema.json#/$defs/modify_cost"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["family", "kind", "parameters"],
+          "properties": {
+            "family": {"const": "choice"},
+            "kind": {"const": "choose_mode"},
+            "parameters": {
+              "$ref": "https://manafold-census.invalid/schemas/semantic-requirement.v1.schema.json#/$defs/choose_mode"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["family", "kind", "parameters"],
+          "properties": {
+            "family": {"const": "control"},
+            "kind": {"const": "conditional_effect"},
+            "parameters": {
+              "$ref": "https://manafold-census.invalid/schemas/semantic-requirement.v1.schema.json#/$defs/conditional_effect"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["family", "kind", "parameters"],
+          "properties": {
+            "family": {"const": "reference"},
+            "kind": {"const": "keyword_reference"},
+            "parameters": {
+              "$ref": "https://manafold-census.invalid/schemas/semantic-requirement.v1.schema.json#/$defs/keyword_reference"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["family", "kind", "parameters"],
+          "properties": {
+            "family": {"const": "unknown"},
+            "kind": {"const": "unresolved"},
+            "parameters": {
+              "$ref": "https://manafold-census.invalid/schemas/semantic-requirement.v1.schema.json#/$defs/unresolved"
+            }
+          }
+        }
+      ]
+    },
+    "rule": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema",
+        "pattern_id",
+        "pattern_version",
+        "matcher_kind",
+        "source_scope",
+        "normalization_profile",
+        "match_text",
+        "output_template",
+        "evidence_policy",
+        "producer_id",
+        "producer_version",
+        "m2_contract_version"
+      ],
+      "properties": {
+        "schema": {"const": "census.pattern-rule.v1"},
+        "pattern_id": {"type": "string", "minLength": 1},
+        "pattern_version": {"type": "string", "minLength": 1},
+        "matcher_kind": {
+          "enum": [
+            "EXACT_FIELD_TEXT",
+            "EXACT_FACE_FIELD_TEXT",
+            "EXACT_FRAGMENT"
+          ]
+        },
+        "source_scope": {"$ref": "#/$defs/source_scope"},
+        "normalization_profile": {"const": "NONE"},
+        "match_text": {"type": "string", "minLength": 1},
+        "output_template": {"$ref": "#/$defs/output_template"},
+        "evidence_policy": {
+          "enum": ["EXACT_FIELD", "EXACT_FRAGMENT"]
+        },
+        "producer_id": {"type": "string", "minLength": 1},
+        "producer_version": {"type": "string", "minLength": 1},
+        "m2_contract_version": {
+          "const": "census.semantic-requirement.v1"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "matcher_kind": {"const": "EXACT_FIELD_TEXT"}
+            }
+          },
+          "then": {
+            "properties": {
+              "source_scope": {
+                "properties": {"face_index": {"type": "null"}}
+              },
+              "evidence_policy": {"const": "EXACT_FIELD"}
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "matcher_kind": {"const": "EXACT_FACE_FIELD_TEXT"}
+            }
+          },
+          "then": {
+            "properties": {
+              "source_scope": {
+                "properties": {
+                  "field": {"const": "oracle_text"},
+                  "face_index": {"type": "integer", "minimum": 0}
+                }
+              },
+              "evidence_policy": {"const": "EXACT_FIELD"}
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "matcher_kind": {"const": "EXACT_FRAGMENT"}
+            }
+          },
+          "then": {
+            "properties": {
+              "source_scope": {
+                "properties": {"field": {"const": "oracle_text"}}
+              },
+              "evidence_policy": {"const": "EXACT_FRAGMENT"}
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "source_scope": {
+                "properties": {"field": {"const": "keywords"}}
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "source_scope": {
+                "properties": {"face_index": {"type": "null"}}
+              }
+            }
+          }
+        }
+      ]
+    },
+    "eligibility": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "pattern_id",
+        "pattern_version",
+        "eligibility",
+        "review_record_id",
+        "review_record_sha256"
+      ],
+      "properties": {
+        "pattern_id": {"type": "string", "minLength": 1},
+        "pattern_version": {"type": "string", "minLength": 1},
+        "eligibility": {
+          "enum": ["REVIEWED_FOR_REUSE", "NOT_ELIGIBLE"]
+        },
+        "review_record_id": {"type": "string", "minLength": 1},
+        "review_record_sha256": {"$ref": "#/$defs/digest"}
+      }
+    }
+  }
+}

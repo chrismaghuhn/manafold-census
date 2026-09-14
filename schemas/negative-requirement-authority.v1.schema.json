@@ -1,0 +1,94 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://manafold-census.invalid/schemas/negative-requirement-authority.v1.schema.json",
+  "title": "Manafold Census Negative Requirement Authority V1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "authority_id",
+    "authority_version",
+    "record_id",
+    "source",
+    "scope",
+    "decision",
+    "record_sha256"
+  ],
+  "properties": {
+    "schema": {
+      "const": "census.negative-requirement-authority.v1"
+    },
+    "authority_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "authority_version": {
+      "type": "string",
+      "minLength": 1
+    },
+    "record_id": {
+      "type": "string",
+      "pattern": "^nra_[0-9a-f]{64}$"
+    },
+    "source": {
+      "$ref": "https://manafold-census.invalid/schemas/semantic-requirement.v1.schema.json#/$defs/source"
+    },
+    "scope": {
+      "$ref": "#/$defs/scope"
+    },
+    "decision": {
+      "const": "NO_REQUIREMENTS_APPLICABLE"
+    },
+    "record_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    }
+  },
+  "$defs": {
+    "scope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "scope_schema",
+        "scope_id",
+        "scope_version",
+        "analysis_schema",
+        "m2_requirement_schema",
+        "m2_bundle_schema",
+        "source_fields"
+      ],
+      "properties": {
+        "scope_schema": {
+          "const": "census.m3-negative-authority-scope.v1"
+        },
+        "scope_id": {
+          "const": "census.m3-semantic-requirement-applicability"
+        },
+        "scope_version": {
+          "const": "v1"
+        },
+        "analysis_schema": {
+          "const": "census.card-analysis.v1"
+        },
+        "m2_requirement_schema": {
+          "const": "census.semantic-requirement.v1"
+        },
+        "m2_bundle_schema": {
+          "const": "census.semantic-requirement-bundle.v1"
+        },
+        "source_fields": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "face.oracle_text",
+              "keywords",
+              "oracle_text"
+            ]
+          }
+        }
+      }
+    }
+  }
+}

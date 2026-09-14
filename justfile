@@ -35,4 +35,13 @@ structural-build:
 structural-check:
     python -m manafold_census.cli structural-check --synthetic
 
+m3-build:
+    python -m manafold_census.cli m3-build --synthetic
+
+m3-check:
+    python -m manafold_census.cli m3-check --synthetic
+
+m3-report:
+    python -m manafold_census.cli m3-report --synthetic
+
 check: doctor lint typecheck test reproduce corpus-check structural-check

@@ -12,6 +12,7 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import cast
 
+from .analysis.cli_support import m3_command
 from .canonical import JSONValue, canonical_json_bytes
 from .corpus.build import (
     build_pinned_corpus,
@@ -21,27 +22,12 @@ from .corpus.build import (
     run_synthetic_reproduction as run_corpus_synthetic_reproduction,
 )
 from .corpus.check import validate_corpus_output
-from .digest import (
-    REPRODUCTION_DOMAIN,
-    domain_digest,
-    measure_file,
-    sha256_bytes,
-)
-from .models import (
-    ArtifactManifest,
-    DatasetManifest,
-    SourceLock,
-    StudySpec,
-)
+from .digest import REPRODUCTION_DOMAIN, domain_digest, measure_file, sha256_bytes
+from .models import ArtifactManifest, DatasetManifest, SourceLock, StudySpec
 from .resources import project_data_root
-from .source.scryfall import (
-    discover_oracle_cards,
-    refresh_current_source,
-)
+from .source.scryfall import discover_oracle_cards, refresh_current_source
 from .source.transfer import fetch_pinned_source
-from .structural.build import (
-    build_pinned_structural,
-)
+from .structural.build import build_pinned_structural
 from .structural.build import (
     run_synthetic_reproduction as run_structural_synthetic_reproduction,
 )
@@ -345,6 +331,16 @@ def _parser() -> argparse.ArgumentParser:
     structural_check_parser.add_argument("--repository-root", default=".")
     structural_check_parser.add_argument("--output")
     structural_check_parser.add_argument("--synthetic", action="store_true")
+    m3_parent = argparse.ArgumentParser(add_help=False)
+    for name, default in (
+        ("output", "dist/analysis/m3-synthetic"),
+        ("structural-output", "dist/analysis/m3-m1"),
+        ("source-lock", "dist/analysis/m3-lock.json"),
+    ):
+        m3_parent.add_argument(f"--{name}", default=default)
+    m3_parent.add_argument("--synthetic", action="store_true")
+    for command in ("m3-build", "m3-check", "m3-report"):
+        subparsers.add_parser(command, parents=[m3_parent])
     return parser
 
 
@@ -397,6 +393,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             ):
                 structural_check_output = root / structural_check_output
             return structural_check(root, structural_check_output, args.synthetic)
+        if args.command in {"m3-build", "m3-check", "m3-report"}:
+            return m3_command(args.command[3:], args)
     except (OSError, RuntimeError, TypeError, ValueError) as error:
         print(f"{args.command}=FAIL: {error}", file=sys.stderr)
         return 1

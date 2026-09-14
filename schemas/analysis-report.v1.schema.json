@@ -1,0 +1,196 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://manafold-census.invalid/schemas/analysis-report.v1.schema.json",
+  "title": "Census M3 Analysis Report and Report Index v1",
+  "oneOf": [
+    {"$ref": "#/$defs/report"},
+    {"$ref": "#/$defs/report_index"}
+  ],
+  "$defs": {
+    "digest": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "count_map": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "integer",
+        "minimum": 0
+      }
+    },
+    "report_descriptor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["relative_path", "sha256", "byte_length"],
+      "properties": {
+        "relative_path": {
+          "type": "string",
+          "pattern": "^reports/[^/]+\\.json$"
+        },
+        "sha256": {"$ref": "#/$defs/digest"},
+        "byte_length": {"type": "integer", "minimum": 0}
+      }
+    },
+    "pattern_count": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "pattern_id",
+        "pattern_version",
+        "pattern_digest",
+        "match_count",
+        "card_count",
+        "reused_match_count"
+      ],
+      "properties": {
+        "pattern_id": {"type": "string", "minLength": 1},
+        "pattern_version": {"type": "string", "minLength": 1},
+        "pattern_digest": {"$ref": "#/$defs/digest"},
+        "match_count": {"type": "integer", "minimum": 0},
+        "card_count": {"type": "integer", "minimum": 0},
+        "reused_match_count": {"type": "integer", "minimum": 0}
+      }
+    },
+    "producer_contribution": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "producer_id",
+        "producer_version",
+        "candidate_emitted_count",
+        "candidate_retained_count",
+        "no_match_count",
+        "unsupported_shape_count",
+        "conflict_count",
+        "unresolved_card_count"
+      ],
+      "properties": {
+        "producer_id": {"type": "string", "minLength": 1},
+        "producer_version": {"type": "string", "minLength": 1},
+        "candidate_emitted_count": {"type": "integer", "minimum": 0},
+        "candidate_retained_count": {"type": "integer", "minimum": 0},
+        "no_match_count": {"type": "integer", "minimum": 0},
+        "unsupported_shape_count": {"type": "integer", "minimum": 0},
+        "conflict_count": {"type": "integer", "minimum": 0},
+        "unresolved_card_count": {"type": "integer", "minimum": 0}
+      }
+    },
+    "reuse_summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "distinct_pattern_count",
+        "matched_card_count",
+        "matched_requirement_count",
+        "pattern_count",
+        "total_match_count",
+        "reused_match_count"
+      ],
+      "properties": {
+        "distinct_pattern_count": {"type": "integer", "minimum": 0},
+        "matched_card_count": {"type": "integer", "minimum": 0},
+        "matched_requirement_count": {"type": "integer", "minimum": 0},
+        "pattern_count": {"type": "integer", "minimum": 0},
+        "total_match_count": {"type": "integer", "minimum": 0},
+        "reused_match_count": {"type": "integer", "minimum": 0}
+      }
+    },
+    "report": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema",
+        "analysis_manifest_sha256",
+        "record_count",
+        "trace_event_count",
+        "cards_by_outcome",
+        "cards_with_zero_retained_requirements",
+        "requirements_by_review_status",
+        "requirements_by_resolution_state",
+        "requirements_by_resolution_reason",
+        "requirements_by_derivation",
+        "requirements_by_family",
+        "requirements_by_kind",
+        "producer_contributions",
+        "trace_dispositions",
+        "face_source_counts",
+        "multi_face_card_count",
+        "largest_unresolved_groups",
+        "distinct_pattern_count",
+        "matched_card_count",
+        "matched_requirement_count",
+        "pattern_counts",
+        "single_card_patterns",
+        "outlier_patterns",
+        "reuse_summary"
+      ],
+      "properties": {
+        "schema": {"const": "census.analysis-report.v1"},
+        "analysis_manifest_sha256": {"$ref": "#/$defs/digest"},
+        "record_count": {"type": "integer", "minimum": 0},
+        "trace_event_count": {"type": "integer", "minimum": 0},
+        "cards_by_outcome": {"$ref": "#/$defs/count_map"},
+        "cards_with_zero_retained_requirements": {"type": "integer", "minimum": 0},
+        "requirements_by_review_status": {"$ref": "#/$defs/count_map"},
+        "requirements_by_resolution_state": {"$ref": "#/$defs/count_map"},
+        "requirements_by_resolution_reason": {"$ref": "#/$defs/count_map"},
+        "requirements_by_derivation": {"$ref": "#/$defs/count_map"},
+        "requirements_by_family": {"$ref": "#/$defs/count_map"},
+        "requirements_by_kind": {"$ref": "#/$defs/count_map"},
+        "producer_contributions": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/producer_contribution"}
+        },
+        "trace_dispositions": {"$ref": "#/$defs/count_map"},
+        "face_source_counts": {"$ref": "#/$defs/count_map"},
+        "multi_face_card_count": {"type": "integer", "minimum": 0},
+        "largest_unresolved_groups": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["group_key", "card_count"],
+            "properties": {
+              "group_key": {"type": "string", "minLength": 1},
+              "card_count": {"type": "integer", "minimum": 0}
+            }
+          }
+        },
+        "distinct_pattern_count": {"type": "integer", "minimum": 0},
+        "matched_card_count": {"type": "integer", "minimum": 0},
+        "matched_requirement_count": {"type": "integer", "minimum": 0},
+        "pattern_counts": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/pattern_count"}
+        },
+        "single_card_patterns": {
+          "type": "array",
+          "items": {"type": "string", "minLength": 1}
+        },
+        "outlier_patterns": {
+          "type": "array",
+          "items": {"type": "string", "minLength": 1}
+        },
+        "reuse_summary": {"$ref": "#/$defs/reuse_summary"}
+      }
+    },
+    "report_index": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "report_index_schema",
+        "analysis_manifest_sha256",
+        "report_descriptors"
+      ],
+      "properties": {
+        "report_index_schema": {"const": "census.analysis-report-index.v1"},
+        "analysis_manifest_sha256": {"$ref": "#/$defs/digest"},
+        "report_descriptors": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"$ref": "#/$defs/report_descriptor"}
+        }
+      }
+    }
+  }
+}
