@@ -17,6 +17,7 @@ from manafold_census.capability.definition import (
     CapabilityRequirementProvenanceV1,
     can_receive_active_link,
     validate_active_definition,
+    validate_provenance_against_m3,
 )
 from manafold_census.capability.dimensions import (
     CapabilityDimensionV1,
@@ -34,12 +35,67 @@ from manafold_census.capability.review import (
     GeneralizationBasisV1,
     ReviewDecisionV1,
 )
+from manafold_census.semantic.evidence import (
+    SourceRecordRefV1,
+    StructuralFieldEvidenceV1,
+)
+from manafold_census.semantic.kind_payloads import DrawCardsParametersV1
+from manafold_census.semantic.kinds import RequirementFamilyV1, RequirementKindV1
+from manafold_census.semantic.model import (
+    DerivationMethodV1,
+    DerivationV1,
+    ProvenanceV1,
+    RequirementV1,
+    ResolutionReasonV1,
+    ResolutionStateV1,
+    ResolutionV1,
+    ReviewStatusV1,
+    ReviewV1,
+)
+from manafold_census.semantic.primitives import (
+    EntityRefV1,
+    EntityRoleV1,
+    MultiplicityV1,
+    QuantityModeV1,
+    QuantityV1,
+)
 
 ZERO_DIGEST = "0" * 64
 M3_MANIFEST_SHA256 = "a" * 64
 CANDIDATE_ID = "ccg_" + "c" * 64
 REQUIREMENT_ID = "srq_" + "d" * 64
 REQUIREMENT_WIRE_DIGEST = "e" * 64
+ORACLE_ID = "abcdefab-abcd-4abc-8abc-abcdefabcdef"
+SOURCE_CARD_ID = "abcdefab-abcd-4abc-8abc-abcdefabcdea"
+
+
+def _draw_requirement() -> RequirementV1:
+    source = SourceRecordRefV1(
+        "census.structural-card.v1",
+        "1" * 64,
+        ORACLE_ID,
+        SOURCE_CARD_ID,
+        "2" * 64,
+    )
+    return RequirementV1.create(
+        source=source,
+        family=RequirementFamilyV1.EFFECT,
+        kind=RequirementKindV1.DRAW_CARDS,
+        parameters=DrawCardsParametersV1(
+            EntityRefV1(EntityRoleV1.CONTROLLER, MultiplicityV1.ONE, None),
+            QuantityV1(QuantityModeV1.EXACT, 2),
+        ),
+        evidence=(StructuralFieldEvidenceV1(source, "oracle_text", None, "Draw"),),
+        provenance=ProvenanceV1(
+            (DerivationV1(DerivationMethodV1.PARSER, "task3-test", "1"),)
+        ),
+        review=ReviewV1(ReviewStatusV1.PROPOSED, None, None),
+        resolution=ResolutionV1(
+            ResolutionStateV1.COMPLETE,
+            ResolutionReasonV1.NONE,
+            (),
+        ),
+    )
 
 
 def _draw_claim(*, registry_version: str = "1") -> CapabilityClaimV1:
@@ -245,6 +301,62 @@ def test_definition_rejects_stale_identity_fields() -> None:
         )
 
 
+def test_provenance_binds_to_the_selected_m3_snapshot_and_requirements() -> None:
+    requirement = _draw_requirement()
+    reference = CapabilityRequirementProvenanceV1.from_requirement(requirement)
+    provenance = CapabilityProvenanceV1(
+        M3_MANIFEST_SHA256,
+        (),
+        (reference,),
+    )
+
+    validate_provenance_against_m3(
+        provenance,
+        M3_MANIFEST_SHA256,
+        (requirement,),
+    )
+
+    with pytest.raises(ValueError, match="M3 manifest"):
+        validate_provenance_against_m3(provenance, "f" * 64, (requirement,))
+
+    fake = CapabilityProvenanceV1(
+        M3_MANIFEST_SHA256,
+        (),
+        (CapabilityRequirementProvenanceV1("srq_" + "f" * 64, "e" * 64),),
+    )
+    with pytest.raises(ValueError, match="not present"):
+        validate_provenance_against_m3(fake, M3_MANIFEST_SHA256, (requirement,))
+
+    stale = CapabilityProvenanceV1(
+        M3_MANIFEST_SHA256,
+        (),
+        (
+            CapabilityRequirementProvenanceV1(
+                requirement.requirement_id,
+                "f" * 64,
+            ),
+        ),
+    )
+    with pytest.raises(ValueError, match="wire digest"):
+        validate_provenance_against_m3(stale, M3_MANIFEST_SHA256, (requirement,))
+
+
+def test_provenance_rejects_duplicate_selected_requirement_identity() -> None:
+    requirement = _draw_requirement()
+    provenance = CapabilityProvenanceV1(
+        M3_MANIFEST_SHA256,
+        (),
+        (CapabilityRequirementProvenanceV1.from_requirement(requirement),),
+    )
+
+    with pytest.raises(ValueError, match="duplicate selected Requirement"):
+        validate_provenance_against_m3(
+            provenance,
+            M3_MANIFEST_SHA256,
+            (requirement, requirement),
+        )
+
+
 def test_definition_wire_rejects_unknown_fields_and_noncanonical_provenance() -> None:
     wire = _definition().to_wire()
     wire["unexpected"] = True
@@ -273,7 +385,12 @@ def test_active_definition_requires_an_exact_accepted_review() -> None:
         review_ref=accepted_review.record_id,
     )
 
-    validate_active_definition(active, reviews=(accepted_review,))
+    validate_active_definition(
+        active,
+        reviews=(accepted_review,),
+        selected_m3_manifest_sha256=M3_MANIFEST_SHA256,
+        selected_requirements=(),
+    )
 
     with pytest.raises(ValueError, match="accepted review"):
         validate_active_definition(active, reviews=())
@@ -287,6 +404,8 @@ def test_active_definition_requires_an_exact_accepted_review() -> None:
         validate_active_definition(
             active,
             reviews=(accepted_review, rejected_review),
+            selected_m3_manifest_sha256=M3_MANIFEST_SHA256,
+            selected_requirements=(),
         )
 
 
@@ -310,4 +429,21 @@ def test_active_definition_review_subject_must_bind_the_exact_claim() -> None:
     )
 
     with pytest.raises(ValueError, match="exact Capability"):
-        validate_active_definition(active, reviews=(wrong_review,))
+        validate_active_definition(
+            active,
+            reviews=(wrong_review,),
+            selected_m3_manifest_sha256=M3_MANIFEST_SHA256,
+            selected_requirements=(),
+        )
+
+
+def test_active_definition_requires_an_explicit_selected_m3_input() -> None:
+    proposed = _definition()
+    accepted_review = _definition_review(proposed)
+    active = _definition(
+        lifecycle=CapabilityLifecycleStateV1.ACTIVE,
+        review_ref=accepted_review.record_id,
+    )
+
+    with pytest.raises(ValueError, match="selected M3 input"):
+        validate_active_definition(active, reviews=(accepted_review,))

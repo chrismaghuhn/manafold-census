@@ -5,6 +5,7 @@ from pathlib import Path
 
 import pytest
 from jsonschema import Draft202012Validator
+from jsonschema.exceptions import ValidationError
 
 from manafold_census.capability.model import CapabilityRefV1
 from manafold_census.capability.review import (
@@ -150,6 +151,32 @@ def test_review_rejects_stale_digest_and_unknown_wire_fields() -> None:
     extra["timestamp"] = "never"
     with pytest.raises(ValueError, match="unexpected properties"):
         CapabilityReviewRecordV1.from_wire(extra)
+
+
+@pytest.mark.parametrize(
+    "subject",
+    [
+        CapabilityLinkReviewSubjectV1("rcl_" + "c" * 64, "d" * 64),
+        MappingDecisionReviewSubjectV1("rmd_" + "e" * 64, "f" * 64),
+        EvolutionReviewSubjectV1("cev_" + "1" * 64, "2" * 64),
+    ],
+)
+def test_review_schema_rejects_generalization_basis_for_non_definition_subject(
+    subject: ReviewSubjectV1,
+) -> None:
+    wire = _record(subject=subject, basis=None).to_wire()
+    wire["generalization_basis"] = "MULTI_SOURCE_REUSE"
+
+    with pytest.raises(ValidationError):
+        _validate_schema(wire)
+
+
+def test_review_schema_requires_generalization_basis_for_accepted_definition() -> None:
+    wire = _record().to_wire()
+    wire["generalization_basis"] = None
+
+    with pytest.raises(ValidationError):
+        _validate_schema(wire)
 
 
 def test_review_subject_rejects_wrong_capability_ref_shape() -> None:

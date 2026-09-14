@@ -106,7 +106,8 @@ class CapabilityRequirementProvenanceV1:
         expected = self.from_requirement(requirement)
         if self != expected:
             raise ValueError(
-                "Requirement provenance does not match the exact Requirement wire"
+                "Requirement provenance wire digest does not match the exact "
+                "Requirement wire"
             )
 
     def to_wire(self) -> dict[str, JSONValue]:
@@ -314,6 +315,44 @@ class CapabilityDefinitionV1:
         return result
 
 
+def validate_provenance_against_m3(
+    provenance: CapabilityProvenanceV1,
+    selected_m3_manifest_sha256: str,
+    selected_requirements: Sequence[RequirementV1],
+) -> None:
+    """Bind typed provenance references to one selected M3 Requirement set."""
+
+    from ..semantic.model import RequirementV1 as RequirementModel
+
+    if not isinstance(provenance, CapabilityProvenanceV1):
+        raise TypeError("provenance must be CapabilityProvenanceV1")
+    selected_manifest = _digest(
+        "selected_m3_manifest_sha256", selected_m3_manifest_sha256
+    )
+    if provenance.m3_analysis_manifest_sha256 != selected_manifest:
+        raise ValueError(
+            "Capability provenance does not match the selected M3 manifest"
+        )
+
+    requirements = tuple(selected_requirements)
+    if any(not isinstance(item, RequirementModel) for item in requirements):
+        raise TypeError("selected_requirements must contain RequirementV1 values")
+    by_id: dict[str, RequirementV1] = {}
+    for requirement in requirements:
+        if requirement.requirement_id in by_id:
+            raise ValueError("duplicate selected Requirement identity")
+        by_id[requirement.requirement_id] = requirement
+
+    for reference in provenance.requirement_refs:
+        matched_requirement = by_id.get(reference.requirement_id)
+        if matched_requirement is None:
+            raise ValueError(
+                "Capability provenance Requirement is not present in the selected M3 "
+                "set"
+            )
+        reference.validate_against_requirement(matched_requirement)
+
+
 def can_receive_active_link(definition: CapabilityDefinitionV1) -> bool:
     if not isinstance(definition, CapabilityDefinitionV1):
         raise TypeError("definition must be CapabilityDefinitionV1")
@@ -323,6 +362,8 @@ def can_receive_active_link(definition: CapabilityDefinitionV1) -> bool:
 def validate_active_definition(
     definition: CapabilityDefinitionV1,
     reviews: Sequence[CapabilityReviewRecordV1],
+    selected_m3_manifest_sha256: str | None = None,
+    selected_requirements: Sequence[RequirementV1] | None = None,
 ) -> None:
     if not isinstance(definition, CapabilityDefinitionV1):
         raise TypeError("definition must be CapabilityDefinitionV1")
@@ -371,6 +412,13 @@ def validate_active_definition(
         raise ValueError("active definition requires accepted review")
     if review.generalization_basis is None:
         raise ValueError("active definition requires generalization_basis")
+    if selected_m3_manifest_sha256 is None or selected_requirements is None:
+        raise ValueError("active definition requires selected M3 input")
+    validate_provenance_against_m3(
+        definition.provenance,
+        selected_m3_manifest_sha256,
+        selected_requirements,
+    )
 
 
 __all__ = [
@@ -380,5 +428,6 @@ __all__ = [
     "CapabilityProvenanceV1",
     "CapabilityRequirementProvenanceV1",
     "can_receive_active_link",
+    "validate_provenance_against_m3",
     "validate_active_definition",
 ]

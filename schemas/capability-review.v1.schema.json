@@ -61,6 +61,63 @@
       "$ref": "#/$defs/digest"
     }
   },
+  "oneOf": [
+    {
+      "properties": {
+        "subject": {
+          "$ref": "#/$defs/capability_definition_subject"
+        },
+        "decision": {
+          "const": "ACCEPTED"
+        },
+        "generalization_basis": {
+          "enum": [
+            "MULTI_SOURCE_REUSE",
+            "SINGLE_OBSERVATION_GENERALIZATION"
+          ]
+        }
+      }
+    },
+    {
+      "properties": {
+        "subject": {
+          "$ref": "#/$defs/capability_definition_subject"
+        },
+        "decision": {
+          "const": "REJECTED"
+        },
+        "generalization_basis": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "enum": [
+                "MULTI_SOURCE_REUSE",
+                "SINGLE_OBSERVATION_GENERALIZATION"
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "properties": {
+        "subject": {
+          "$ref": "#/$defs/non_definition_subject"
+        },
+        "decision": {
+          "enum": [
+            "ACCEPTED",
+            "REJECTED"
+          ]
+        },
+        "generalization_basis": {
+          "type": "null"
+        }
+      }
+    }
+  ],
   "$defs": {
     "digest": {
       "type": "string",
@@ -161,6 +218,19 @@
           "$ref": "#/$defs/digest"
         }
       }
+    },
+    "non_definition_subject": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/capability_link_subject"
+        },
+        {
+          "$ref": "#/$defs/mapping_decision_subject"
+        },
+        {
+          "$ref": "#/$defs/evolution_subject"
+        }
+      ]
     },
     "subject": {
       "oneOf": [

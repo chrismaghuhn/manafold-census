@@ -247,7 +247,8 @@ by this planning task.
 | src/manafold_census/capability/dimensions.py | Code-owned M2 path registry and typed Capability domains |
 | src/manafold_census/capability/binding.py | Typed M2 bindings and exact Requirement recomputation validation |
 | src/manafold_census/capability/definition.py | Future Capability definition lifecycle and activation seam |
-| src/manafold_census/capability/review.py | M4 review authority and SOURCE_REQUIREMENT_ADMISSIBILITY validation |
+| src/manafold_census/capability/review.py | Generic M4 review authority and closed review subjects |
+| src/manafold_census/capability/admissibility.py | SOURCE_REQUIREMENT_ADMISSIBILITY authority and exact M3/M2 binding |
 | src/manafold_census/capability/link.py | Exact Requirement-to-Capability links and one-row mapping dispositions |
 | src/manafold_census/capability/evolution.py | Composition, dependency, specialization, and append-only evolution records |
 | src/manafold_census/capability/input.py | Frozen M3 manifest loading and actual Requirement extraction |
@@ -1108,7 +1109,21 @@ or a source-specific Capability identity.
 
 CapabilityDefinitionV1.provenance has type CapabilityProvenanceV1. The
 definition wire carries its canonical to_wire value, and independent
-validation checks every Requirement reference against the selected M3 corpus.
+validation checks every Requirement reference against the selected M3 corpus
+through this primitive:
+
+~~~python
+def validate_provenance_against_m3(
+    provenance: CapabilityProvenanceV1,
+    selected_m3_manifest_sha256: str,
+    selected_requirements: Sequence[RequirementV1],
+) -> None: ...
+~~~
+
+It requires an exact selected M3 manifest SHA, rejects duplicate selected
+Requirement identities, requires every provenance Requirement reference to be
+present exactly once, and recomputes the existing M2 wire digest for every
+reference. A fake, extra, or stale reference fails closed.
 
 The constructor recomputes capability_family_id from claim.family_key and
 claim_digest from the exact claim. It rejects mismatches, unknown fields,
@@ -1224,6 +1239,22 @@ review_ref points to an ACCEPTED exact capability review
 definition lifecycle is ACTIVE
 ~~~
 
+The function accepts the selected M3 binding explicitly:
+
+~~~python
+def validate_active_definition(
+    definition: CapabilityDefinitionV1,
+    reviews: Sequence[CapabilityReviewRecordV1],
+    selected_m3_manifest_sha256: str | None,
+    selected_requirements: Sequence[RequirementV1] | None,
+) -> None: ...
+~~~
+
+An ACTIVE definition without both selected-M3 arguments aborts. Once the
+intrinsic review is valid, the function calls
+validate_provenance_against_m3; an empty selected Requirement set is valid
+only when the definition has no Requirement provenance references.
+
 No function in this task reads a card name, source phrase, M3 pattern, engine
 module, or live model output to establish authority.
 
@@ -1251,7 +1282,7 @@ is run.
 
 **Files:**
 
-- Modify: src/manafold_census/capability/review.py
+- Create: src/manafold_census/capability/admissibility.py
 - Modify: src/manafold_census/capability/identity.py
 - Create: schemas/source-requirement-admissibility.v1.schema.json
 - Create: tests/test_capability_admissibility.py
@@ -1314,7 +1345,7 @@ Expected: collection fails because the admissibility model does not exist.
 
 ### Step 2: Implement the closed admissibility record
 
-Implement:
+Implement in admissibility.py:
 
 ~~~python
 class AdmissibilityDecisionV1(StrEnum):
@@ -1434,7 +1465,7 @@ python -m pytest tests/test_capability_admissibility.py tests/test_capability_re
 ruff format --check src/manafold_census/capability tests/test_capability_admissibility.py tests/test_capability_review.py
 ruff check src/manafold_census/capability tests/test_capability_admissibility.py tests/test_capability_review.py
 mypy src/manafold_census/capability
-git add src/manafold_census/capability tests/test_capability_admissibility.py tests/test_capability_review.py schemas/source-requirement-admissibility.v1.schema.json
+git add src/manafold_census/capability/admissibility.py src/manafold_census/capability/identity.py tests/test_capability_admissibility.py tests/test_capability_review.py schemas/source-requirement-admissibility.v1.schema.json
 git diff --cached --check
 git commit -m "feat: add M4 source requirement admissibility"
 ~~~
@@ -1447,7 +1478,6 @@ Expected: no real M3 file, Requirement, or authority record is created.
 
 - Create: src/manafold_census/capability/link.py
 - Modify: src/manafold_census/capability/identity.py
-- Modify: src/manafold_census/capability/review.py
 - Create: schemas/requirement-capability-link.v1.schema.json
 - Create: schemas/requirement-mapping-decision.v1.schema.json
 - Create: tests/test_capability_link.py
@@ -1635,7 +1665,7 @@ python -m pytest tests/test_capability_link.py -q
 ruff format --check src/manafold_census/capability tests/test_capability_link.py
 ruff check src/manafold_census/capability tests/test_capability_link.py
 mypy src/manafold_census/capability
-git add src/manafold_census/capability tests/test_capability_link.py schemas/requirement-capability-link.v1.schema.json schemas/requirement-mapping-decision.v1.schema.json
+git add src/manafold_census/capability/link.py src/manafold_census/capability/identity.py tests/test_capability_link.py schemas/requirement-capability-link.v1.schema.json schemas/requirement-mapping-decision.v1.schema.json
 git diff --cached --check
 git commit -m "feat: add M4 requirement capability links"
 ~~~
