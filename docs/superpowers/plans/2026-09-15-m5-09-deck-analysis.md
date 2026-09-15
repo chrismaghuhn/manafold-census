@@ -29,9 +29,11 @@ def test_main_and_sideboard_are_separate(tmp_path):
     assert result.main.declared_card_count == 2
     assert result.sideboard.declared_card_count == 1
 
+
 def test_inline_hash_is_preserved_in_card_name(tmp_path):
     result = analyze_deck_bytes(b"[main]\n1 Fixture Card # keep\n", _reader(tmp_path))
     assert result.main.unknown_names[0].name == "Fixture Card # keep"
+
 
 def test_unknown_and_ambiguous_names_remain_visible(tmp_path):
     result = analyze_deck_bytes(
@@ -39,6 +41,7 @@ def test_unknown_and_ambiguous_names_remain_visible(tmp_path):
     )
     assert result.main.unknown_names[0].lookup_key == "does not exist"
     assert len(result.main.ambiguous_names[0].matches) == 5
+
 
 def test_invalid_lines_and_non_utf8_are_fail_closed(tmp_path):
     result = analyze_deck_bytes(
