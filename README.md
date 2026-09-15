@@ -1,92 +1,405 @@
 # manafold-census
 
-`manafold-census` is an independent Python project for deterministic
-Magic: The Gathering data-census and research foundations. Task 00 provides
-only the source, dataset, study, and artifact identity contracts plus a tiny
-synthetic fixture pipeline.
+manafold-census is an independent Python project for deterministic Magic: The
+Gathering data-census and research foundations. The repository contains the
+completed Census 0.1 M5 vertical slice: pinned source and structural records,
+M3 analysis, reviewed M4 authority, a real M4 snapshot, a self-contained
+Census bundle, derived reports and indexes, a read-only Query Layer, an
+offline Explorer, Windows standalone packaging, and release-conformance
+evidence.
 
-It is not a rules engine, a Manafold package, an authority generator, or a
-semantic truth system. Imported, parsed, generated, candidate, and exported
-data remain distinct from supported or authoritative data.
+The project is not a rules engine, a Manafold package, or a semantic truth
+system. Imported, parsed, generated, candidate, supported, and authoritative
+data remain distinct. Census 0.1 records unresolved analysis explicitly; an
+unresolved card is not evidence that the card has no semantics.
 
-Task 01 adds one explicit real-data source path: the current Scryfall
-`oracle_cards` bulk snapshot. It pins the compressed source bytes in an
-ignored local cache, commits a small generic source lock, and creates a
-source-record inventory with 16 deterministic Oracle-ID shards. Completeness
-is source-bounded: 100% means every valid record in the exact pinned snapshot,
-not every Magic card that has ever existed. The inventory is `SOURCE_FACT`
-provenance only and does not parse Oracle text or infer capabilities.
+## Quick start
 
-Canonical JSON, domain-separated SHA-256 digests, explicit provenance, and
-byte-level reproduction remain the foundation. Raw bulk data is disposable and
-is never committed.
+The project requires Python 3.12 or newer. From the repository root, create a
+virtual environment and install the development tools:
 
-## Local golden path
-
-Install the minimal development tools:
-
-```text
+~~~powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
 python -m pip install -e ".[dev]"
-```
+~~~
 
-Then run:
+Check the installation and see every root command:
 
-```text
+~~~powershell
+python -m manafold_census.cli doctor
+python -m manafold_census.cli --help
+~~~
+
+Run the normal offline quality path:
+
+~~~powershell
+just check
+~~~
+
+The same checks without just are:
+
+~~~powershell
+python -m ruff format --check .
+python -m ruff check .
+python -m mypy src/manafold_census
+python -m pytest -q
+python -m manafold_census.cli reproduce
+python -m manafold_census.cli corpus-check --synthetic
+python -m manafold_census.cli structural-check --synthetic
+~~~
+
+just check is offline and does not contact Scryfall. Generated dist trees,
+caches, virtual environments, and build outputs are ignored by Git.
+
+## Start the Explorer
+
+The Explorer always receives an explicit external Derived Census tree. It does
+not discover a latest artifact, select by timestamp, fetch data, or embed a
+Census snapshot.
+
+With a compatible Derived Tree at DERIVED_TREE:
+
+~~~powershell
+python -m manafold_census.cli explorer --bundle DERIVED_TREE info
+~~~
+
+The info view shows the Explorer version, Census release version and ID, Census
+manifest SHA, SourceLock digest, M3 manifest SHA, M4 manifest SHA, query
+contract, and semantic coverage limitation.
+
+The complete Explorer command set is:
+
+~~~text
+python -m manafold_census.cli explorer --bundle DERIVED_TREE info
+python -m manafold_census.cli explorer --bundle DERIVED_TREE card search TEXT...
+python -m manafold_census.cli explorer --bundle DERIVED_TREE card show NAME_OR_ORACLE_ID...
+python -m manafold_census.cli explorer --bundle DERIVED_TREE requirement show REQUIREMENT_ID
+python -m manafold_census.cli explorer --bundle DERIVED_TREE capability list
+python -m manafold_census.cli explorer --bundle DERIVED_TREE capability show FAMILY_ID/VERSION/CLAIM_DIGEST
+python -m manafold_census.cli explorer --bundle DERIVED_TREE unresolved
+python -m manafold_census.cli explorer --bundle DERIVED_TREE trace requirement REQUIREMENT_ID
+python -m manafold_census.cli explorer --bundle DERIVED_TREE trace mapping LINK_ID
+python -m manafold_census.cli explorer --bundle DERIVED_TREE deck analyze DECK_FILE
+python -m manafold_census.cli explorer --bundle DERIVED_TREE shell
+~~~
+
+Lookup is exact/casefolded and whitespace-aware. The Explorer never performs
+fuzzy selection. Unknown and ambiguous names remain explicit results.
+
+The bounded shell uses the same dispatcher and commands without repeating the
+bundle option:
+
+~~~text
+explorer> info
+explorer> card search Fixture Card
+explorer> capability list
+explorer> unresolved
+explorer> exit
+~~~
+
+Card state remains authoritative even when a card has no Capability mapping.
+UNRESOLVED_ANALYSIS and NO_REQUIREMENTS_APPLICABLE are displayed as different
+states. Traces expose M3 analysis and trace records, exact M2 Requirements, M4
+admissibility/SRA, links, mapping decisions, Capability definitions, reviews,
+and release identities.
+
+## Root Python CLI
+
+The canonical executable form is:
+
+~~~text
+python -m manafold_census.cli COMMAND [OPTIONS]
+~~~
+
+Run python -m manafold_census.cli --help for the parser generated by the
+current checkout. The commands are grouped below.
+
+### Baseline and reproduction
+
+~~~powershell
+python -m manafold_census.cli doctor
+python -m manafold_census.cli reproduce
+~~~
+
+doctor checks the supported Python baseline. reproduce builds the small offline
+fixture twice in independent temporary directories and requires identical
+files and digests.
+
+### Source and corpus commands
+
+~~~powershell
+python -m manafold_census.cli source-discover
+python -m manafold_census.cli source-refresh
+python -m manafold_census.cli source-fetch-pinned
+python -m manafold_census.cli corpus-build
+python -m manafold_census.cli corpus-check --synthetic
+python -m manafold_census.cli corpus-check --output CORPUS_OUTPUT
+~~~
+
+Source command behavior:
+
+- source-discover reads current Scryfall bulk metadata.
+- source-refresh is a live HTTPS operation. It writes a reviewable proposed
+  lock and never changes the committed lock.
+- source-fetch-pinned fetches the exact artifact named by the committed
+  SourceLock and verifies its SHA-256 and byte length.
+- corpus-build builds the pinned source-record inventory.
+- corpus-check --synthetic runs the bounded offline corpus reproduction.
+- corpus-check --output validates an explicitly named corpus output.
+
+The live source commands are separate from the normal offline test path. There
+is no implicit refresh or fallback source.
+
+### M1 structural census
+
+Offline synthetic check:
+
+~~~powershell
+python -m manafold_census.cli structural-check --synthetic
+~~~
+
+Explicit pinned-cache build and check:
+
+~~~powershell
+python -m manafold_census.cli structural-build --repository-root . --output dist/structural/scryfall-oracle-v1
+python -m manafold_census.cli structural-check --repository-root . --output dist/structural/scryfall-oracle-v1
+~~~
+
+M1 preserves source facts, source absence, empty values, raw strings, face
+order, related-part fields, and Task 01 identity. It does not parse Oracle
+text or infer capabilities. Structural output uses 16 deterministic
+Oracle-ID shards.
+
+### M3 analysis commands
+
+The standalone m3 commands are bounded synthetic commands and require
+--synthetic:
+
+~~~powershell
+python -m manafold_census.cli m3-build --synthetic
+python -m manafold_census.cli m3-check --synthetic
+python -m manafold_census.cli m3-report --synthetic
+~~~
+
+Optional paths are available on all three commands:
+
+~~~text
+--output M3_OUTPUT
+--structural-output M1_OUTPUT
+--source-lock SOURCE_LOCK_COPY
+~~~
+
+The M5 real-input path does not silently rerun M3. It consumes the explicitly
+provisioned M1/M3 artifacts through CensusInputLockV1.
+
+### M4 ontology commands
+
+The generic m4 commands remain synthetic-only:
+
+~~~powershell
+python -m manafold_census.cli m4-build --synthetic
+python -m manafold_census.cli m4-check --synthetic
+python -m manafold_census.cli m4-report --synthetic
+~~~
+
+The real Census 0.1 M4 snapshot uses the dedicated M5 command documented
+below. This keeps synthetic M4 from becoming a parent of the real ontology
+history.
+
+## M5 Census 0.1 release commands
+
+M5 commands require explicit paths. They never search for a latest artifact,
+rerun M1/M3 silently, or create authority records from suggestions.
+
+### M5-02 input lock
+
+Validate one CensusInputLockV1 against its exact SourceLock, M1 output, and M3
+output:
+
+~~~powershell
+python -m manafold_census.cli m5-input-lock-check --lock locks/census-0.1-input-lock.v1.json --source-lock source-locks/scryfall-oracle-v1.json --structural-output dist/structural/scryfall-oracle-v1-run-a --analysis-output dist/analysis/m3-census-0-1-real-run-a
+~~~
+
+Missing artifacts are BLOCKED. Mismatches and corruption are FAIL.
+
+### M5-03 reviewed M4 authority
+
+Validate the persisted reviewed authority package:
+
+~~~powershell
+python -m manafold_census.cli m5-authority-check --package reviewed/m4/census-0.1 --lock locks/census-0.1-input-lock.v1.json --source-lock source-locks/scryfall-oracle-v1.json --structural-output dist/structural/scryfall-oracle-v1-run-a --analysis-output dist/analysis/m3-census-0-1-real-run-a
+~~~
+
+The package contains human-reviewed M4 records. The validator accepts the
+review outcome; it does not pre-authorize a Capability or mapping result.
+
+### M5-04 real M4 snapshot
+
+Build the first real M4 snapshot from the frozen M5-02 inputs and M5-03
+authority package:
+
+~~~powershell
+python -m manafold_census.cli m5-m4-build --input-lock locks/census-0.1-input-lock.v1.json --authority-package reviewed/m4/census-0.1 --source-lock source-locks/scryfall-oracle-v1.json --structural-output dist/structural/scryfall-oracle-v1-run-a --analysis-output dist/analysis/m3-census-0-1-real-run-a --output dist/capability/m4-census-0-1-real-run-a
+~~~
+
+The first real M4 manifest must have parent_m4_manifest_sha256 = null.
+
+### M5-05 self-contained Census bundle
+
+Publish the 98-file authoritative Census bundle:
+
+~~~powershell
+python -m manafold_census.cli m5-bundle-build --input-lock locks/census-0.1-input-lock.v1.json --authority-package reviewed/m4/census-0.1 --source-lock source-locks/scryfall-oracle-v1.json --structural-output dist/structural/scryfall-oracle-v1-run-a --analysis-output dist/analysis/m3-census-0-1-real-run-a --m4-output dist/capability/m4-census-0-1-real-run-a --output dist/bundle/manafold-census-0.1.0
+~~~
+
+The bundle contains the SourceLock, M1, M3, reviewed Authority, and M4
+inputs. Reports and indexes are added only by M5-06.
+
+### M5-06 derived reports and indexes
+
+Publish the 108-file Derived Tree from one explicit bundle:
+
+~~~powershell
+python -m manafold_census.cli m5-derived-build --bundle dist/bundle/manafold-census-0.1.0 --output dist/derived/manafold-census-0.1.0
+~~~
+
+Reports and indexes are derived data. They do not create Requirements,
+Capabilities, mappings, or semantic conclusions.
+
+### M5-12 release conformance
+
+Run the final two-candidate reproduction from the frozen M1/M3, Authority, and
+M4 inputs:
+
+~~~powershell
+python -m manafold_census.cli m5-release-conformance --input-lock locks/census-0.1-input-lock.v1.json --source-lock source-locks/scryfall-oracle-v1.json --structural-output dist/structural/scryfall-oracle-v1-run-a --analysis-output dist/analysis/m3-census-0-1-real-run-a --authority-package reviewed/m4/census-0.1 --m4-output dist/capability/m4-census-0-1-real-run-a --output-root dist/release-conformance/2026-09-15-real --evidence docs/reports/2026-09-15-m5-census-0-1-release-conformance.json
+~~~
+
+The output root must be fresh. The command creates bundle-a, bundle-b,
+derived-a, and derived-b, rereads them through the frozen validators, and
+checks:
+
+~~~text
+CENSUS_AUTHORITATIVE_BYTES_PARITY = PASS
+REPORT_INDEX_BYTES_PARITY          = PASS
+RELEASE_CANDIDATE_REPRODUCTION    = PASS
+RELEASE_CANDIDATE_AUDITABILITY    = PASS
+~~~
+
+Windows EXE byte parity is reported separately as experimental and is not a
+required M5-12 hard gate.
+
+## just command aliases
+
+The justfile provides these aliases for the canonical commands:
+
+~~~text
 just doctor
 just test
 just lint
 just typecheck
 just reproduce
 just check
-```
 
-The explicit live-source commands are separate from the offline check path:
-
-```text
 just source-discover
 just source-refresh
 just source-fetch-pinned
 just corpus-build
 just corpus-check
-```
-
-`source-refresh` is an intentional live operation. It streams one HTTPS gzip
-JSONL download to a temporary file, verifies the complete bytes, promotes it
-atomically into the content-addressed `.cache/sources/scryfall/<sha256>.jsonl.gz`
-cache, and writes a reviewable proposed lock without changing the committed
-lock. `source-fetch-pinned` uses the committed lock's exact locator and verifies
-its digest and length, which makes a fresh clone reproducible after upstream
-refreshes. Ordinary tests, CI, and `just check` use synthetic data and do not
-require Scryfall availability.
-
-The `reproduce` command builds the synthetic fixture twice in independent
-temporary directories and requires identical semantic files and SHA-256
-digests.
-
-## M1 structural census
-
-M1 projects source-provided structural facts into immutable card records. It
-preserves source absence, empty values, raw strings, face order, related-part
-fields, and Task 01 identity. It does not interpret Oracle text, keywords,
-mana costs, or rules semantics.
-
-The structural workflow is deterministic and offline when using the synthetic
-path:
-
-```text
-just structural-check
-python -m manafold_census.cli structural-check --synthetic
-```
-
-The explicit pinned-cache build and check commands are:
-
-```text
 just structural-build
-python -m manafold_census.cli structural-build --repository-root . --output dist/structural/scryfall-oracle-v1
-python -m manafold_census.cli structural-check --repository-root . --output dist/structural/scryfall-oracle-v1
-```
+just structural-check
+just m3-build
+just m3-check
+just m3-report
+just m4-build
+just m4-check
+just m4-report
+~~~
 
-Structural output uses 16 deterministic Oracle-ID shards. The structural index
-manifest has its own aggregate digest, while ArtifactManifest binds the exact
-canonical manifest bytes. Generated records remain ignored and are never
-committed.
+M5 aliases take positional paths in the order shown:
+
+~~~text
+just m5-input-lock-check LOCK SOURCE_LOCK STRUCTURAL_OUTPUT ANALYSIS_OUTPUT
+just m5-authority-check PACKAGE LOCK SOURCE_LOCK STRUCTURAL_OUTPUT ANALYSIS_OUTPUT
+just m5-m4-build INPUT_LOCK AUTHORITY_PACKAGE SOURCE_LOCK STRUCTURAL_OUTPUT ANALYSIS_OUTPUT OUTPUT
+just m5-bundle-build INPUT_LOCK AUTHORITY_PACKAGE SOURCE_LOCK STRUCTURAL_OUTPUT ANALYSIS_OUTPUT M4_OUTPUT OUTPUT
+just m5-derived-build BUNDLE OUTPUT
+just m5-release-conformance INPUT_LOCK SOURCE_LOCK STRUCTURAL_OUTPUT ANALYSIS_OUTPUT AUTHORITY_PACKAGE M4_OUTPUT OUTPUT_ROOT EVIDENCE
+~~~
+
+just check is the standard offline baseline. Source acquisition and real M5
+commands require explicit paths and are separate maintainer operations.
+
+## Windows standalone Explorer
+
+M5-11 packages the Explorer as a PyInstaller onedir application. The EXE and
+Census bundle remain separate:
+
+~~~text
+manafold-census-explorer.exe
+    + C:\data\manafold-census-0.1.0\
+~~~
+
+Install the pinned Windows packaging/runtime dependencies:
+
+~~~powershell
+python -m pip install --require-hashes -r packaging/windows-requirements.txt
+python -m pip install --no-build-isolation --no-deps -e .
+~~~
+
+Build the canonical onedir output:
+
+~~~powershell
+python -m PyInstaller --noconfirm --clean --distpath "$env:TEMP\manafold-census-build\dist" --workpath "$env:TEMP\manafold-census-build\work" packaging\explorer.spec
+~~~
+
+Run the EXE from its complete onedir directory. The _internal directory must
+remain beside the executable, and the bundle path is always explicit:
+
+~~~powershell
+& "$env:TEMP\manafold-census-build\dist\manafold-census-explorer\manafold-census-explorer.exe" --bundle C:\data\manafold-census-0.1.0 info
+~~~
+
+The packaging workflow pins Windows 2022, Python 3.12.10, PyInstaller,
+dependency hashes, locale, timezone, PYTHONHASHSEED, SOURCE_DATE_EPOCH, and an
+isolated PyInstaller config root. It builds two outputs and runs the
+external-bundle and incompatible-query-contract smokes. Executable byte parity
+is useful evidence but remains an experimental gate.
+
+## Data and safety boundaries
+
+Use relative, explicit paths for reproducible commands. The project rejects
+missing or inconsistent artifacts according to the relevant gate and refuses
+unexpected bundle files, path traversal, absolute paths, symlinks/junctions,
+stale cross-layer references, and corrupt descriptors.
+
+The trusted query path is offline and read-only. The implementation does not
+use eval, exec, pickle, dynamic imports, artifact-selected callbacks, network
+calls, LLM calls, database calls, or Magic rules execution.
+
+Generated outputs are intentionally not release identity inputs unless the
+specific command says so. Reports, indexes, Explorer output, and Windows build
+directories remain derived or ignored artifacts.
+
+## Verification and release evidence
+
+Run the full local suite with:
+
+~~~powershell
+python -m ruff format --check .
+python -m ruff check .
+python -m mypy src/manafold_census
+python -m pytest -q
+python -m manafold_census.cli reproduce
+~~~
+
+The committed M5-12 release-conformance evidence is:
+
+- docs/reports/2026-09-15-m5-census-0-1-release-conformance.md
+- docs/reports/2026-09-15-m5-census-0-1-release-conformance.json
+
+The evidence records the two candidate identities, 98 authoritative files,
+108 Derived files, exact byte parity, release identity, and the explicit
+experimental status of Windows EXE byte parity. It does not contain raw source
+bytes or absolute local paths.
