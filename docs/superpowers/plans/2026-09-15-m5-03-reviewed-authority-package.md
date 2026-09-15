@@ -4,7 +4,7 @@
 
 **Goal:** Persist and validate the first real Census 0.1 M4 authority package for the five locked M3 Requirements without building or publishing an M4 snapshot.
 
-**Architecture:** Add release/authority_package.py as the sole package manifest, digest, descriptor, canonical JSONL reread, writer, and cross-layer validator. Reuse the existing typed M4 models. The real package contains one reviewed atomic draw-card Capability, five accepted SRA records, five reviewed active links, and five MAPPED decisions; relations and evolution stay empty. Do not call build_reference_m4.
+**Architecture:** Add release/authority_package.py as the package manifest, digest, descriptor, canonical JSONL reread, and writer facade, with separate small I/O and validation modules. Reuse the existing typed M4 models. The validator fixes only the exact five-Requirement campaign scope and SRA multiplicity; it permits the human review result to contain zero or more definitions, links, relations, and evolution records and any valid frozen M4 mapping disposition. Do not call build_reference_m4.
 
 **Tech Stack:** Python 3.12+, dataclasses, canonical JSON, JSON Schema Draft 2020-12, existing M2/M3/M4 models, pytest, Ruff, mypy, PowerShell.
 
@@ -47,7 +47,7 @@ Files:
 Steps:
 - [ ] Implement validate_authority_package(package_dir, lock, corpus).
 - [ ] Bind package manifest to the validated CensusInputLockV1 and M3RequirementCorpusV1.
-- [ ] Require exactly five selected IDs equal to the sorted corpus IDs, exactly one accepted SRA per selected Requirement, one active reviewed direct link per Requirement, one active multi-source Capability definition, one definition review, one accepted link review per link, one MAPPED decision per Requirement, and empty relations/evolution.
+- [ ] Require exactly five selected IDs equal to the sorted corpus IDs, exactly one SRA decision per selected Requirement with either frozen accepted/rejected decision, and exactly one mapping decision per Requirement with any frozen valid disposition. Permit zero or more definitions, links, relations, and evolution records; existing validate_m4_inputs decides their validity when present.
 - [ ] Validate exact M3 manifest, Requirement wire, M2 review/resolution, SRA route, link review, and mapping identities; then call existing validate_m4_inputs. Never mutate M2 and never call build_reference_m4.
 - [ ] Add m5-authority-check requiring explicit --package, --lock, --source-lock, --structural-output, and --analysis-output. Run the existing M5-02 lock gate first. Missing paths are BLOCKED, malformed/mismatched data is FAIL, and only a complete package exits zero with m5-authority=PASS.
 - [ ] Run focused tests and m5-authority-check --help.
@@ -66,8 +66,8 @@ Files:
 
 Steps:
 - [ ] Use the validated M5-02 corpus, campaign m5.census-0.1, SRA authority m4.source-requirement-admissibility/1, Capability review authority m4.capability-review/1, and reviewer maintainer:chris.
-- [ ] Create one atomic EFFECT/DRAW_CARDS Capability with required DRAW_CARDS_DRAWER and DRAW_CARDS_QUANTITY dimensions, active lifecycle, all five exact Requirement references, an accepted MULTI_SOURCE_REUSE definition review, five accepted SRA records, five active direct links with exact known bindings, five accepted link reviews, and five MAPPED decisions.
-- [ ] Keep relations and evolution empty. Create no real M4 output, bundle, Explorer, release, or M5-04 artifact.
+- [ ] For the current review outcome, create one atomic EFFECT/DRAW_CARDS Capability named Draw cards with required DRAW_CARDS_DRAWER and DRAW_CARDS_QUANTITY dimensions, active lifecycle, all five exact Requirement references, an accepted MULTI_SOURCE_REUSE definition review, five accepted SRA records, five active direct links with exact known bindings, five accepted link reviews, and five MAPPED decisions.
+- [ ] Keep the validator neutral to that current outcome: do not make the Capability, active links, or MAPPED decisions a general M5-03 requirement. Create no real M4 output, bundle, Explorer, release, or M5-04 artifact.
 - [ ] Run explicitly:
   m5-authority-check --package reviewed/m4/census-0.1 --lock locks/census-0.1-input-lock.v1.json --source-lock source-locks/scryfall-oracle-v1.json --structural-output dist/structural/scryfall-oracle-v1-run-a --analysis-output dist/analysis/m3-census-0-1-real-run-a
 - [ ] Require all M5-02 checks and package/M4 validation to be PASS.
@@ -85,4 +85,4 @@ Self-review:
 - [ ] No placeholder, TODO, latest discovery, implicit artifact selection, M2 mutation, or M5-04 behavior.
 - [ ] The package digest is non-self-referential.
 - [ ] Every persisted M4 record is an existing frozen wire type.
-- [ ] SRA multiplicity is exactly one per selected Requirement.
+- [ ] Exactly one SRA decision exists per selected Requirement, and both frozen SRA decision values are accepted by the validator.

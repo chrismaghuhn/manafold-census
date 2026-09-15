@@ -36,6 +36,7 @@ from manafold_census.capability.link_build import direct_link
 from manafold_census.capability.manifest import M4_DIMENSION_REGISTRY_VERSION
 from manafold_census.capability.mapping import (
     MappingDispositionV1,
+    MappingReasonV1,
     mapping_decision,
 )
 from manafold_census.capability.model import (
@@ -168,7 +169,7 @@ def _records(corpus):
         capability_version=claim.capability_version,
         claim_digest=capability_claim_digest_for(claim),
         claim=claim,
-        display_name="Draw exactly two cards",
+        display_name="Draw cards",
         lifecycle=CapabilityLifecycleStateV1.ACTIVE,
         provenance=CapabilityProvenanceV1(
             corpus.m3_analysis_manifest_sha256,
@@ -300,11 +301,13 @@ def _write_variant(
     root: Path,
     *,
     selected_requirement_ids=None,
+    capability_definitions=None,
     reviews=None,
     admissibility=None,
     links=None,
     mapping_decisions=None,
     relations=None,
+    evolution=None,
 ) -> None:
     write_authority_package(
         root,
@@ -317,7 +320,11 @@ def _write_variant(
             else selected_requirement_ids
         ),
         review_policy=_policy(),
-        capability_definitions=package.definitions,
+        capability_definitions=(
+            package.definitions
+            if capability_definitions is None
+            else capability_definitions
+        ),
         reviews=package.reviews if reviews is None else reviews,
         relations=package.relations if relations is None else relations,
         admissibility=(
@@ -329,7 +336,7 @@ def _write_variant(
             if mapping_decisions is None
             else mapping_decisions
         ),
-        evolution=package.evolution,
+        evolution=package.evolution if evolution is None else evolution,
     )
 
 
@@ -443,7 +450,7 @@ def test_authority_package_rejects_unreviewed_active_link(tmp_path: Path) -> Non
         links=(replace(package.links[0], review_ref=None), *package.links[1:]),
     )
 
-    with pytest.raises(ValueError, match="active link requires an accepted review"):
+    with pytest.raises(ValueError, match="inactive link|accepted review"):
         validate_authority_package(root, package.lock, package.corpus)
 
 
@@ -453,7 +460,7 @@ def test_authority_package_rejects_missing_definition_review(tmp_path: Path) -> 
     _write_variant(package, root, reviews=package.reviews[1:])
 
     with pytest.raises(
-        ValueError, match="Capability requires exactly one accepted definition review"
+        ValueError, match="definition review reference|accepted definition review"
     ):
         validate_authority_package(root, package.lock, package.corpus)
 
@@ -463,7 +470,7 @@ def test_authority_package_rejects_incomplete_mapping_decisions(tmp_path: Path) 
     root = tmp_path / "missing-mapping"
     _write_variant(package, root, mapping_decisions=package.mapping_decisions[:-1])
 
-    with pytest.raises(ValueError, match="one link and mapping decision"):
+    with pytest.raises(ValueError, match="exactly one mapping decision"):
         validate_authority_package(root, package.lock, package.corpus)
 
 
@@ -490,8 +497,58 @@ def test_authority_package_rejects_relations_in_census_0_1(tmp_path: Path) -> No
         relations=(requires_edge(package.definitions[0], package.definitions[0]),),
     )
 
-    with pytest.raises(ValueError, match="cannot contain relations"):
+    with pytest.raises(ValueError, match="self-edge"):
         validate_authority_package(root, package.lock, package.corpus)
+
+
+def test_authority_package_allows_rejected_sra_and_unmapped_review_result(
+    tmp_path: Path,
+) -> None:
+    package = _write_test_package(tmp_path)
+    rejected = tuple(
+        SourceRequirementAdmissibilityV1.for_requirement(
+            requirement,
+            m3_analysis_manifest_sha256=package.corpus.m3_analysis_manifest_sha256,
+            authority_id=_policy().sra_authority_id,
+            authority_version=_policy().sra_authority_version,
+            reviewer_id=_policy().sra_reviewer_id,
+            decision=AdmissibilityDecisionV1.REJECTED_FOR_CAPABILITY_MAPPING,
+        )
+        for requirement in package.corpus.requirements
+    )
+    unmapped = tuple(
+        mapping_decision(
+            requirement,
+            MappingDispositionV1.UNMAPPED,
+            MappingReasonV1.NO_REVIEWED_CAPABILITY,
+            m3_analysis_manifest_sha256=package.corpus.m3_analysis_manifest_sha256,
+        )
+        for requirement in package.corpus.requirements
+    )
+    root = tmp_path / "rejected-unmapped"
+    _write_variant(
+        package,
+        root,
+        capability_definitions=(),
+        reviews=(),
+        admissibility=rejected,
+        links=(),
+        mapping_decisions=unmapped,
+        relations=(),
+        evolution=(),
+    )
+
+    validated = validate_authority_package(root, package.lock, package.corpus)
+
+    assert validated.capability_definitions == ()
+    assert all(
+        item.decision is AdmissibilityDecisionV1.REJECTED_FOR_CAPABILITY_MAPPING
+        for item in validated.admissibility
+    )
+    assert all(
+        item.disposition is MappingDispositionV1.UNMAPPED
+        for item in validated.mapping_decisions
+    )
 
 
 def test_authority_cli_validates_explicit_package_and_inputs(
