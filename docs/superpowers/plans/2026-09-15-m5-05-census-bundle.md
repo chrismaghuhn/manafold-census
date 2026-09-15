@@ -4,7 +4,7 @@
 
 **Goal:** Build the first self-contained Census 0.1 bundle from the frozen SourceLock/M1/M3 input, reviewed M4 authority package, and real M4 snapshot without including reports or indexes in release identity.
 
-**Architecture:** Add release/manifest.py for the closed CensusBundleManifestV1 wire model, component descriptors, population/schema/compatibility records, raw manifest digest, and non-self-referential census release ID. Add release/publish.py for exact tree copying and atomic staging/publish. Add release/bundle.py for explicit-input validation, nested M1/M3/authority/M4 reread, authority/publication parity, population checks, and atomic bundle build. Do not change existing M1/M3/M4 core builders and do not implement M5-06 reports/indexes.
+**Architecture:** Add release/manifest.py for the closed CensusBundleManifestV1 wire model, component descriptors, population/schema/compatibility records, raw manifest digest, and non-self-referential census release ID. Add release/publish.py for exact tree copying, bundle filesystem preflight, and atomic staging/publish. Add release/bundle.py for explicit-input validation, nested M1/M3/authority/M4 reread, authority/publication parity, population checks, and atomic bundle build. Do not change existing M1/M3/M4 core builders and do not implement M5-06 reports/indexes.
 
 **Tech Stack:** Python 3.12+, canonical JSON, JSON Schema Draft 2020-12, existing M5-02/M5-03/M5-04 validators, shutil/os atomic filesystem operations, pytest, Ruff, mypy, PowerShell.
 
@@ -20,6 +20,7 @@ Steps:
 - [ ] Test manifest round-trip, raw canonical manifest digest, release ID projection without release ID, fixed five authoritative component roles, population/schema/compatibility fields, and null parent lineage.
 - [ ] Test a positive self-contained bundle build from synthetic M1/M3/authority/M4 fixtures and assert bundle reread and component descriptors.
 - [ ] Test that reports, indexes, metadata, unexpected files, missing nested files, altered bytes, and an existing output path fail closed without replacing the existing output.
+- [ ] Test that an expected file symlink to identical external bytes and a symlinked bundle root fail closed; add a Windows junction test only when junction creation is available.
 - [ ] Test the real-package-shaped bundle path and a zero-mapping rejected/unmapped authority package; both must use existing validators.
 - [ ] Test the explicit CLI command with --input-lock, --authority-package, --source-lock, --structural-output, --analysis-output, --m4-output, and --output.
 - [ ] Run: $env:PYTHONPATH='src'; & C:\Python313\python.exe -m pytest tests/test_census_bundle.py -q.
@@ -52,6 +53,7 @@ Steps:
 - [ ] Copy source-lock.json, every exact M1/M3 file, every authority-package file, and every M4 publication file into the fixed inputs/ tree. Copy bytes exactly; do not copy reports/indexes/metadata.
 - [ ] Build in a fresh sibling staging directory. Write census-manifest.json only after all component copies and descriptor/population construction are complete.
 - [ ] Reread staging independently: enforce the exact bundle file set, canonical manifest, component SHA/length/schema/aggregate bindings, nested M3 corpus/authority/M4 validation, population equality, parent null, and Authority/M4 parity.
+- [ ] Run filesystem preflight before any bundle read: reject a symlink/junction root, every symlink/junction/reparse entry, root escapes after resolve, and non-regular filesystem objects.
 - [ ] Remove staging on any failure and atomically os.replace the validated staging root to the requested final output only after every gate passes.
 - [ ] Verify an existing output directory is never overwritten and a failed validation leaves no final manifest.
 

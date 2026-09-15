@@ -30,6 +30,50 @@ AUTHORITY_BUNDLE_FILES = frozenset(
 )
 
 
+def _is_junction(path: Path) -> bool:
+    checker = getattr(path, "is_junction", None)
+    return bool(checker is not None and checker())
+
+
+def _is_link(path: Path) -> bool:
+    return path.is_symlink() or _is_junction(path)
+
+
+def preflight_bundle_filesystem(bundle_root: Path) -> None:
+    """Reject links, reparse escapes, and non-regular bundle entries."""
+
+    if _is_link(bundle_root):
+        raise ValueError("bundle root must not be a symlink or junction")
+    if not bundle_root.is_dir():
+        raise FileNotFoundError(f"bundle root does not exist: {bundle_root}")
+    try:
+        resolved_root = bundle_root.resolve(strict=True)
+    except OSError as error:
+        raise ValueError("bundle root cannot be resolved") from error
+    pending = [bundle_root]
+    while pending:
+        current = pending.pop()
+        try:
+            entries = tuple(current.iterdir())
+        except OSError as error:
+            raise ValueError(f"bundle directory cannot be read: {current}") from error
+        for entry in entries:
+            relative = entry.relative_to(bundle_root).as_posix()
+            if _is_link(entry):
+                raise ValueError(f"bundle entry is a symlink or junction: {relative}")
+            try:
+                resolved = entry.resolve(strict=True)
+                resolved.relative_to(resolved_root)
+            except (OSError, ValueError) as error:
+                raise ValueError(
+                    f"bundle entry escapes its root: {relative}"
+                ) from error
+            if entry.is_dir():
+                pending.append(entry)
+            elif not entry.is_file():
+                raise ValueError(f"bundle entry is not a regular file: {relative}")
+
+
 def _copy_paths(
     source_root: Path,
     destination_root: Path,
@@ -88,6 +132,7 @@ def copy_bundle_inputs(
 def read_bundle_manifest(bundle_root: Path) -> CensusBundleManifestV1:
     """Read and validate one canonical bundle manifest."""
 
+    preflight_bundle_filesystem(bundle_root)
     try:
         raw = (bundle_root / BUNDLE_MANIFEST_FILENAME).read_bytes()
     except FileNotFoundError:
@@ -120,5 +165,6 @@ __all__ = [
     "M3_BUNDLE_FILES",
     "copy_bundle_inputs",
     "file_descriptor_matches",
+    "preflight_bundle_filesystem",
     "read_bundle_manifest",
 ]

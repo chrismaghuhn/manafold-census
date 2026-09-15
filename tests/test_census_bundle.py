@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import os
+import shutil
+import subprocess
 from dataclasses import replace
 from pathlib import Path
 
@@ -135,6 +138,56 @@ def test_bundle_rejects_tampered_nested_bytes(tmp_path: Path) -> None:
     path.write_bytes(path.read_bytes() + b" ")
 
     with pytest.raises(ValueError, match="descriptor|canonical|authority"):
+        validate_census_bundle(result.output_dir, package.lock, package.corpus)
+
+
+def test_bundle_rejects_symlinked_expected_file(tmp_path: Path) -> None:
+    package, result = _build_bundle(tmp_path)
+    target = result.output_dir / "inputs/source-lock.json"
+    outside = tmp_path / "outside-source-lock.json"
+    outside.write_bytes(target.read_bytes())
+    target.unlink()
+    try:
+        target.symlink_to(outside)
+    except (OSError, NotImplementedError) as error:
+        pytest.skip(f"symlink creation unavailable: {error}")
+
+    with pytest.raises(ValueError, match="symlink|junction|containment"):
+        validate_census_bundle(result.output_dir, package.lock, package.corpus)
+
+
+def test_bundle_rejects_symlinked_bundle_root(tmp_path: Path) -> None:
+    package, result = _build_bundle(tmp_path)
+    alias = tmp_path / "bundle-alias"
+    try:
+        alias.symlink_to(result.output_dir, target_is_directory=True)
+    except (OSError, NotImplementedError) as error:
+        pytest.skip(f"directory symlink creation unavailable: {error}")
+
+    with pytest.raises(ValueError, match="symlink|junction|containment"):
+        validate_census_bundle(alias, package.lock, package.corpus)
+
+
+def test_bundle_rejects_junctioned_directory_on_windows(tmp_path: Path) -> None:
+    if os.name != "nt":
+        pytest.skip("Windows junction test")
+    package, result = _build_bundle(tmp_path)
+    target = result.output_dir / "inputs/m4-authority"
+    outside = tmp_path / "outside-m4-authority"
+    shutil.copytree(target, outside)
+    shutil.rmtree(target)
+    created = subprocess.run(
+        ["cmd.exe", "/c", "mklink", "/J", str(target), str(outside)],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if created.returncode != 0:
+        pytest.skip(
+            f"junction creation unavailable: {created.stderr or created.stdout}"
+        )
+
+    with pytest.raises(ValueError, match="symlink|junction|containment"):
         validate_census_bundle(result.output_dir, package.lock, package.corpus)
 
 
