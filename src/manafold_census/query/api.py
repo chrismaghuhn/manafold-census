@@ -1,0 +1,122 @@
+"""Small read-only Census query interface."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from pathlib import Path
+
+from ..analysis.model import CardAnalysisRecordV1, card_source_key
+from ..structural.model import StructuralCardRecordV1
+from .bundle import ValidatedQueryBundleV1, load_validated_query_bundle
+from .cards import (
+    CardSemanticViewV1,
+    QueryNotFoundV1,
+    build_card_semantic_view,
+)
+from .provenance import (
+    MappingTraceV1,
+    RequirementTraceV1,
+    build_mapping_trace,
+    build_requirement_trace,
+)
+
+
+@dataclass(frozen=True, slots=True)
+class QueryMetadataV1:
+    census_release_version: str
+    census_release_id: str
+    census_manifest_sha256: str
+    source_lock_digest: str
+    m3_analysis_manifest_sha256: str
+    m4_manifest_sha256: str
+    query_contract: str
+    semantic_coverage_limitation: str
+
+
+@dataclass(frozen=True, slots=True)
+class CensusReader:
+    """Read-only adapter over one validated Census tree."""
+
+    _bundle: ValidatedQueryBundleV1
+
+    def metadata(self) -> QueryMetadataV1:
+        manifest = self._bundle.manifest
+        return QueryMetadataV1(
+            manifest.census_release_version,
+            manifest.census_release_id,
+            self._bundle.report.census_manifest_sha256,
+            manifest.source_lock_digest,
+            self._bundle.report.m3_analysis_manifest_sha256,
+            self._bundle.report.m4_manifest_sha256,
+            manifest.compatibility.query_contract,
+            "Census 0.1 records complete pinned-source accounting; unresolved "
+            "analysis is not a claim of absent semantics.",
+        )
+
+    def get_structural_record(
+        self, oracle_id: str
+    ) -> StructuralCardRecordV1 | QueryNotFoundV1:
+        result = self._bundle.structural_by_oracle.get(oracle_id)
+        return (
+            result
+            if result is not None
+            else QueryNotFoundV1("structural_record", oracle_id)
+        )
+
+    def get_analysis_record(
+        self, oracle_id: str
+    ) -> CardAnalysisRecordV1 | QueryNotFoundV1:
+        result = self._bundle.analysis_by_oracle.get(oracle_id)
+        return (
+            result
+            if result is not None
+            else QueryNotFoundV1("analysis_record", oracle_id)
+        )
+
+    def get_card_semantic_view(
+        self, oracle_id: str
+    ) -> CardSemanticViewV1 | QueryNotFoundV1:
+        structural = self._bundle.structural_by_oracle.get(oracle_id)
+        analysis = self._bundle.analysis_by_oracle.get(oracle_id)
+        if structural is None or analysis is None:
+            return QueryNotFoundV1("card_semantic_view", oracle_id)
+        source_key = card_source_key(analysis.source)
+        requirements = tuple(
+            item
+            for item in self._bundle.requirements
+            if card_source_key(item.source) == source_key
+        )
+        return build_card_semantic_view(
+            structural_record=structural,
+            analysis_record=analysis,
+            requirements=requirements,
+            admissibility_by_requirement=self._bundle.admissibility_by_requirement,
+            decisions_by_requirement=self._bundle.decisions_by_requirement,
+            links_by_id=self._bundle.links_by_id,
+            definitions_by_ref=self._bundle.definitions_by_ref,
+            census_release_id=self._bundle.manifest.census_release_id,
+            census_manifest_sha256=self._bundle.report.census_manifest_sha256,
+            m3_analysis_manifest_sha256=self._bundle.report.m3_analysis_manifest_sha256,
+            trace_event_count=len(self._bundle.traces_by_source.get(source_key, ())),
+        )
+
+    def trace_requirement(
+        self, requirement_id: str
+    ) -> RequirementTraceV1 | QueryNotFoundV1:
+        if requirement_id not in self._bundle.requirements_by_id:
+            return QueryNotFoundV1("requirement_trace", requirement_id)
+        return build_requirement_trace(self._bundle, requirement_id)
+
+    def trace_mapping(self, link_id: str) -> MappingTraceV1 | QueryNotFoundV1:
+        if link_id not in self._bundle.links_by_id:
+            return QueryNotFoundV1("mapping_trace", link_id)
+        return build_mapping_trace(self._bundle, link_id)
+
+
+def open_bundle(bundle_directory: str | Path) -> CensusReader:
+    """Validate and open one explicit M5-06 Census tree read-only."""
+
+    return CensusReader(load_validated_query_bundle(bundle_directory))
+
+
+__all__ = ["CensusReader", "QueryMetadataV1", "open_bundle"]
