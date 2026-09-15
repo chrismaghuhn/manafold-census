@@ -5,7 +5,7 @@ from __future__ import annotations
 import argparse
 import shlex
 
-from rich.console import Console, Group
+from rich.console import Console, Group, RenderableType
 
 from ..capability.model import CapabilityRefV1
 from ..query.api import CensusReader, open_bundle
@@ -128,7 +128,7 @@ def _print(console: Console, value: object) -> None:
     console.print(value)
 
 
-def _print_view(console: Console, reader: CensusReader, value: object) -> None:
+def _print_view(console: Console, reader: CensusReader, value: RenderableType) -> None:
     console.print(Group(render_view_context(reader.metadata()), value))
 
 
