@@ -226,8 +226,10 @@ class DeckAmbiguousNameV1:
             self, "lookup_key", _require_text("lookup_key", self.lookup_key)
         )
         matches = tuple(self.matches)
-        if not matches or any(not isinstance(item, CardIdentityV1) for item in matches):
+        if any(not isinstance(item, CardIdentityV1) for item in matches):
             raise TypeError("matches must contain CardIdentityV1 values")
+        if len(matches) < 2:
+            raise ValueError("ambiguous matches must contain at least two identities")
         if tuple((item.name, item.oracle_id) for item in matches) != tuple(
             sorted((item.name, item.oracle_id) for item in matches)
         ):

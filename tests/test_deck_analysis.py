@@ -418,6 +418,64 @@ def test_deck_wire_is_canonical_and_schema_valid(tmp_path: Path) -> None:
         validate_document(extra, "deck-analysis.v1.schema.json")
 
 
+def test_ambiguous_model_requires_at_least_two_matches(tmp_path: Path) -> None:
+    result = analyze_deck_bytes(
+        b"[main]\n1 Fixture Card\n",
+        _reader(tmp_path),
+    )
+    ambiguous = result.main.ambiguous_names[0]
+
+    with pytest.raises(ValueError, match="two"):
+        replace(ambiguous, matches=ambiguous.matches[:1])
+
+
+def test_schema_rejects_zero_name_and_summary_quantities(tmp_path: Path) -> None:
+    unknown_wire = analyze_deck_bytes(
+        b"[main]\n1 Does Not Exist\n",
+        _reader(tmp_path / "unknown"),
+    ).to_wire()
+    ambiguous_wire = analyze_deck_bytes(
+        b"[main]\n1 Fixture Card\n",
+        _reader(tmp_path / "ambiguous"),
+    ).to_wire()
+    resolved_wire = analyze_deck_bytes(
+        b"[main]\n1 Fixture Card\n",
+        _AliasReader(_reader(tmp_path / "resolved")),
+    ).to_wire()
+
+    for wire, path in (
+        (unknown_wire, ("main", "unknown_names")),
+        (ambiguous_wire, ("main", "ambiguous_names")),
+        (resolved_wire, ("main", "resolved_cards")),
+    ):
+        changed = json.loads(json.dumps(wire))
+        changed[path[0]][path[1]][0]["quantity"] = 0
+        with pytest.raises(ValueError):
+            validate_document(changed, "deck-analysis.v1.schema.json")
+
+
+def test_schema_rejects_extra_requirement_trace_properties(tmp_path: Path) -> None:
+    wire = analyze_deck_bytes(
+        b"[main]\n1 Fixture Card\n",
+        _AliasReader(_reader(tmp_path)),
+    ).to_wire()
+    wire["main"]["provenance_traces"][0]["requirement_traces"][0]["unexpected"] = True
+
+    with pytest.raises(ValueError):
+        validate_document(wire, "deck-analysis.v1.schema.json")
+
+
+def test_schema_rejects_extra_mapping_trace_properties(tmp_path: Path) -> None:
+    wire = analyze_deck_bytes(
+        b"[main]\n1 Fixture Card\n",
+        _AliasReader(_reader(tmp_path)),
+    ).to_wire()
+    wire["main"]["provenance_traces"][0]["mapping_traces"][0]["unexpected"] = True
+
+    with pytest.raises(ValueError):
+        validate_document(wire, "deck-analysis.v1.schema.json")
+
+
 def test_repeated_analysis_does_not_mutate_reader(tmp_path: Path) -> None:
     reader = _AliasReader(_reader(tmp_path))
     raw = b"[main]\n2 Fixture Card\n"

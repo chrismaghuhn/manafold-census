@@ -84,6 +84,11 @@
       "minimum": 0,
       "maximum": 1000000
     },
+    "positive_bounded_count": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 1000000
+    },
     "digest": {
       "type": "string",
       "pattern": "^[0-9a-f]{64}$"
@@ -280,7 +285,7 @@
           "$ref": "#/$defs/section"
         },
         "quantity": {
-          "$ref": "#/$defs/bounded_count"
+          "$ref": "#/$defs/positive_bounded_count"
         },
         "name": {
           "type": "string",
@@ -312,7 +317,7 @@
           "$ref": "#/$defs/section"
         },
         "quantity": {
-          "$ref": "#/$defs/bounded_count"
+          "$ref": "#/$defs/positive_bounded_count"
         },
         "name": {
           "type": "string",
@@ -345,7 +350,7 @@
           "$ref": "#/$defs/card_identity"
         },
         "quantity": {
-          "$ref": "#/$defs/bounded_count"
+          "$ref": "#/$defs/positive_bounded_count"
         },
         "analysis_outcome": {
           "enum": [
@@ -435,7 +440,7 @@
           "type": "array"
         }
       },
-      "additionalProperties": true
+      "additionalProperties": false
     },
     "mapping_trace": {
       "type": "object",
@@ -483,7 +488,7 @@
           "type": "array"
         }
       },
-      "additionalProperties": true
+      "additionalProperties": false
     },
     "provenance_trace": {
       "type": "object",
