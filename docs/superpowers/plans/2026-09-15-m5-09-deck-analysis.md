@@ -94,6 +94,7 @@ Export DeckAnalysisV1, DeckSectionAnalysisV1, DeckSectionV1, DeckInputError, par
 
 **Files:**
 - Modify: src/manafold_census/query/deck.py
+- Modify: src/manafold_census/query/provenance.py
 - Extend: tests/test_deck_analysis.py
 
 - [ ] **Step 1: Resolve entries through CensusReader.resolve_card_name.**
@@ -135,6 +136,7 @@ Validate DeckAnalysisV1.to_wire() with validate_document, compare repeated canon
 **Files:**
 - No generated Census, M4, bundle, report, or Explorer output may be committed.
 - The three M5-09 query modules must each remain below 500 lines.
+- Modify: src/manafold_census/query/provenance.py only to move its bundle type import under TYPE_CHECKING and prevent the query/reports import cycle.
 
 - [ ] **Step 1: Run quality, reproduction, and fresh-wheel gates.**
 

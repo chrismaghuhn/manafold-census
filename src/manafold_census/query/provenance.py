@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 from ..analysis.model import CardAnalysisRecordV1, card_source_key
 from ..analysis.trace import TraceEventV1
@@ -13,7 +14,9 @@ from ..capability.link import RequirementCapabilityLinkV1
 from ..capability.mapping import RequirementMappingDecisionV1
 from ..capability.review import CapabilityReviewRecordV1
 from ..semantic.model import RequirementV1
-from .bundle import ValidatedQueryBundleV1
+
+if TYPE_CHECKING:
+    from .bundle import ValidatedQueryBundleV1
 
 
 def _definition_key(value: CapabilityDefinitionV1) -> tuple[str, int, str]:

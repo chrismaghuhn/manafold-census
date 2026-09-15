@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import json
+import os
+import subprocess
+import sys
 from dataclasses import replace
 from pathlib import Path
 
@@ -429,3 +432,21 @@ def test_repeated_analysis_does_not_mutate_reader(tmp_path: Path) -> None:
     assert reader.resolve_card_name("fixture card").status is (
         CardNameResolutionStatusV1.RESOLVED
     )
+
+
+def test_cli_import_can_load_the_query_package_without_an_import_cycle() -> None:
+    environment = os.environ.copy()
+    environment["PYTHONPATH"] = str(Path(__file__).parents[1] / "src")
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            "import manafold_census.cli; import manafold_census.query",
+        ],
+        capture_output=True,
+        text=True,
+        env=environment,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
