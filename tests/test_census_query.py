@@ -234,3 +234,22 @@ def test_open_bundle_does_not_write_to_the_bundle(tmp_path: Path) -> None:
         if path.is_file()
     }
     assert after == before
+
+
+def test_reader_joins_and_summary_maps_are_immutable(tmp_path: Path) -> None:
+    reader = open_bundle(_derived_bundle(tmp_path))
+    view_before = reader.get_card_semantic_view(ORACLE_ID)
+    assert not isinstance(view_before, QueryNotFoundV1)
+
+    with pytest.raises(TypeError):
+        reader._bundle.structural_by_oracle[ORACLE_ID] = view_before
+    with pytest.raises(TypeError):
+        reader._bundle.decisions_by_requirement["missing"] = view_before
+    with pytest.raises(TypeError):
+        view_before.m2_review_summary.review_status_counts["PROPOSED"] = 0
+    with pytest.raises(TypeError):
+        view_before.m4_mapping_summary.mapping_disposition_counts["MAPPED"] = 0
+
+    view_after = reader.get_card_semantic_view(ORACLE_ID)
+    assert not isinstance(view_after, QueryNotFoundV1)
+    assert view_after.to_wire() == view_before.to_wire()

@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 from collections import defaultdict
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
+from types import MappingProxyType
 from typing import cast
 
 from ..analysis.model import CardAnalysisRecordV1
@@ -58,16 +60,16 @@ class ValidatedQueryBundleV1:
     trace_events: tuple[TraceEventV1, ...]
     requirements: tuple[RequirementV1, ...]
     m4: _RereadResult
-    structural_by_oracle: dict[str, StructuralCardRecordV1]
-    analysis_by_oracle: dict[str, CardAnalysisRecordV1]
-    requirements_by_id: dict[str, RequirementV1]
-    admissibility_by_requirement: dict[str, SourceRequirementAdmissibilityV1]
-    decisions_by_requirement: dict[str, RequirementMappingDecisionV1]
-    links_by_id: dict[str, RequirementCapabilityLinkV1]
-    links_by_requirement: dict[str, tuple[RequirementCapabilityLinkV1, ...]]
-    definitions_by_ref: dict[CapabilityRefV1, CapabilityDefinitionV1]
-    reviews_by_id: dict[str, CapabilityReviewRecordV1]
-    traces_by_source: dict[tuple[str, str, str, str], tuple[TraceEventV1, ...]]
+    structural_by_oracle: Mapping[str, StructuralCardRecordV1]
+    analysis_by_oracle: Mapping[str, CardAnalysisRecordV1]
+    requirements_by_id: Mapping[str, RequirementV1]
+    admissibility_by_requirement: Mapping[str, SourceRequirementAdmissibilityV1]
+    decisions_by_requirement: Mapping[str, RequirementMappingDecisionV1]
+    links_by_id: Mapping[str, RequirementCapabilityLinkV1]
+    links_by_requirement: Mapping[str, tuple[RequirementCapabilityLinkV1, ...]]
+    definitions_by_ref: Mapping[CapabilityRefV1, CapabilityDefinitionV1]
+    reviews_by_id: Mapping[str, CapabilityReviewRecordV1]
+    traces_by_source: Mapping[tuple[str, str, str, str], tuple[TraceEventV1, ...]]
 
 
 def load_validated_query_bundle(
@@ -85,45 +87,59 @@ def load_validated_query_bundle(
     requirements = _collect_requirements(analysis_records)
     m4 = _reread_output(root / "inputs/m4")
 
-    structural_by_oracle = {item.oracle_id: item for item in structural_records}
-    analysis_by_oracle = {item.source.oracle_id: item for item in analysis_records}
-    requirements_by_id = {item.requirement_id: item for item in requirements}
-    admissibility_by_requirement = {
-        item.requirement_id: item for item in m4.admissibility
-    }
-    decisions_by_requirement = {item.requirement_id: item for item in m4.decisions}
-    links_by_id = {item.link_id: item for item in m4.links}
+    structural_by_oracle = MappingProxyType(
+        {item.oracle_id: item for item in structural_records}
+    )
+    analysis_by_oracle = MappingProxyType(
+        {item.source.oracle_id: item for item in analysis_records}
+    )
+    requirements_by_id = MappingProxyType(
+        {item.requirement_id: item for item in requirements}
+    )
+    admissibility_by_requirement = MappingProxyType(
+        {item.requirement_id: item for item in m4.admissibility}
+    )
+    decisions_by_requirement = MappingProxyType(
+        {item.requirement_id: item for item in m4.decisions}
+    )
+    links_by_id = MappingProxyType({item.link_id: item for item in m4.links})
     links_by_requirement_values: dict[str, list[RequirementCapabilityLinkV1]] = (
         defaultdict(list)
     )
     for link in m4.links:
         links_by_requirement_values[link.requirement_id].append(link)
-    links_by_requirement = {
-        key: tuple(
-            sorted(
-                values,
-                key=lambda item: (
-                    item.relation.value,
-                    item.capability.capability_family_id,
-                    item.capability.capability_version,
-                    item.capability.claim_digest,
-                    item.link_id,
-                ),
+    links_by_requirement = MappingProxyType(
+        {
+            key: tuple(
+                sorted(
+                    values,
+                    key=lambda item: (
+                        item.relation.value,
+                        item.capability.capability_family_id,
+                        item.capability.capability_version,
+                        item.capability.claim_digest,
+                        item.link_id,
+                    ),
+                )
             )
-        )
-        for key, values in links_by_requirement_values.items()
-    }
-    definitions_by_ref = {item.capability_ref: item for item in m4.definitions}
-    reviews_by_id = {item.record_id: item for item in m4.reviews}
+            for key, values in links_by_requirement_values.items()
+        }
+    )
+    definitions_by_ref = MappingProxyType(
+        {item.capability_ref: item for item in m4.definitions}
+    )
+    reviews_by_id = MappingProxyType({item.record_id: item for item in m4.reviews})
     traces_by_source_values: dict[tuple[str, str, str, str], list[TraceEventV1]] = (
         defaultdict(list)
     )
     for event in trace_events:
         traces_by_source_values[event.card_source_key].append(event)
-    traces_by_source = {
-        key: tuple(sorted(values, key=trace_sort_key))
-        for key, values in traces_by_source_values.items()
-    }
+    traces_by_source = MappingProxyType(
+        {
+            key: tuple(sorted(values, key=trace_sort_key))
+            for key, values in traces_by_source_values.items()
+        }
+    )
 
     if (
         sha256_bytes((root / "census-manifest.json").read_bytes())

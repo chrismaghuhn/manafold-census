@@ -23,8 +23,9 @@ from ..semantic.evidence import SourceRecordRefV1
 from ..semantic.identity import wire_digest_for
 from ..semantic.kinds import RequirementFamilyV1, RequirementKindV1
 from ..semantic.model import RequirementV1, ResolutionStateV1, ReviewStatusV1
-from ..semantic.primitives import _require_int, _require_object, _require_text
+from ..semantic.primitives import _require_int, _require_text
 from ..structural.model import StructuralCardRecordV1
+from .summaries import M2ReviewSummaryV1, M4MappingSummaryV1
 
 
 class SemanticStateV1(StrEnum):
@@ -32,14 +33,6 @@ class SemanticStateV1(StrEnum):
     PARTIALLY_ESTABLISHED = "PARTIALLY_ESTABLISHED"
     UNRESOLVED_ANALYSIS = "UNRESOLVED_ANALYSIS"
     NO_REQUIREMENTS_APPLICABLE = "NO_REQUIREMENTS_APPLICABLE"
-
-
-def _count_map(field: str, value: object, keys: tuple[str, ...]) -> dict[str, int]:
-    document = _require_object(value, set(keys), field)
-    return {
-        key: _require_int(f"{field}.{key}", document[key], nonnegative=True)
-        for key in keys
-    }
 
 
 def _tuple_values(value: object, field: str) -> tuple[object, ...]:
@@ -171,74 +164,6 @@ class CapabilityMappingSummaryV1:
             "parameter_bindings": [item.to_wire() for item in self.parameter_bindings],
             "lifecycle": self.lifecycle.value,
             "mapping_disposition": self.mapping_disposition.value,
-        }
-
-
-@dataclass(frozen=True, slots=True)
-class M2ReviewSummaryV1:
-    review_status_counts: dict[str, int]
-    resolution_state_counts: dict[str, int]
-
-    def __post_init__(self) -> None:
-        object.__setattr__(
-            self,
-            "review_status_counts",
-            _count_map(
-                "review_status_counts",
-                self.review_status_counts,
-                tuple(item.value for item in ReviewStatusV1),
-            ),
-        )
-        object.__setattr__(
-            self,
-            "resolution_state_counts",
-            _count_map(
-                "resolution_state_counts",
-                self.resolution_state_counts,
-                tuple(item.value for item in ResolutionStateV1),
-            ),
-        )
-
-    def to_wire(self) -> dict[str, JSONValue]:
-        return {
-            "review_status_counts": cast(JSONValue, self.review_status_counts),
-            "resolution_state_counts": cast(JSONValue, self.resolution_state_counts),
-        }
-
-
-@dataclass(frozen=True, slots=True)
-class M4MappingSummaryV1:
-    admissibility_decision_counts: dict[str, int]
-    mapping_disposition_counts: dict[str, int]
-
-    def __post_init__(self) -> None:
-        object.__setattr__(
-            self,
-            "admissibility_decision_counts",
-            _count_map(
-                "admissibility_decision_counts",
-                self.admissibility_decision_counts,
-                tuple(item.value for item in AdmissibilityDecisionV1),
-            ),
-        )
-        object.__setattr__(
-            self,
-            "mapping_disposition_counts",
-            _count_map(
-                "mapping_disposition_counts",
-                self.mapping_disposition_counts,
-                tuple(item.value for item in MappingDispositionV1),
-            ),
-        )
-
-    def to_wire(self) -> dict[str, JSONValue]:
-        return {
-            "admissibility_decision_counts": cast(
-                JSONValue, self.admissibility_decision_counts
-            ),
-            "mapping_disposition_counts": cast(
-                JSONValue, self.mapping_disposition_counts
-            ),
         }
 
 
