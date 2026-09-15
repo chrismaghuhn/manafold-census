@@ -8,6 +8,11 @@ from ..capability.input import FrozenM3InputV1
 from ..reports.build import build_census_derived
 from .authority_package import validate_authority_package
 from .bundle import build_census_bundle
+from .conformance import (
+    ReleaseConformanceBlockedError,
+    ReleaseConformanceError,
+    run_release_conformance,
+)
 from .input_lock import (
     CensusInputLockStatusV1,
     CensusInputProvisioningV1,
@@ -259,9 +264,58 @@ def build_census_derived_command(
     return 0
 
 
+def build_release_conformance_command(
+    input_lock_path: str | Path,
+    source_lock_path: str | Path,
+    structural_output_directory: str | Path,
+    analysis_output_directory: str | Path,
+    authority_package_path: str | Path,
+    m4_output_directory: str | Path,
+    output_root: str | Path,
+    evidence_path: str | Path,
+) -> int:
+    """Run the final two-candidate Census 0.1 conformance check."""
+
+    try:
+        result = run_release_conformance(
+            input_lock_path=input_lock_path,
+            source_lock_path=source_lock_path,
+            structural_output_directory=structural_output_directory,
+            analysis_output_directory=analysis_output_directory,
+            authority_package_directory=authority_package_path,
+            m4_output_directory=m4_output_directory,
+            output_root=output_root,
+            evidence_path=evidence_path,
+        )
+    except (ReleaseConformanceBlockedError, FileNotFoundError) as error:
+        print(f"m5-release-conformance=BLOCKED: {error}")
+        return 1
+    except OSError as error:
+        print(f"m5-release-conformance=BLOCKED: {error}")
+        return 1
+    except (TypeError, ValueError, ReleaseConformanceError) as error:
+        print(f"m5-release-conformance=FAIL: {error}")
+        return 1
+    for name, status in result.hard_gates:
+        print(f"{name}={status}")
+    for name, status in result.experimental_gates:
+        print(f"{name.lower().replace('_', '-')}={status}")
+    for candidate in result.candidate_runs:
+        print(f"{candidate.label}-bundle-file-count={candidate.bundle_file_count}")
+        print(f"{candidate.label}-derived-file-count={candidate.derived_file_count}")
+        print(f"{candidate.label}-census-release-id={candidate.census_release_id}")
+        print(f"{candidate.label}-bundle-tree-digest={candidate.bundle_tree_digest}")
+        print(f"{candidate.label}-derived-tree-digest={candidate.derived_tree_digest}")
+    print(f"authoritative-file-count={result.authoritative_file_count}")
+    print(f"derived-file-count={result.derived_file_count}")
+    print("m5-release-conformance=PASS")
+    return 0
+
+
 __all__ = [
     "build_census_bundle_command",
     "build_census_derived_command",
+    "build_release_conformance_command",
     "build_real_m4_snapshot_command",
     "check_census_authority_package_command",
     "check_census_input_lock_command",

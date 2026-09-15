@@ -68,4 +68,7 @@ m5-bundle-build input_lock authority_package source_lock structural_output analy
 m5-derived-build bundle output:
     python -m manafold_census.cli m5-derived-build --bundle "{{bundle}}" --output "{{output}}"
 
+m5-release-conformance input_lock source_lock structural_output analysis_output authority_package m4_output output_root evidence:
+    python -m manafold_census.cli m5-release-conformance --input-lock "{{input_lock}}" --source-lock "{{source_lock}}" --structural-output "{{structural_output}}" --analysis-output "{{analysis_output}}" --authority-package "{{authority_package}}" --m4-output "{{m4_output}}" --output-root "{{output_root}}" --evidence "{{evidence}}"
+
 check: doctor lint typecheck test reproduce corpus-check structural-check
