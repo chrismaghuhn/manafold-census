@@ -30,9 +30,7 @@ def test_main_and_sideboard_are_separate(tmp_path):
     assert result.sideboard.declared_card_count == 1
 
 def test_inline_hash_is_preserved_in_card_name(tmp_path):
-    result = analyze_deck_bytes(
-        b"[main]\n1 Fixture Card # keep\n", _reader(tmp_path)
-    )
+    result = analyze_deck_bytes(b"[main]\n1 Fixture Card # keep\n", _reader(tmp_path))
     assert result.main.unknown_names[0].name == "Fixture Card # keep"
 
 def test_unknown_and_ambiguous_names_remain_visible(tmp_path):
@@ -46,7 +44,7 @@ def test_invalid_lines_and_non_utf8_are_fail_closed(tmp_path):
     result = analyze_deck_bytes(
         b"[main]\n0 Fixture Card\n[commander]\n", _reader(tmp_path)
     )
-    assert len(result.main.invalid_lines) == 2
+    assert len(result.invalid_lines) == 2
     with pytest.raises(DeckInputError, match="UTF-8"):
         analyze_deck_bytes(b"[main]\n1 \xff\n", _reader(tmp_path))
 ~~~
