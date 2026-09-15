@@ -16,6 +16,24 @@ from ..structural.model import StructuralCardRecordV1
 from .cards import CardSemanticViewV1, RequirementSummaryV1
 
 
+def _requirement_link_sort_key(
+    item: RequirementCapabilityLinkV1,
+) -> tuple[str, str, int, str, str]:
+    return (
+        item.relation.value,
+        item.capability.capability_family_id,
+        item.capability.capability_version,
+        item.capability.claim_digest,
+        item.link_id,
+    )
+
+
+def _supporting_link_sort_key(
+    item: RequirementCapabilityLinkV1,
+) -> tuple[str, str, str, int, str, str]:
+    return (item.requirement_id, *_requirement_link_sort_key(item))
+
+
 class CardNameResolutionStatusV1(StrEnum):
     RESOLVED = "RESOLVED"
     UNKNOWN = "UNKNOWN"
@@ -151,10 +169,10 @@ class RequirementDetailViewV1:
             raise TypeError("links must contain RequirementCapabilityLinkV1 values")
         if any(item.requirement_id != self.requirement_id for item in links):
             raise ValueError("links do not match Requirement summary")
-        if tuple(item.link_id for item in links) != tuple(
-            sorted(item.link_id for item in links)
+        if tuple(_requirement_link_sort_key(item) for item in links) != tuple(
+            sorted(_requirement_link_sort_key(item) for item in links)
         ):
-            raise ValueError("links must be sorted by link ID")
+            raise ValueError("links must use the canonical M4 query order")
         object.__setattr__(self, "links", links)
 
     def to_wire(self) -> dict[str, JSONValue]:
@@ -172,6 +190,7 @@ class CapabilityDetailViewV1:
     census_manifest_sha256: str
     definition: CapabilityDefinitionV1
     definition_review: CapabilityReviewRecordV1 | None
+    links: tuple[RequirementCapabilityLinkV1, ...]
     linked_requirements: tuple[RequirementSummaryV1, ...]
     mapped_cards: tuple[CardIdentityV1, ...]
     mapped_subset_frequency: MappedSubsetFrequencyV1
@@ -194,6 +213,15 @@ class CapabilityDetailViewV1:
             or self.definition_review.record_id != self.definition.review_ref
         ):
             raise ValueError("definition review does not match review_ref")
+        links = tuple(self.links)
+        if any(not isinstance(item, RequirementCapabilityLinkV1) for item in links):
+            raise TypeError("links must contain RequirementCapabilityLinkV1 values")
+        if tuple(_supporting_link_sort_key(item) for item in links) != tuple(
+            sorted(_supporting_link_sort_key(item) for item in links)
+        ):
+            raise ValueError("links must use the canonical supporting-link order")
+        if len({item.link_id for item in links}) != len(links):
+            raise ValueError("links must be unique")
         requirements = tuple(self.linked_requirements)
         if any(not isinstance(item, RequirementSummaryV1) for item in requirements):
             raise TypeError(
@@ -214,6 +242,7 @@ class CapabilityDetailViewV1:
             raise ValueError("mapped_cards must be unique")
         if not isinstance(self.mapped_subset_frequency, MappedSubsetFrequencyV1):
             raise TypeError("mapped_subset_frequency must be typed")
+        object.__setattr__(self, "links", links)
         object.__setattr__(self, "linked_requirements", requirements)
         object.__setattr__(self, "mapped_cards", cards)
 
@@ -239,6 +268,7 @@ class CapabilityDetailViewV1:
                 if self.definition_review is None
                 else self.definition_review.to_wire()
             ),
+            "links": [item.to_wire() for item in self.links],
             "linked_requirements": [
                 item.to_wire() for item in self.linked_requirements
             ],

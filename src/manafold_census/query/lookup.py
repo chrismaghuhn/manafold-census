@@ -25,6 +25,7 @@ from .details import (
     CardNameResolutionV1,
     MappedSubsetFrequencyV1,
     RequirementDetailViewV1,
+    _supporting_link_sort_key,
 )
 
 
@@ -82,7 +83,7 @@ def build_capability_detail(
                 for link in bundle.m4.links
                 if _supports_definition(definition, link)
             ),
-            key=lambda item: (item.requirement_id, item.link_id),
+            key=_supporting_link_sort_key,
         )
     )
     linked_requirements_by_id: dict[str, RequirementV1] = {}
@@ -115,19 +116,22 @@ def build_capability_detail(
         for decision in bundle.m4.decisions
     )
     return CapabilityDetailViewV1(
-        bundle.manifest.census_release_id,
-        bundle.report.census_manifest_sha256,
-        definition,
-        definition_review,
-        tuple(
+        census_release_id=bundle.manifest.census_release_id,
+        census_manifest_sha256=bundle.report.census_manifest_sha256,
+        definition=definition,
+        definition_review=definition_review,
+        links=supporting_links,
+        linked_requirements=tuple(
             RequirementSummaryV1.from_requirement(item)
             for item in sorted(
                 linked_requirements_by_id.values(),
                 key=lambda value: value.requirement_id,
             )
         ),
-        tuple(sorted(mapped_cards_by_oracle.values(), key=lambda item: item.oracle_id)),
-        MappedSubsetFrequencyV1(
+        mapped_cards=tuple(
+            sorted(mapped_cards_by_oracle.values(), key=lambda item: item.oracle_id)
+        ),
+        mapped_subset_frequency=MappedSubsetFrequencyV1(
             len(mapped_requirement_ids), denominator, "MAPPED_REQUIREMENTS"
         ),
     )

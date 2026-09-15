@@ -31,6 +31,7 @@ from ..semantic.identity import wire_digest_for
 from ..semantic.model import RequirementV1
 from ..structural.model import StructuralCardRecordV1
 from .cards import card_name_lookup_key
+from .details import _requirement_link_sort_key
 from .indexes import validate_index_row
 
 
@@ -170,13 +171,7 @@ def load_validated_query_bundle(
             key: tuple(
                 sorted(
                     values,
-                    key=lambda item: (
-                        item.relation.value,
-                        item.capability.capability_family_id,
-                        item.capability.capability_version,
-                        item.capability.claim_digest,
-                        item.link_id,
-                    ),
+                    key=_requirement_link_sort_key,
                 )
             )
             for key, values in links_by_requirement_values.items()

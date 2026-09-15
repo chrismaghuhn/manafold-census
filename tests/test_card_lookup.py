@@ -9,9 +9,16 @@ from analysis_fixtures import structural_record
 from test_census_bundle import _build_bundle
 
 from manafold_census.canonical import canonical_json_bytes
+from manafold_census.capability.identity import capability_claim_digest_for
+from manafold_census.capability.link_build import direct_link
 from manafold_census.digest import sha256_bytes
 from manafold_census.query.api import open_bundle
-from manafold_census.query.cards import QueryNotFoundV1
+from manafold_census.query.cards import QueryNotFoundV1, RequirementSummaryV1
+from manafold_census.query.details import (
+    CapabilityDetailViewV1,
+    MappedSubsetFrequencyV1,
+    RequirementDetailViewV1,
+)
 from manafold_census.query.lookup import (
     CardNameResolutionStatusV1,
     card_name_lookup_key,
@@ -129,10 +136,107 @@ def test_card_detail_exposes_semantic_view_and_capability_detail(
     assert capability.definition.display_name == "Draw cards"
     assert capability.definition.lifecycle.value == "ACTIVE"
     assert capability.definition_review is not None
+    assert len(capability.links) == 5
+    assert all(
+        item.capability == capability.definition.capability_ref
+        for item in capability.links
+    )
+    assert capability.to_wire()["links"] == [
+        item.to_wire() for item in capability.links
+    ]
     assert len(capability.linked_requirements) == 5
     assert capability.mapped_requirement_count == 5
     assert capability.mapped_subset_denominator == 5
     assert capability.mapped_subset_denominator_label == "MAPPED_REQUIREMENTS"
+
+
+def test_capability_detail_keeps_an_empty_mapped_subset_structural(
+    tmp_path: Path,
+) -> None:
+    package, _result = _build_bundle(tmp_path / "fixture")
+    definition = package.definitions[0]
+    definition_review = next(
+        item for item in package.reviews if item.record_id == definition.review_ref
+    )
+
+    detail = CapabilityDetailViewV1(
+        census_release_id="censusrel_" + "0" * 64,
+        census_manifest_sha256="a" * 64,
+        definition=definition,
+        definition_review=definition_review,
+        links=(),
+        linked_requirements=(),
+        mapped_cards=(),
+        mapped_subset_frequency=MappedSubsetFrequencyV1(
+            mapped_requirement_count=0,
+            denominator=5,
+            denominator_label="MAPPED_REQUIREMENTS",
+        ),
+    )
+
+    assert detail.links == ()
+    assert detail.mapped_cards == ()
+    assert detail.mapped_requirement_count == 0
+    assert detail.mapped_subset_denominator == 5
+    assert detail.to_wire()["mapped_cards"] == []
+
+
+def test_requirement_detail_accepts_multiple_links_in_query_canonical_order(
+    tmp_path: Path,
+) -> None:
+    package, _result = _build_bundle(tmp_path / "fixture")
+    requirement = package.corpus.requirements[0]
+    first_link = package.links[0]
+    base_definition = package.definitions[0]
+    for version in range(2, 33):
+        second_claim = replace(base_definition.claim, capability_version=version)
+        second_definition = replace(
+            base_definition,
+            capability_version=version,
+            claim=second_claim,
+            claim_digest=capability_claim_digest_for(second_claim),
+            review_ref=None,
+        )
+        candidate = direct_link(
+            requirement=requirement,
+            capability=second_definition,
+            m3_manifest_sha256=package.corpus.m3_analysis_manifest_sha256,
+            admissibility=package.admissibility[0],
+            parameter_bindings=first_link.parameter_bindings,
+        )
+        candidate_links = tuple(
+            sorted(
+                (first_link, candidate),
+                key=lambda item: (
+                    item.relation.value,
+                    item.capability.capability_family_id,
+                    item.capability.capability_version,
+                    item.capability.claim_digest,
+                    item.link_id,
+                ),
+            )
+        )
+        if tuple(item.link_id for item in candidate_links) != tuple(
+            sorted(item.link_id for item in candidate_links)
+        ):
+            second_link = candidate
+            expected = candidate_links
+            break
+    else:
+        raise AssertionError("could not construct distinct canonical link order")
+    mapping_decision = replace(
+        package.mapping_decisions[0],
+        active_link_ids=(first_link.link_id, second_link.link_id),
+    )
+
+    detail = RequirementDetailViewV1(
+        summary=RequirementSummaryV1.from_requirement(requirement),
+        admissibility=package.admissibility[0],
+        mapping_decision=mapping_decision,
+        links=expected,
+    )
+
+    assert detail.links == expected
 
 
 def test_capability_lookup_and_card_reverse_lookup_are_explicit(
