@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import builtins
+import re
 from dataclasses import replace
 from io import StringIO
 from pathlib import Path
@@ -41,7 +42,11 @@ def test_explorer_info_and_exact_card_search(
     root = _derived_bundle(tmp_path)
 
     assert main(["explorer", "--bundle", str(root), "info"]) == 0
-    assert "Census release" in capsys.readouterr().out
+    output = capsys.readouterr().out
+    assert "Census release" in output
+    assert "…" not in output
+    digest = open_bundle(root).metadata().census_manifest_sha256
+    assert digest in re.sub(r"[\s|│]", "", output)
 
     assert (
         main(

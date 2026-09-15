@@ -26,9 +26,9 @@ def test_explorer_info_and_exact_card_search(tmp_path, capsys):
     assert main(["explorer", "--bundle", str(root), "info"]) == 0
     assert "Census release" in capsys.readouterr().out
 
-    assert main(
-        ["explorer", "--bundle", str(root), "card", "search", "Fixture Card"]
-    ) == 0
+    assert (
+        main(["explorer", "--bundle", str(root), "card", "search", "Fixture Card"]) == 0
+    )
     output = capsys.readouterr().out
     assert "AMBIGUOUS" in output
     assert "5" in output
@@ -36,16 +36,19 @@ def test_explorer_info_and_exact_card_search(tmp_path, capsys):
 
 def test_explorer_card_show_and_capability_list_are_offline(tmp_path, capsys):
     root = _derived_bundle(tmp_path)
-    assert main(
-        [
-            "explorer",
-            "--bundle",
-            str(root),
-            "card",
-            "show",
-            ORACLE_ID,
-        ]
-    ) == 0
+    assert (
+        main(
+            [
+                "explorer",
+                "--bundle",
+                str(root),
+                "card",
+                "show",
+                ORACLE_ID,
+            ]
+        )
+        == 0
+    )
     assert "semantic_state" in capsys.readouterr().out
 
     assert main(["explorer", "--bundle", str(root), "capability", "list"]) == 0
@@ -54,13 +57,11 @@ def test_explorer_card_show_and_capability_list_are_offline(tmp_path, capsys):
 
 def test_explorer_unknown_and_ambiguous_card_show_are_explicit(tmp_path, capsys):
     root = _derived_bundle(tmp_path)
-    assert main(
-        ["explorer", "--bundle", str(root), "card", "show", "Fixture Card"]
-    ) == 0
+    assert (
+        main(["explorer", "--bundle", str(root), "card", "show", "Fixture Card"]) == 0
+    )
     assert "AMBIGUOUS" in capsys.readouterr().out
-    assert main(
-        ["explorer", "--bundle", str(root), "card", "show", "not a card"]
-    ) == 0
+    assert main(["explorer", "--bundle", str(root), "card", "show", "not a card"]) == 0
     assert "UNKNOWN" in capsys.readouterr().out
 ~~~
 

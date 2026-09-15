@@ -29,7 +29,7 @@ def _cell(value: object) -> Text:
 def _fields(title: str, values: Sequence[tuple[str, object]]) -> Table:
     table = Table(title=title, show_header=False)
     table.add_column("field", style="cyan", no_wrap=True)
-    table.add_column("value")
+    table.add_column("value", overflow="fold")
     for label, value in values:
         table.add_row(_cell(label), _cell(value))
     return table
@@ -64,9 +64,9 @@ def render_not_found(value: QueryNotFoundV1) -> RenderableType:
 
 def render_card_search(resolution: CardNameResolutionV1) -> RenderableType:
     matches = Table(title=f"matches={len(resolution.matches)}")
-    matches.add_column("name")
-    matches.add_column("oracle_id")
-    matches.add_column("source_card_id")
+    matches.add_column("name", overflow="fold")
+    matches.add_column("oracle_id", overflow="fold")
+    matches.add_column("source_card_id", overflow="fold")
     for identity in resolution.matches:
         matches.add_row(
             _cell(identity.name),
@@ -102,7 +102,7 @@ def render_card_detail(detail: CardDetailViewV1) -> RenderableType:
         ),
     )
     requirements = Table(title=f"requirements={len(detail.requirement_details)}")
-    requirements.add_column("requirement_id")
+    requirements.add_column("requirement_id", overflow="fold")
     requirements.add_column("review")
     requirements.add_column("resolution")
     requirements.add_column("mapping")
@@ -114,8 +114,8 @@ def render_card_detail(detail: CardDetailViewV1) -> RenderableType:
             _cell(requirement_detail.mapping_decision.disposition.value),
         )
     capabilities = Table(title=f"capabilities={len(detail.capability_details)}")
-    capabilities.add_column("display_name")
-    capabilities.add_column("capability_ref")
+    capabilities.add_column("display_name", overflow="fold")
+    capabilities.add_column("capability_ref", overflow="fold")
     capabilities.add_column("lifecycle")
     capabilities.add_column("links")
     for capability_detail in detail.capability_details:
@@ -136,8 +136,8 @@ def render_capability_list(
     details: Sequence[CapabilityDetailViewV1],
 ) -> RenderableType:
     table = Table(title=f"capabilities={len(details)}")
-    table.add_column("display_name")
-    table.add_column("capability_ref")
+    table.add_column("display_name", overflow="fold")
+    table.add_column("capability_ref", overflow="fold")
     table.add_column("lifecycle")
     table.add_column("mapped_cards")
     table.add_column("mapped_subset")
@@ -175,8 +175,8 @@ def render_capability_detail(detail: CapabilityDetailViewV1) -> RenderableType:
         ),
     )
     links = Table(title=f"supporting_links={len(detail.links)}")
-    links.add_column("link_id")
-    links.add_column("requirement_id")
+    links.add_column("link_id", overflow="fold")
+    links.add_column("requirement_id", overflow="fold")
     links.add_column("relation")
     links.add_column("claim_digest")
     for link in detail.links:
@@ -212,7 +212,7 @@ def render_unresolved(
     views: Sequence[CardSemanticViewV1],
 ) -> RenderableType:
     table = Table(title=f"unresolved_cards={len(views)}")
-    table.add_column("oracle_id")
+    table.add_column("oracle_id", overflow="fold")
     table.add_column("analysis_outcome")
     table.add_column("semantic_state")
     table.add_column("requirements")
@@ -270,7 +270,7 @@ def _render_deck_section(section: DeckSectionAnalysisV1) -> Table:
 def _render_deck_name_resolutions(section: DeckSectionAnalysisV1) -> Table:
     table = Table(title=f"{section.section.value} name resolutions")
     table.add_column("status")
-    table.add_column("name")
+    table.add_column("name", overflow="fold")
     table.add_column("quantity")
     for unknown_name in section.unknown_names:
         table.add_row(
