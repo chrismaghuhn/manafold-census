@@ -57,7 +57,7 @@ def test_windows_workflow_pins_reproducible_build_inputs() -> None:
     assert "runs-on: windows-2022" in workflow
     assert 'python-version: "3.12.10"' in workflow
     assert 'PYTHONHASHSEED: "0"' in workflow
-    assert 'SOURCE_DATE_EPOCH: "0"' in workflow
+    assert 'SOURCE_DATE_EPOCH: "946684800"' in workflow
     assert "TZ: UTC" in workflow
     assert "PYINSTALLER_CONFIG_DIR" in workflow
     assert "--require-hashes -r packaging/windows-requirements.txt" in workflow

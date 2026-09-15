@@ -12,7 +12,7 @@ jobs:
     runs-on: windows-2022
     env:
       PYTHONHASHSEED: "0"
-      SOURCE_DATE_EPOCH: "0"
+      SOURCE_DATE_EPOCH: "946684800"
       TZ: UTC
       LC_ALL: C.UTF-8
       LANG: C.UTF-8

@@ -142,7 +142,7 @@ $env:PYTHONPATH='src'; & C:\Python313\python.exe -m pytest tests/test_windows_pa
 
 - [ ] **Step 1: Pin the workflow.**
 
-Use `runs-on: windows-2022`, `actions/setup-python@v5`, and `python-version: "3.12.10"`. Set `PYTHONHASHSEED: "0"`, `SOURCE_DATE_EPOCH: "0"`, `TZ: UTC`, `LC_ALL: C.UTF-8`, `LANG: C.UTF-8`, and `PIP_DISABLE_PIP_VERSION_CHECK: "1"`. Use `$env:RUNNER_TEMP\m5-11-build-root`, a `PYINSTALLER_CONFIG_DIR` below it, and separate `dist-a/work-a` and `dist-b/work-b` directories.
+Use `runs-on: windows-2022`, `actions/setup-python@v5`, and `python-version: "3.12.10"`. Set `PYTHONHASHSEED: "0"`, `SOURCE_DATE_EPOCH: "946684800"` (2000-01-01, a ZIP-compatible reproducible timestamp), `TZ: UTC`, `LC_ALL: C.UTF-8`, `LANG: C.UTF-8`, and `PIP_DISABLE_PIP_VERSION_CHECK: "1"`. Use `$env:RUNNER_TEMP\m5-11-build-root`, a `PYINSTALLER_CONFIG_DIR` below it, and separate `dist-a/work-a` and `dist-b/work-b` directories.
 
 - [ ] **Step 2: Build two external-bundle executables.**
 
