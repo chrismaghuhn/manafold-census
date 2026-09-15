@@ -5,7 +5,8 @@ Repository: https://github.com/chrismaghuhn/manafold-census
 Status: DESIGN SPECIFICATION / REPAIRED / READY FOR INDEPENDENT REVIEW
 
 ~~~text
-M5_DESIGN_AMENDMENT_01              = FROZEN-CONTRACT REPAIR
+M5_DESIGN_AMENDMENT_01              = APPLIED
+M5_DESIGN_AMENDMENT_02              = FROZEN-CONTRACT REPAIR
 M5_IMPLEMENTATION_AUTHORIZED        = NO
 M5_REAL_INPUT_CAMPAIGN_STARTED     = NO
 M5_REAL_M4_BUILD_STARTED           = NO
@@ -54,6 +55,18 @@ frozen M4 contracts:
 8. Windows executable byte parity is initially EXPERIMENTAL; authoritative
    Census bytes, report/index bytes, functional rebuild, and Windows smoke
    remain hard gates.
+9. An UNRESOLVED_ANALYSIS record with a persisted Requirement bundle remains
+   eligible for normal frozen M4 validation, review, and mapping. Only an
+   unresolved record without a persisted bundle contributes no Requirement or
+   M4 mapping row.
+10. CardSemanticView applies explicit SemanticStateV1 precedence: the M3
+    outcome UNRESOLVED_ANALYSIS or NO_REQUIREMENTS_APPLICABLE dominates mapping
+    completeness.
+11. authority_package_digest is a domain-separated digest of an explicit
+    projection that excludes the digest field itself.
+12. The published M4 snapshot must have exact canonical record-set parity with
+    the reviewed authority package after flat/sharded representation is
+    normalized.
 
 ## 1. Executive decision
 
@@ -217,7 +230,7 @@ M5_AUTHORITY_RECONCILIATION = BLOCKED until M5-00 is separately performed.
 | Reviewed authority package | Persisted source of human-reviewed M4 records | Worklist or generated suggestion |
 | M4 snapshot | Validated publication of M4 records for one exact M3 input | One mapping per card |
 | Census bundle | Release-bound consumer product | New semantic authority |
-| Unresolved analysis | Explicit inability to close the semantic analysis | No Requirement, no Capability, or negative authority |
+| Unresolved analysis | Explicit inability to close the semantic analysis; a nonempty M2 bundle may still be present | Does not mean no Requirement, no Capability, or negative authority |
 | Active mapping | Validated, reviewed M4 link included by an accepted mapping decision | Complete semantic understanding of a card |
 | Mapped subset | Cards or Requirements with active M4 mappings | Representative global Magic distribution |
 
@@ -467,6 +480,31 @@ not introduce a second semantic representation.
 The package manifest is not a Capability claim. It is release/control metadata
 that prevents scope drift and supports reproducibility.
 
+The persisted authority_package_digest is non-self-referential:
+
+~~~text
+authority_package_digest =
+  domain_digest(
+    "census.m5-m4-authority-package.v1",
+    {
+      schema,
+      campaign_id,
+      m3_analysis_manifest_sha256,
+      m4_requirement_set_digest,
+      selected_requirement_ids,
+      record_file_descriptors,
+      review_policy
+    }
+  )
+~~~
+
+The digest field itself is excluded from this projection. The projection uses
+the canonical, sorted descriptor set and contains no timestamps, absolute
+paths, filesystem order, or package-manifest self-hash. The raw SHA-256 of the
+complete canonical authority-manifest.json may also be recorded externally,
+but it is a separate file digest and is not substituted for the domain
+identity above.
+
 ### 7.3 Record ownership
 
 | File | Record type | Role |
@@ -538,6 +576,12 @@ This is a frozen-contract constraint, not an M5 implementation preference.
 The current five Requirements may support a reusable generic Capability. The
 campaign must not pre-authorize that result.
 
+Campaign scope is Requirement-based, not card-outcome-based. An
+UNRESOLVED_ANALYSIS card with a nonempty persisted M2 Requirement bundle may
+contribute those exact Requirements to the campaign. The unresolved card state
+remains unchanged, and any mapping is attached to the persisted Requirement,
+not to an assertion that the whole card is semantically closed.
+
 ### 7.6 Scope protection
 
 The authority-package validator rejects:
@@ -549,12 +593,17 @@ M4 record bound to a different M3 manifest
 duplicate SRA decision
 active link without the required review path
 active definition without activation eligibility
-mapping for an unresolved card
+mapping for an unresolved card without a persisted Requirement bundle
 M2 status mutation
 candidate-only artifact presented as active authority
 ~~~
 
-No unresolved analysis record is converted into a Requirement or mapping.
+An UNRESOLVED_ANALYSIS record without a persisted Requirement bundle contributes
+no Requirement and receives no M4 mapping row. An UNRESOLVED_ANALYSIS record
+with a nonempty persisted Requirement bundle contributes each exact Requirement
+to the normal frozen M4 input set; those Requirements remain eligible for the
+same validation, review, admissibility, and mapping path as any other persisted
+Requirement. This does not change the card-level unresolved outcome.
 
 ## 8. Explicit real-M4 orchestration
 
@@ -609,8 +658,10 @@ all locked M3 analysis records as context
 all persisted M2 Requirements from that M3 snapshot
 only reviewed/admissible M4 mappings
 explicit non-mapped decisions for persisted Requirements where required
-no M4 rows for cards with no Requirement
+no M4 rows for cards with no persisted Requirement bundle
 no synthesized Requirements for UNRESOLVED_ANALYSIS
+persisted Requirements from UNRESOLVED_ANALYSIS bundles remain eligible for M4
+mapping; the card outcome remains UNRESOLVED_ANALYSIS
 ~~~
 
 The M3 outcome vocabulary remains:
@@ -631,7 +682,9 @@ OUTLIER
 INSUFFICIENT_EVIDENCE
 ~~~
 
-UNRESOLVED_ANALYSIS and M4 OUTLIER are different states.
+UNRESOLVED_ANALYSIS and M4 OUTLIER are different states. An unresolved card may
+still have persisted Requirements and active mappings for the subset of its
+semantic analysis that M3 did close.
 
 ### 9.1 Global counters
 
@@ -792,6 +845,18 @@ A bundle validator must:
 - validate nested M1, M3, authority-package, and M4 manifests;
 - verify every descriptor SHA, byte length, and record count;
 - verify cross-layer source and Requirement-set identities;
+- verify authority_package_digest using its non-self-referential projection;
+- compare the reviewed authority package and published M4 snapshot after
+  canonical record normalization:
+  - authority definitions = published capabilities;
+  - authority reviews = published review-authority records;
+  - authority relations = published capability-relations records;
+  - authority admissibility = published requirement-admissibility records;
+  - authority links = published sharded link records;
+  - authority mapping decisions = published sharded decision records;
+  - authority evolution = published evolution records;
+- compare parsed canonical record sets, not physical file layout, because the
+  published links and mapping decisions are sharded;
 - verify no authority package record is outside the locked M3 corpus;
 - reject unknown required schema versions;
 - reject missing required components;
@@ -968,14 +1033,40 @@ UNRESOLVED_ANALYSIS
 NO_REQUIREMENTS_APPLICABLE
 ~~~
 
+The state is derived by these normative precedence rules; implementation order
+must not decide the result:
+
+~~~text
+if analysis_outcome == UNRESOLVED_ANALYSIS:
+    semantic_state = UNRESOLVED_ANALYSIS
+
+elif analysis_outcome == NO_REQUIREMENTS_APPLICABLE:
+    semantic_state = NO_REQUIREMENTS_APPLICABLE
+
+elif analysis_outcome == REQUIREMENTS_PRODUCED:
+    if every persisted Requirement has the required final active mapping:
+        semantic_state = ESTABLISHED
+    else:
+        semantic_state = PARTIALLY_ESTABLISHED
+~~~
+
 Interpretation:
 
-- UNRESOLVED_ANALYSIS means M3 could not close the semantic analysis.
-- NO_REQUIREMENTS_APPLICABLE means explicit M3 negative authority exists.
-- PARTIALLY_ESTABLISHED means Requirements exist but mapping coverage is
-  incomplete, proposal-only, ambiguous, or otherwise non-final.
-- ESTABLISHED means all relevant persisted Requirements for the card have
-  validated active mappings in this snapshot.
+- UNRESOLVED_ANALYSIS always wins at card level, even when the record contains
+  a nonempty Requirement bundle and every currently persisted Requirement has
+  an active mapping.
+- NO_REQUIREMENTS_APPLICABLE means explicit M3 negative authority exists and
+  has precedence over mapping completeness.
+- PARTIALLY_ESTABLISHED means M3 produced a Requirement bundle but one or more
+  persisted Requirements lack the required final active mapping because they
+  are proposal-only, ambiguous, unmapped, or otherwise non-final.
+- ESTABLISHED means M3 produced Requirements and every persisted Requirement
+  for the card has the required validated active mapping in this snapshot.
+
+An unresolved card may therefore contain both Requirements and active
+Capability mappings. The state remains UNRESOLVED_ANALYSIS because it describes
+the completeness of the M3 card analysis, not only the completeness of the
+currently persisted M4 subset.
 
 The state does not claim broad Magic understanding.
 
@@ -1275,6 +1366,7 @@ negative contract tests
 M1/M3/M4 cross-layer conformance
 authority-package scope tests
 SRA multiplicity tests
+authority-package to published-M4 record-set parity tests
 two-run reproduction
 input-order permutation tests
 report regeneration parity
@@ -1307,7 +1399,9 @@ accepted/rejected SRA conflict
 stale M4 link
 unaccepted review
 active link to non-active definition
-mapping for unresolved analysis
+mapping for unresolved analysis without a persisted bundle
+mapping persisted Requirements from an unresolved bundle
+unresolved card state retained when all persisted Requirements are mapped
 unknown card name
 ambiguous card name
 negative deck quantity
@@ -1546,7 +1640,7 @@ multiple SRA decisions for one Requirement
 M2 status mutation
 mass admission
 LLM authority
-unresolved-card mappings
+mapping an unresolved card without a persisted Requirement bundle
 ~~~
 
 Exit gate:
@@ -1599,6 +1693,7 @@ Exit gate:
 real M4 snapshot reread PASS
 parent_m4_manifest_sha256 = null
 M4 validators PASS
+authority-package to published-M4 record-set parity PASS
 ~~~
 
 ### M5-05 — Census bundle
@@ -1949,6 +2044,7 @@ REAL_M4_SNAPSHOT_BUILD             = PASS
 REQUIREMENT_CAPABILITY_LINKS       = AUDITABLE
 SRA_MULTIPLICITY                   = PASS
 AUTHORITY_PACKAGE_REPRODUCTION     = PASS
+AUTHORITY_M4_RECORD_SET_PARITY     = PASS
 
 CENSUS_0_1_BUNDLE                  = PASS
 BUNDLE_REREAD                      = PASS
