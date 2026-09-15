@@ -3,6 +3,7 @@ from __future__ import annotations
 import copy
 import importlib
 import json
+import shutil
 from dataclasses import replace
 from pathlib import Path
 from types import ModuleType
@@ -158,6 +159,71 @@ def test_missing_explicit_artifact_returns_blocked(
     assert result.status is module.CensusInputLockStatusV1.BLOCKED
     assert result.m3_corpus is None
     assert "analysis_output_directory" in result.checks[0].detail
+
+
+@pytest.mark.parametrize(
+    "artifact_path",
+    [
+        "m1_records_shard",
+        "m3_records_directory",
+        "m3_records_shard",
+        "m3_trace_directory",
+        "m3_trace_shard",
+    ],
+)
+def test_missing_nested_artifact_returns_blocked(
+    tmp_path: Path,
+    artifact_path: str,
+) -> None:
+    lock, provisioning, _ = build_lock(tmp_path)
+    module = input_lock_module()
+    paths = {
+        "m1_records_shard": provisioning.structural_output_directory
+        / "records/0.jsonl",
+        "m3_records_directory": provisioning.analysis_output_directory / "records",
+        "m3_records_shard": provisioning.analysis_output_directory / "records/0.jsonl",
+        "m3_trace_directory": provisioning.analysis_output_directory / "trace",
+        "m3_trace_shard": provisioning.analysis_output_directory / "trace/0.jsonl",
+    }
+    target = paths[artifact_path]
+    if target.is_dir():
+        shutil.rmtree(target)
+    else:
+        target.unlink()
+
+    result = module.validate_census_input_lock(lock, provisioning)
+
+    assert result.status is module.CensusInputLockStatusV1.BLOCKED
+    assert result.m3_corpus is None
+    assert artifact_path.split("_")[0] in result.checks[0].detail
+
+
+@pytest.mark.parametrize(
+    "directory_path",
+    [
+        "m1_records",
+        "m3_records",
+        "m3_trace",
+    ],
+)
+def test_extra_nested_artifact_returns_fail(
+    tmp_path: Path,
+    directory_path: str,
+) -> None:
+    lock, provisioning, _ = build_lock(tmp_path)
+    module = input_lock_module()
+    directories = {
+        "m1_records": provisioning.structural_output_directory / "records",
+        "m3_records": provisioning.analysis_output_directory / "records",
+        "m3_trace": provisioning.analysis_output_directory / "trace",
+    }
+    (directories[directory_path] / "extra.jsonl").write_bytes(b"extra\n")
+
+    result = module.validate_census_input_lock(lock, provisioning)
+
+    assert result.status is module.CensusInputLockStatusV1.FAIL
+    assert result.m3_corpus is None
+    assert "unexpected" in result.checks[0].detail
 
 
 @pytest.mark.parametrize(

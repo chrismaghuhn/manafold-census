@@ -292,23 +292,15 @@ def validate_census_input_lock(
     if not isinstance(provisioning, CensusInputProvisioningV1):
         raise TypeError("provisioning must be CensusInputProvisioningV1")
 
-    expected_paths = (
-        ("source_lock_path", provisioning.source_lock_path, True),
-        (
-            "structural_output_directory",
-            provisioning.structural_output_directory,
-            False,
-        ),
-        ("analysis_output_directory", provisioning.analysis_output_directory, False),
-    )
-    for field, path, is_file in expected_paths:
-        available = path.is_file() if is_file else path.is_dir()
-        if not available:
-            return _result(
-                CensusInputLockStatusV1.BLOCKED,
-                field,
-                f"{field} is missing or has the wrong type: {path}",
-            )
+    from .preflight import preflight_census_input_provisioning
+
+    preflight = preflight_census_input_provisioning(provisioning)
+    if preflight.status is not CensusInputLockStatusV1.PASS:
+        return CensusInputValidationResultV1(
+            status=preflight.status,
+            checks=preflight.checks,
+            m3_corpus=None,
+        )
 
     try:
         source_document, source_raw = _read_canonical_document(
