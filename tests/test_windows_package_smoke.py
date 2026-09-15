@@ -49,6 +49,13 @@ def test_explorer_spec_is_external_bundle_onedir() -> None:
     assert '"locks"' not in spec
     assert '"reviewed"' not in spec
     assert '"dist"' not in spec
+    exe_block = spec.split("exe = EXE(", 1)[1].split("COLLECT(", 1)[0]
+    collect_block = spec.split("COLLECT(", 1)[1]
+    assert "exclude_binaries=True" in exe_block
+    assert "a.binaries" not in exe_block
+    assert "a.datas" not in exe_block
+    assert "a.binaries" in collect_block
+    assert "a.datas" in collect_block
 
 
 def test_windows_workflow_pins_reproducible_build_inputs() -> None:
