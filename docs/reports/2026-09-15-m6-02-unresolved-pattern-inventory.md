@@ -15,12 +15,12 @@ This evidence records two deterministic, offline inventory builds.
 - Selected unresolved Oracle identities: 38735
 - Selected identity-set digest: 4a16da7aca9858c81341ecbc714bd46d60e643d33757f2e739d5ac4f69a54dc2
 - Total surfaces: 119385
-- Candidate groups: 148443
-- Recurring groups: 10726
-- Singleton groups: 137717
-- Capability Opportunities: 10726
-- Oracle IDs in recurring groups: 25957
-- Oracle IDs only in singleton groups: 12778
+- Candidate groups: 148371
+- Recurring groups: 10732
+- Singleton groups: 137639
+- Capability Opportunities: 10732
+- Oracle IDs in recurring groups: 25960
+- Oracle IDs only in singleton groups: 12775
 
 ## Parity gates
 

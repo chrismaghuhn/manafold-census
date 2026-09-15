@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from tests.inventory_fixtures import records
+from inventory_fixtures import records
 
 
 def test_projection_preserves_card_face_null_and_empty_surfaces() -> None:

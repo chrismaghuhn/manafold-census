@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from tests.inventory_fixtures import records
+from inventory_fixtures import records
 
 
 def test_inventory_identity_and_serialization_are_traversal_order_independent() -> None:
@@ -30,9 +30,10 @@ def test_inventory_reproduction_writes_path_free_evidence(
     tmp_path,
     monkeypatch,
 ) -> None:
+    from test_inventory_build import _loaded_inputs
+
     from manafold_census.inventory import reproduction
     from manafold_census.inventory.input import InventoryInputsV1
-    from tests.test_inventory_build import _loaded_inputs
 
     monkeypatch.setattr(
         reproduction,
@@ -62,3 +63,27 @@ def test_inventory_reproduction_writes_path_free_evidence(
     evidence = (tmp_path / "evidence.json").read_text(encoding="utf-8")
     assert str(tmp_path) not in evidence
     assert '"offline_regeneration":true' in evidence
+
+
+def test_report_shape_example_uses_face_self_name() -> None:
+    from inventory_fixtures import face, structural_card
+
+    from manafold_census.inventory.grouping import shape_text_for_surface
+    from manafold_census.inventory.model import SurfaceScopeV1
+    from manafold_census.inventory.projection import project_surfaces
+
+    surfaces = project_surfaces(
+        (
+            structural_card(
+                31,
+                name="Parent Card",
+                oracle_text=None,
+                faces=(face(0, name="Front Name", oracle_text="Front Name gets 1"),),
+            ),
+        )
+    )
+    face_surface = next(
+        item for item in surfaces if item.scope is SurfaceScopeV1.FACE_TEXT
+    )
+
+    assert shape_text_for_surface(face_surface) == "{SOURCE_NAME} gets {NUMBER}"

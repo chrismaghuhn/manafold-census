@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from dataclasses import replace
 
 import pytest
 
@@ -24,9 +25,10 @@ def test_inventory_input_requires_all_explicit_parent_paths(tmp_path) -> None:
 
 
 def test_inventory_models_do_not_construct_requirements_or_capabilities() -> None:
+    from inventory_fixtures import records
+
     from manafold_census.inventory.grouping import group_surfaces
     from manafold_census.inventory.projection import project_surfaces
-    from tests.inventory_fixtures import records
 
     groups = group_surfaces(project_surfaces(records()))
 
@@ -38,9 +40,11 @@ def test_inventory_models_do_not_construct_requirements_or_capabilities() -> Non
 
 
 def _loaded_inputs():
+    from inventory_fixtures import records
+
     from manafold_census.inventory.input import LoadedInventoryInputsV1
 
-    selected = __import__("tests.inventory_fixtures", fromlist=["records"]).records()
+    selected = records()
     return LoadedInventoryInputsV1(
         source_lock_digest="a" * 64,
         source_lock_file_sha256="b" * 64,
@@ -105,12 +109,13 @@ def test_inventory_validation_rejects_tampered_surface_identity(tmp_path) -> Non
 
 
 def test_population_selector_excludes_non_unresolved_outcomes() -> None:
+    from analysis_fixtures import bundle
+    from inventory_fixtures import structural_card
+
     from manafold_census.analysis.model import AnalysisOutcomeV1, CardAnalysisRecordV1
     from manafold_census.inventory.input import select_unresolved_records
     from manafold_census.semantic.evidence import SourceRecordRefV1
     from manafold_census.structural.model import StructuralCardRecordV1
-    from tests.analysis_fixtures import bundle
-    from tests.inventory_fixtures import structural_card
 
     unresolved = structural_card(
         20,
@@ -170,3 +175,33 @@ def test_build_rejects_existing_output_and_extra_artifact(tmp_path) -> None:
     (output / "unexpected.json").write_text("{}", encoding="utf-8")
     with pytest.raises(InventoryValidationError, match="file set"):
         validate_inventory(output)
+
+
+def test_input_bound_validator_rejects_self_consistent_source_projection_drift(
+    tmp_path,
+) -> None:
+    from manafold_census.inventory.build import build_inventory_from_loaded_inputs
+    from manafold_census.inventory.validate import (
+        InventoryValidationError,
+        validate_inventory_against_inputs,
+    )
+
+    original = _loaded_inputs()
+    altered_records = tuple(
+        replace(
+            record,
+            oracle_text="Altered\nsurface" if index == 0 else record.oracle_text,
+        )
+        for index, record in enumerate(original.selected_records)
+    )
+    altered = replace(original, selected_records=altered_records)
+    output = build_inventory_from_loaded_inputs(
+        altered,
+        tmp_path / "inventory",
+    ).output_directory
+
+    with pytest.raises(
+        InventoryValidationError,
+        match="source surface projection",
+    ):
+        validate_inventory_against_inputs(output, original)

@@ -54,6 +54,23 @@ def shape_text(raw_text: str | None, card_name: str) -> str | None:
     return _WHITESPACE.sub(" ", value).strip()
 
 
+def source_self_name_for_surface(surface: SourceSurfaceV1) -> str:
+    """Return the source-local self-name used by the shape policy."""
+
+    if surface.face_index is not None and surface.face_name is not None:
+        return surface.face_name
+    return surface.card_name
+
+
+def shape_text_for_surface(surface: SourceSurfaceV1) -> str | None:
+    """Shape one surface using its card- or face-local source name."""
+
+    return shape_text(
+        surface.raw_text,
+        source_self_name_for_surface(surface),
+    )
+
+
 def _scope_for_lens(lens: GroupingLensV1) -> str:
     if lens.value.startswith("CARD_TEXT"):
         return "CARD_TEXT"
@@ -76,7 +93,7 @@ def _policy_for_lens(lens: GroupingLensV1) -> tuple[str, str]:
 
 def _surface_key(surface: SourceSurfaceV1, lens: GroupingLensV1) -> str | None:
     if _is_shape_lens(lens):
-        return shape_text(surface.raw_text, surface.card_name)
+        return shape_text_for_surface(surface)
     return surface.raw_text
 
 
@@ -232,4 +249,6 @@ __all__ = [
     "build_capability_opportunities",
     "group_surfaces",
     "shape_text",
+    "shape_text_for_surface",
+    "source_self_name_for_surface",
 ]

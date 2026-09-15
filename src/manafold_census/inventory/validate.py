@@ -178,6 +178,7 @@ def validate_inventory(
     output_directory: str | Path,
     *,
     expected_selected_count: int | None = None,
+    expected_surfaces: tuple[SourceSurfaceV1, ...] | None = None,
 ) -> InventoryValidationResultV1:
     """Validate one complete canonical inventory tree without external inputs."""
 
@@ -222,6 +223,13 @@ def validate_inventory(
         raise InventoryValidationError("inventory report is invalid") from error
 
     _validate_surface_ids(surfaces)
+    reconstruction_surfaces = surfaces
+    if expected_surfaces is not None:
+        if surfaces != expected_surfaces:
+            raise InventoryValidationError(
+                "persisted surfaces do not match source surface projection"
+            )
+        reconstruction_surfaces = expected_surfaces
     selected_ids = tuple(sorted({item.oracle_id for item in surfaces}))
     if manifest.selected_identity_count != len(selected_ids):
         raise InventoryValidationError(
@@ -239,7 +247,7 @@ def validate_inventory(
             "selected identity count does not match expected population"
         )
 
-    expected_groups = group_surfaces(surfaces)
+    expected_groups = group_surfaces(reconstruction_surfaces)
     if tuple(item.to_wire() for item in groups) != tuple(
         item.to_wire() for item in expected_groups
     ):
@@ -291,7 +299,9 @@ def validate_inventory(
         m1_record_count=0,
         m3_record_count=0,
         selected_records=(),
-        selected_oracle_ids=selected_ids,
+        selected_oracle_ids=tuple(
+            sorted({item.oracle_id for item in reconstruction_surfaces})
+        ),
     )
     expected_report = build_report(report_inputs, surfaces, groups, opportunities)
     if report.to_wire() != expected_report.to_wire():
@@ -326,9 +336,13 @@ def validate_inventory_against_inputs(
 ) -> InventoryValidationResultV1:
     """Validate internal artifacts and bind them to explicit parent inputs."""
 
+    from .projection import project_surfaces
+
+    expected_surfaces = project_surfaces(inputs.selected_records)
     result = validate_inventory(
         output_directory,
         expected_selected_count=len(inputs.selected_oracle_ids),
+        expected_surfaces=expected_surfaces,
     )
     manifest = result.manifest
     expected = (

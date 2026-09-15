@@ -6,7 +6,7 @@ from collections import Counter
 from collections.abc import Iterable, Mapping
 
 from ..canonical import JSONValue
-from .grouping import shape_text
+from .grouping import shape_text_for_surface
 from .input import LoadedInventoryInputsV1
 from .model import (
     CandidateGroupV1,
@@ -32,9 +32,7 @@ def _surface_example(
         "face_index": surface.face_index,
         "line_index": surface.line_index,
         "raw_text": surface.raw_text,
-        "shape_text": (
-            shape_text(surface.raw_text, surface.card_name) if include_shape else None
-        ),
+        "shape_text": shape_text_for_surface(surface) if include_shape else None,
     }
 
 
