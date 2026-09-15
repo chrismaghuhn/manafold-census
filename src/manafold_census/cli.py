@@ -29,10 +29,7 @@ from .corpus.build import (
 from .corpus.check import validate_corpus_output
 from .digest import REPRODUCTION_DOMAIN, domain_digest, measure_file, sha256_bytes
 from .models import ArtifactManifest, DatasetManifest, SourceLock, StudySpec
-from .release.commands import (
-    check_census_authority_package_command,
-    check_census_input_lock_command,
-)
+from .release.cli import add_m5_parsers, dispatch_m5_command
 from .resources import project_data_root
 from .source.scryfall import discover_oracle_cards, refresh_current_source
 from .source.transfer import fetch_pinned_source
@@ -390,23 +387,7 @@ def _parser() -> argparse.ArgumentParser:
     m4_parent.add_argument("--synthetic", action="store_true")
     for command in ("m4-build", "m4-check", "m4-report"):
         subparsers.add_parser(command, parents=[m4_parent])
-    input_lock_parser = subparsers.add_parser(
-        "m5-input-lock-check",
-        help="validate a CensusInputLockV1 against explicit artifact paths",
-    )
-    input_lock_parser.add_argument("--lock", required=True)
-    input_lock_parser.add_argument("--source-lock", required=True)
-    input_lock_parser.add_argument("--structural-output", required=True)
-    input_lock_parser.add_argument("--analysis-output", required=True)
-    authority_parser = subparsers.add_parser(
-        "m5-authority-check",
-        help="validate the explicit Census 0.1 M4 authority package",
-    )
-    authority_parser.add_argument("--package", required=True)
-    authority_parser.add_argument("--lock", required=True)
-    authority_parser.add_argument("--source-lock", required=True)
-    authority_parser.add_argument("--structural-output", required=True)
-    authority_parser.add_argument("--analysis-output", required=True)
+    add_m5_parsers(subparsers)
     return parser
 
 
@@ -468,21 +449,9 @@ def main(argv: Sequence[str] | None = None) -> int:
                 args.output,
                 args.synthetic,
             )
-        if args.command == "m5-input-lock-check":
-            return check_census_input_lock_command(
-                args.lock,
-                args.source_lock,
-                args.structural_output,
-                args.analysis_output,
-            )
-        if args.command == "m5-authority-check":
-            return check_census_authority_package_command(
-                args.package,
-                args.lock,
-                args.source_lock,
-                args.structural_output,
-                args.analysis_output,
-            )
+        m5_result = dispatch_m5_command(args)
+        if m5_result is not None:
+            return m5_result
     except (OSError, RuntimeError, TypeError, ValueError) as error:
         print(f"{args.command}=FAIL: {error}", file=sys.stderr)
         return 1
