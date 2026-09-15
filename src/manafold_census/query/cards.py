@@ -35,6 +35,14 @@ class SemanticStateV1(StrEnum):
     NO_REQUIREMENTS_APPLICABLE = "NO_REQUIREMENTS_APPLICABLE"
 
 
+def card_name_lookup_key(value: str) -> str:
+    """Normalize lookup whitespace and case without normalizing source text."""
+
+    if not isinstance(value, str):
+        raise TypeError("card name must be a string")
+    return " ".join(value.strip().split()).casefold()
+
+
 def _tuple_values(value: object, field: str) -> tuple[object, ...]:
     if not isinstance(value, tuple | list):
         raise TypeError(f"{field} must be a tuple or list")
@@ -420,5 +428,6 @@ __all__ = [
     "RequirementSummaryV1",
     "SemanticStateV1",
     "build_card_semantic_view",
+    "card_name_lookup_key",
     "semantic_state_for",
 ]

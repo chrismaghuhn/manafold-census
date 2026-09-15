@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from collections import defaultdict
 from collections.abc import Mapping
 from dataclasses import dataclass
@@ -12,6 +13,7 @@ from typing import cast
 from ..analysis.model import CardAnalysisRecordV1
 from ..analysis.trace import TraceEventV1, trace_sort_key
 from ..analysis.validate import inspect_trace_shards
+from ..canonical import canonical_json_bytes
 from ..capability.admissibility import SourceRequirementAdmissibilityV1
 from ..capability.build import _reread_output, _RereadResult
 from ..capability.definition import CapabilityDefinitionV1
@@ -28,6 +30,8 @@ from ..reports.report_model import CensusReportV1
 from ..semantic.identity import wire_digest_for
 from ..semantic.model import RequirementV1
 from ..structural.model import StructuralCardRecordV1
+from .cards import card_name_lookup_key
+from .indexes import validate_index_row
 
 
 def _collect_requirements(
@@ -50,6 +54,57 @@ def _collect_requirements(
     return tuple(values[key][0] for key in sorted(values))
 
 
+def _read_name_index(
+    root: Path,
+    structural_by_oracle: Mapping[str, StructuralCardRecordV1],
+) -> Mapping[str, tuple[StructuralCardRecordV1, ...]]:
+    path = root / "indexes/cards-by-name.jsonl"
+    try:
+        raw = path.read_bytes()
+    except OSError as error:
+        raise FileNotFoundError("cards-by-name index cannot be read") from error
+    values: dict[str, list[StructuralCardRecordV1]] = defaultdict(list)
+    order_keys: list[tuple[str, str, str]] = []
+    for line in raw.splitlines(keepends=True):
+        if not line.endswith(b"\n"):
+            raise ValueError("cards-by-name index is missing a final LF")
+        try:
+            document = json.loads(line)
+            if line != canonical_json_bytes(document) + b"\n":
+                raise ValueError("cards-by-name index is not canonical JSONL")
+            validate_index_row("indexes/cards-by-name.jsonl", document)
+        except (
+            TypeError,
+            ValueError,
+            UnicodeDecodeError,
+            json.JSONDecodeError,
+        ) as error:
+            raise ValueError("cards-by-name index contains an invalid row") from error
+        row = cast(dict[str, object], document)
+        oracle_id = cast(str, row["oracle_id"])
+        record = structural_by_oracle.get(oracle_id)
+        if record is None:
+            raise ValueError("cards-by-name index references an unknown card")
+        for field in ("name", "source_card_id", "source_record_sha256"):
+            if row[field] != getattr(record, field):
+                raise ValueError("cards-by-name index disagrees with source record")
+        key = card_name_lookup_key(record.name)
+        values[key].append(record)
+        order_keys.append((cast(str, row["name"]), oracle_id, record.source_card_id))
+    if order_keys != sorted(order_keys) or len({item[1] for item in order_keys}) != len(
+        order_keys
+    ):
+        raise ValueError("cards-by-name index is not canonically ordered")
+    if len(order_keys) != len(structural_by_oracle):
+        raise ValueError("cards-by-name index does not cover every card")
+    return MappingProxyType(
+        {
+            key: tuple(sorted(records, key=lambda item: (item.name, item.oracle_id)))
+            for key, records in values.items()
+        }
+    )
+
+
 @dataclass(frozen=True, slots=True)
 class ValidatedQueryBundleV1:
     root: Path
@@ -62,6 +117,7 @@ class ValidatedQueryBundleV1:
     m4: _RereadResult
     structural_by_oracle: Mapping[str, StructuralCardRecordV1]
     analysis_by_oracle: Mapping[str, CardAnalysisRecordV1]
+    name_index: Mapping[str, tuple[StructuralCardRecordV1, ...]]
     requirements_by_id: Mapping[str, RequirementV1]
     admissibility_by_requirement: Mapping[str, SourceRequirementAdmissibilityV1]
     decisions_by_requirement: Mapping[str, RequirementMappingDecisionV1]
@@ -93,6 +149,7 @@ def load_validated_query_bundle(
     analysis_by_oracle = MappingProxyType(
         {item.source.oracle_id: item for item in analysis_records}
     )
+    name_index = _read_name_index(root, structural_by_oracle)
     requirements_by_id = MappingProxyType(
         {item.requirement_id: item for item in requirements}
     )
@@ -157,6 +214,7 @@ def load_validated_query_bundle(
         m4,
         structural_by_oracle,
         analysis_by_oracle,
+        name_index,
         requirements_by_id,
         admissibility_by_requirement,
         decisions_by_requirement,

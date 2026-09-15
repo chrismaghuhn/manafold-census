@@ -6,12 +6,25 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from ..analysis.model import CardAnalysisRecordV1, card_source_key
+from ..capability.model import CapabilityRefV1
 from ..structural.model import StructuralCardRecordV1
 from .bundle import ValidatedQueryBundleV1, load_validated_query_bundle
 from .cards import (
     CardSemanticViewV1,
     QueryNotFoundV1,
     build_card_semantic_view,
+)
+from .details import (
+    CapabilityDetailViewV1,
+    CardDetailViewV1,
+    CardIdentityV1,
+    CardNameResolutionStatusV1,
+    CardNameResolutionV1,
+)
+from .lookup import (
+    build_capability_detail,
+    build_card_detail,
+    resolve_card_name_from_index,
 )
 from .provenance import (
     MappingTraceV1,
@@ -99,6 +112,43 @@ class CensusReader:
             m3_analysis_manifest_sha256=self._bundle.report.m3_analysis_manifest_sha256,
             trace_event_count=len(self._bundle.traces_by_source.get(source_key, ())),
         )
+
+    def resolve_card_name(self, name: str) -> CardNameResolutionV1:
+        return resolve_card_name_from_index(name, self._bundle.name_index)
+
+    def get_card(self, oracle_id: str) -> CardDetailViewV1 | QueryNotFoundV1:
+        if oracle_id not in self._bundle.structural_by_oracle:
+            return QueryNotFoundV1("card_detail", oracle_id)
+        return build_card_detail(self._bundle, oracle_id)
+
+    def get_card_by_name(self, name: str) -> CardDetailViewV1 | CardNameResolutionV1:
+        resolution = self.resolve_card_name(name)
+        if resolution.status is not CardNameResolutionStatusV1.RESOLVED:
+            return resolution
+        return build_card_detail(self._bundle, resolution.matches[0].oracle_id)
+
+    def get_capability(
+        self, capability_ref: CapabilityRefV1
+    ) -> CapabilityDetailViewV1 | QueryNotFoundV1:
+        if capability_ref not in self._bundle.definitions_by_ref:
+            return QueryNotFoundV1("capability_detail", str(capability_ref))
+        return build_capability_detail(self._bundle, capability_ref)
+
+    def get_capabilities_for_card(
+        self, oracle_id: str
+    ) -> tuple[CapabilityDetailViewV1, ...] | QueryNotFoundV1:
+        detail = self.get_card(oracle_id)
+        if isinstance(detail, QueryNotFoundV1):
+            return detail
+        return detail.capability_details
+
+    def get_cards_for_capability(
+        self, capability_ref: CapabilityRefV1
+    ) -> tuple[CardIdentityV1, ...] | QueryNotFoundV1:
+        detail = self.get_capability(capability_ref)
+        if isinstance(detail, QueryNotFoundV1):
+            return detail
+        return detail.mapped_cards
 
     def trace_requirement(
         self, requirement_id: str
