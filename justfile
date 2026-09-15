@@ -53,4 +53,7 @@ m4-check:
 m4-report:
     python -m manafold_census.cli m4-report --synthetic
 
+m5-input-lock-check lock source_lock structural_output analysis_output:
+    python -m manafold_census.cli m5-input-lock-check --lock "{{lock}}" --source-lock "{{source_lock}}" --structural-output "{{structural_output}}" --analysis-output "{{analysis_output}}"
+
 check: doctor lint typecheck test reproduce corpus-check structural-check
