@@ -124,6 +124,7 @@ referencing==0.37.0
 rpds-py==2026.6.3
 rich==13.9.4
 setuptools==84.0.0
+typing-extensions==4.16.0
 ~~~
 
 Every package line must carry the verified wheel SHA-256; the PyInstaller line must select `py3-none-win_amd64` and `rpds-py` must select `cp312-cp312-win_amd64` on the Windows runner.

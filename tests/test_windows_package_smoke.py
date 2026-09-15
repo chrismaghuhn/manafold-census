@@ -32,6 +32,7 @@ _PINNED_PACKAGES = {
     "rpds-py": "2026.6.3",
     "rich": "13.9.4",
     "setuptools": "84.0.0",
+    "typing-extensions": "4.16.0",
 }
 
 

@@ -30,8 +30,11 @@ jobs:
         shell: pwsh
         run: |
           python -m pip install --require-hashes -r packaging/windows-requirements.txt
+          if ($LASTEXITCODE -ne 0) { throw "hash-locked packaging installation failed" }
           python -m pip install --no-build-isolation --no-deps -e .
+          if ($LASTEXITCODE -ne 0) { throw "editable project installation failed" }
           python -m pip install "pytest>=8,<9"
+          if ($LASTEXITCODE -ne 0) { throw "pytest installation failed" }
 
       - name: Configure reproducible build root
         shell: pwsh
