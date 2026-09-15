@@ -35,9 +35,9 @@ def _fields(title: str, values: Sequence[tuple[str, object]]) -> Table:
     return table
 
 
-def render_info(metadata: QueryMetadataV1) -> RenderableType:
+def render_view_context(metadata: QueryMetadataV1) -> RenderableType:
     return _fields(
-        "Census Explorer info",
+        "Census Explorer context",
         (
             ("Explorer version", "0.1.0"),
             ("Census release version", metadata.census_release_version),
@@ -50,6 +50,10 @@ def render_info(metadata: QueryMetadataV1) -> RenderableType:
             ("Semantic coverage limitation", metadata.semantic_coverage_limitation),
         ),
     )
+
+
+def render_info(metadata: QueryMetadataV1) -> RenderableType:
+    return render_view_context(metadata)
 
 
 def render_not_found(value: QueryNotFoundV1) -> RenderableType:
@@ -319,4 +323,5 @@ __all__ = [
     "render_not_found",
     "render_requirement_trace",
     "render_unresolved",
+    "render_view_context",
 ]

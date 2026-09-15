@@ -5,7 +5,7 @@ from __future__ import annotations
 import argparse
 import shlex
 
-from rich.console import Console
+from rich.console import Console, Group
 
 from ..capability.model import CapabilityRefV1
 from ..query.api import CensusReader, open_bundle
@@ -23,6 +23,7 @@ from .render import (
     render_not_found,
     render_requirement_trace,
     render_unresolved,
+    render_view_context,
 )
 
 
@@ -127,6 +128,10 @@ def _print(console: Console, value: object) -> None:
     console.print(value)
 
 
+def _print_view(console: Console, reader: CensusReader, value: object) -> None:
+    console.print(Group(render_view_context(reader.metadata()), value))
+
+
 def _run_action(
     reader: CensusReader,
     args: argparse.Namespace,
@@ -139,8 +144,10 @@ def _run_action(
     if command == "card":
         identifier = " ".join(args.identifier) if args.card_command == "show" else None
         if args.card_command == "search":
-            _print(
-                console, render_card_search(reader.search_cards(" ".join(args.text)))
+            _print_view(
+                console,
+                reader,
+                render_card_search(reader.search_cards(" ".join(args.text))),
             )
             return
         if identifier is None:
@@ -151,44 +158,48 @@ def _run_action(
         else:
             name_result = card_result
         if isinstance(name_result, QueryNotFoundV1):
-            _print(console, render_not_found(name_result))
+            _print_view(console, reader, render_not_found(name_result))
         elif isinstance(name_result, CardNameResolutionV1):
-            _print(console, render_card_search(name_result))
+            _print_view(console, reader, render_card_search(name_result))
         else:
-            _print(console, render_card_detail(name_result))
+            _print_view(console, reader, render_card_detail(name_result))
         return
     if command == "requirement":
         requirement_result = reader.trace_requirement(args.requirement_id)
         if isinstance(requirement_result, QueryNotFoundV1):
-            _print(console, render_not_found(requirement_result))
+            _print_view(console, reader, render_not_found(requirement_result))
         else:
-            _print(console, render_requirement_trace(requirement_result))
+            _print_view(console, reader, render_requirement_trace(requirement_result))
         return
     if command == "capability":
         if args.capability_command == "list":
-            _print(console, render_capability_list(reader.list_capabilities()))
+            _print_view(
+                console, reader, render_capability_list(reader.list_capabilities())
+            )
             return
         capability_result = reader.get_capability(
             _parse_capability_ref(args.capability_ref)
         )
         if isinstance(capability_result, QueryNotFoundV1):
-            _print(console, render_not_found(capability_result))
+            _print_view(console, reader, render_not_found(capability_result))
         else:
-            _print(console, render_capability_detail(capability_result))
+            _print_view(console, reader, render_capability_detail(capability_result))
         return
     if command == "trace":
         if args.trace_command == "requirement":
             requirement_result = reader.trace_requirement(args.requirement_id)
             if isinstance(requirement_result, QueryNotFoundV1):
-                _print(console, render_not_found(requirement_result))
+                _print_view(console, reader, render_not_found(requirement_result))
             else:
-                _print(console, render_requirement_trace(requirement_result))
+                _print_view(
+                    console, reader, render_requirement_trace(requirement_result)
+                )
             return
         mapping_result = reader.trace_mapping(args.link_id)
         if isinstance(mapping_result, QueryNotFoundV1):
-            _print(console, render_not_found(mapping_result))
+            _print_view(console, reader, render_not_found(mapping_result))
         else:
-            _print(console, render_mapping_trace(mapping_result))
+            _print_view(console, reader, render_mapping_trace(mapping_result))
         return
     if command == "unresolved":
         views = tuple(
@@ -196,12 +207,16 @@ def _run_action(
             for view in reader.list_card_semantic_views()
             if view.semantic_state is SemanticStateV1.UNRESOLVED_ANALYSIS
         )
-        _print(console, render_unresolved(views))
+        _print_view(console, reader, render_unresolved(views))
         return
     if command == "deck":
         if args.deck_command != "analyze":
             raise ValueError("unsupported deck command")
-        _print(console, render_deck_analysis(analyze_deck_file(args.deck_file, reader)))
+        _print_view(
+            console,
+            reader,
+            render_deck_analysis(analyze_deck_file(args.deck_file, reader)),
+        )
         return
     if command == "shell":
         _run_shell(reader, console)

@@ -291,3 +291,60 @@ def test_rich_renderer_keeps_untrusted_brackets_as_text() -> None:
     )
 
     assert "[red] card" in output.getvalue()
+
+
+def test_every_explorer_view_includes_snapshot_context(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root = _derived_bundle(tmp_path)
+    reader = open_bundle(root)
+    card = reader.get_card(ORACLE_ID)
+    assert not isinstance(card, QueryNotFoundV1)
+    metadata = reader.metadata()
+    link_id = card.requirement_details[0].links[0].link_id
+    deck_path = tmp_path / "deck.txt"
+    deck_path.write_bytes(b"[main]\n1 Fixture Card\n")
+
+    context_labels = (
+        "Explorer version",
+        "Census release version",
+        "Census manifest SHA",
+        "Source-lock digest",
+        "M3 analysis manifest SHA",
+        "M4 manifest SHA",
+        "Semantic coverage limitation",
+    )
+    context_digests = (
+        metadata.census_manifest_sha256,
+        metadata.source_lock_digest,
+        metadata.m3_analysis_manifest_sha256,
+        metadata.m4_manifest_sha256,
+    )
+
+    def assert_context(output: str) -> None:
+        for label in context_labels:
+            assert label in output
+        normalized_output = re.sub(r"[\s|│]", "", output)
+        for digest in context_digests:
+            assert digest in normalized_output
+
+    commands = (
+        ["card", "search", "Fixture", "Card"],
+        ["card", "show", ORACLE_ID],
+        ["capability", "list"],
+        ["unresolved"],
+        ["trace", "mapping", link_id],
+        ["deck", "analyze", str(deck_path)],
+    )
+    for command in commands:
+        assert main(["explorer", "--bundle", str(root), *command]) == 0
+        output = capsys.readouterr().out
+        assert_context(output)
+
+    shell_commands = iter(("card search Fixture Card", "exit"))
+    monkeypatch.setattr(builtins, "input", lambda _prompt: next(shell_commands))
+    assert main(["explorer", "--bundle", str(root), "shell"]) == 0
+    output = capsys.readouterr().out
+    assert_context(output)
