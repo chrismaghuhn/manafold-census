@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://manafold-census.invalid/schemas/census-index-manifest.v1.schema.json",
+  "title": "Manafold Census derived index manifest V1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "index_manifest_schema",
+    "census_manifest_sha256",
+    "census_release_id",
+    "index_descriptors"
+  ],
+  "properties": {
+    "index_manifest_schema": {"const": "census.census-index-manifest.v1"},
+    "census_manifest_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "census_release_id": {
+      "type": "string",
+      "pattern": "^censusrel_[0-9a-f]{64}$"
+    },
+    "index_descriptors": {
+      "type": "array",
+      "minItems": 5,
+      "maxItems": 5,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "relative_path",
+          "sha256",
+          "byte_length",
+          "record_count"
+        ],
+        "properties": {
+          "relative_path": {
+            "type": "string",
+            "pattern": "^indexes/(cards-by-name|cards-by-oracle-id|requirements-by-card|links-by-requirement|cards-by-capability)\\.jsonl$"
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "byte_length": {"type": "integer", "minimum": 0},
+          "record_count": {"type": "integer", "minimum": 0}
+        }
+      }
+    }
+  }
+}

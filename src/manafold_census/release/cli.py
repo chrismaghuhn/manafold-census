@@ -6,6 +6,7 @@ import argparse
 
 from .commands import (
     build_census_bundle_command,
+    build_census_derived_command,
     build_real_m4_snapshot_command,
     check_census_authority_package_command,
     check_census_input_lock_command,
@@ -53,6 +54,12 @@ def add_m5_parsers(
     bundle_parser.add_argument("--analysis-output", required=True)
     bundle_parser.add_argument("--m4-output", required=True)
     bundle_parser.add_argument("--output", required=True)
+    derived_parser = subparsers.add_parser(
+        "m5-derived-build",
+        help="publish derived Census 0.1 reports and canonical indexes",
+    )
+    derived_parser.add_argument("--bundle", required=True)
+    derived_parser.add_argument("--output", required=True)
 
 
 def dispatch_m5_command(args: argparse.Namespace) -> int | None:
@@ -90,6 +97,8 @@ def dispatch_m5_command(args: argparse.Namespace) -> int | None:
             args.m4_output,
             args.output,
         )
+    if args.command == "m5-derived-build":
+        return build_census_derived_command(args.bundle, args.output)
     return None
 
 

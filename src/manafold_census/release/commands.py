@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from ..capability.input import FrozenM3InputV1
+from ..reports.build import build_census_derived
 from .authority_package import validate_authority_package
 from .bundle import build_census_bundle
 from .input_lock import (
@@ -231,8 +232,36 @@ def build_census_bundle_command(
     return 0
 
 
+def build_census_derived_command(
+    bundle_path: str | Path,
+    output_directory: str | Path,
+) -> int:
+    """Build reports and indexes from one explicit frozen Census bundle."""
+
+    try:
+        result = build_census_derived(bundle_path, output_directory)
+    except FileNotFoundError as error:
+        print(f"m5-derived-build=BLOCKED: {error}")
+        return 1
+    except OSError as error:
+        print(f"m5-derived-build=BLOCKED: {error}")
+        return 1
+    except (TypeError, ValueError) as error:
+        print(f"m5-derived-build=FAIL: {error}")
+        return 1
+    print(f"census-release-id={result.census_release_id}")
+    print(f"census-manifest-sha256={result.census_manifest_sha256}")
+    print(f"report-descriptor-count={len(result.report_index.report_descriptors)}")
+    print(f"index-descriptor-count={len(result.index_manifest.index_descriptors)}")
+    print("report-index=PASS")
+    print("index-manifest=PASS")
+    print("m5-derived-build=PASS")
+    return 0
+
+
 __all__ = [
     "build_census_bundle_command",
+    "build_census_derived_command",
     "build_real_m4_snapshot_command",
     "check_census_authority_package_command",
     "check_census_input_lock_command",
