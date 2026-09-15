@@ -2,7 +2,7 @@
 
 Date: 2026-09-15
 Repository: https://github.com/chrismaghuhn/manafold-census
-Status: DESIGN CONTENT APPROVED / READY TO FREEZE AFTER M5-00
+Status: DESIGN CONTENT APPROVED / M5-00 RECONCILED / READY TO FREEZE
 
 ~~~text
 M5_DESIGN_AMENDMENT_01              = APPLIED
@@ -12,6 +12,7 @@ M5_DESIGN_CONTENT_REVIEW            = PASS
 M5_DESIGN_CONTENT                   = APPROVED
 M5_00_AUTHORIZED                    = YES
 M5_DESIGN_SPECIFICATION             = READY_TO_FREEZE_AFTER_M5_00
+M5_00_STATUS                        = PASS
 M5_IMPLEMENTATION_AUTHORIZED        = NO
 M5_REAL_INPUT_CAMPAIGN_STARTED     = NO
 M5_REAL_M4_BUILD_STARTED           = NO
@@ -224,9 +225,32 @@ https://github.com/chrismaghuhn/manafold-census/issues/9
 Issue #12 still says M5.X = REQUIRED FOR CENSUS V1:
 https://github.com/chrismaghuhn/manafold-census/issues/12
 
-The design decision is complete, but repository-level roadmap reconciliation is
-not yet executed. Therefore the final status remains
-M5_AUTHORITY_RECONCILIATION = BLOCKED until M5-00 is separately performed.
+The design decision is complete. Repository-level roadmap reconciliation is
+now performed by M5-00 as recorded below. No implementation follows
+automatically from that reconciliation.
+
+### 3.3 M5-00 completion
+
+On 2026-09-15 the current bodies of Issues #2, #9, and #12 were updated and
+read back successfully:
+
+~~~text
+Issue #2  → M5 = Census 0.1 vertical slice; M6 = post-0.1 semantic expansion
+Issue #9  → M6 = POST_0.1_SEMANTIC_EXPANSION; not a retroactive 0.1 gate
+Issue #12 → M5.X is required for Census 0.1
+~~~
+
+Issue #7 remains unchanged as historical M4 evidence. README.md and
+ARCHITECTURE.md contain no conflicting old M5/V1 roadmap declaration, so M5-00
+does not modify them. Their detailed M5 architecture documentation remains a
+later documentation concern within the staged implementation work.
+
+~~~text
+M5_AUTHORITY_RECONCILIATION = PASS
+M5_00_STATUS                = PASS
+M5_DESIGN_SPECIFICATION     = READY_TO_FREEZE_AFTER_M5_00
+M5_IMPLEMENTATION_AUTHORIZED = NO
+~~~
 
 ## 4. Domain model and terminology
 
@@ -2165,12 +2189,13 @@ ML or live inference
 ~~~text
 M5_REPOSITORY_BASE             = 6a9cfe916c43e37499fdcfd7335fc473d73fff9f
 
-M5_AUTHORITY_RECONCILIATION    = BLOCKED
+M5_AUTHORITY_RECONCILIATION    = PASS
 M5_DESIGN_REVIEW_READINESS     = PASS
 M5_DESIGN_CONTENT_REVIEW       = PASS
 M5_DESIGN_CONTENT              = APPROVED
 M5_DESIGN_SPECIFICATION        = READY_TO_FREEZE_AFTER_M5_00
 M5_00_AUTHORIZED               = YES
+M5_00_STATUS                   = PASS
 
 M5_IMPLEMENTATION_AUTHORIZED   = NO
 M5_REAL_INPUT_CAMPAIGN_STARTED = NO
@@ -2185,12 +2210,12 @@ MERGE_AUTHORIZED               = NO
 ~~~
 
 M5_DESIGN_CONTENT_REVIEW = PASS records that the design content and the final
-text consistency repairs are complete. M5_DESIGN_SPECIFICATION is not yet
-FROZEN because M5-00 must reconcile the roadmap issues first.
+text consistency repairs are complete. M5_DESIGN_SPECIFICATION remains
+READY_TO_FREEZE_AFTER_M5_00; the separate M5-01 step formalizes the freeze.
 
-M5_AUTHORITY_RECONCILIATION = BLOCKED records the still-unreconciled issue
-bodies. M5-00 is authorized as the next documentation-only step; no M5
-implementation is authorized.
+M5_AUTHORITY_RECONCILIATION = PASS records that Issues #2, #9, and #12 now
+agree with the Census 0.1 authority. M5-01 is the next documentation-only
+step; M5-02 follows it, but no M5 implementation is authorized yet.
 
 This document is the repaired design artifact. No M5 implementation has been
 executed, and no M5 implementation is authorized by this specification alone.
