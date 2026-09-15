@@ -2,7 +2,7 @@
 
 Date: 2026-09-15
 Repository: https://github.com/chrismaghuhn/manafold-census
-Status: DESIGN CONTENT APPROVED / M5-00 RECONCILED / READY TO FREEZE
+Status: DESIGN SPECIFICATION FROZEN / M5-00 AND M5-01 COMPLETE
 
 ~~~text
 M5_DESIGN_AMENDMENT_01              = APPLIED
@@ -11,9 +11,12 @@ M5_DESIGN_TEXT_CONSISTENCY_REPAIR   = APPLIED
 M5_DESIGN_CONTENT_REVIEW            = PASS
 M5_DESIGN_CONTENT                   = APPROVED
 M5_00_AUTHORIZED                    = YES
-M5_DESIGN_SPECIFICATION             = READY_TO_FREEZE_AFTER_M5_00
 M5_00_STATUS                        = PASS
+M5_01_AUTHORIZED                    = YES
+M5_01_STATUS                        = PASS
+M5_DESIGN_SPECIFICATION             = FROZEN
 M5_IMPLEMENTATION_AUTHORIZED        = NO
+M5_02_AUTHORIZED                    = NO
 M5_REAL_INPUT_CAMPAIGN_STARTED     = NO
 M5_REAL_M4_BUILD_STARTED           = NO
 M5_CENSUS_BUNDLE_CREATED           = NO
@@ -187,13 +190,14 @@ identity and resolution, M3 outcome semantics, and the M4 typed Capability
 dimensions, links, reviews, and activation gates. M5 consumes these contracts;
 it does not redesign them.
 
-### 3.2 Required roadmap changes before implementation
+### 3.2 M5-00 reconciliation target
 
-Issue #2 currently still describes M5 as a V1 target and M6 as post-V1.
-Issue #9 still uses V1 as the M6 predecessor. Issue #12 still labels the
-Explorer as required for V1.
+Before M5-00, Issue #2 described M5 as a V1 target and M6 as post-V1. Before
+M5-00, Issue #9 used V1 as the M6 predecessor, and Issue #12 labeled the
+Explorer as required for V1. Those statements are historical pre-M5-00
+wording; the live issue bodies have now been reconciled.
 
-Before M5 implementation:
+The pre-M5-00 reconciliation target was:
 
 ~~~text
 Issue #2:
@@ -216,13 +220,13 @@ Issue #7:
 
 The exact milestone numbers remain unchanged.
 
-Issue #2 is stale in its current body:
+Historical pre-M5-00 wording in Issue #2:
 https://github.com/chrismaghuhn/manafold-census/issues/2
 
-Issue #9 is also stale in its current POST_V1 framing:
+Historical pre-M5-00 POST_V1 wording in Issue #9:
 https://github.com/chrismaghuhn/manafold-census/issues/9
 
-Issue #12 still says M5.X = REQUIRED FOR CENSUS V1:
+Historical pre-M5-00 V1 wording in Issue #12:
 https://github.com/chrismaghuhn/manafold-census/issues/12
 
 The design decision is complete. Repository-level roadmap reconciliation is
@@ -248,7 +252,9 @@ later documentation concern within the staged implementation work.
 ~~~text
 M5_AUTHORITY_RECONCILIATION = PASS
 M5_00_STATUS                = PASS
-M5_DESIGN_SPECIFICATION     = READY_TO_FREEZE_AFTER_M5_00
+M5_01_AUTHORIZED            = YES
+M5_DESIGN_SPECIFICATION     = FROZEN
+M5_01_STATUS                = PASS
 M5_IMPLEMENTATION_AUTHORIZED = NO
 ~~~
 
@@ -2193,11 +2199,14 @@ M5_AUTHORITY_RECONCILIATION    = PASS
 M5_DESIGN_REVIEW_READINESS     = PASS
 M5_DESIGN_CONTENT_REVIEW       = PASS
 M5_DESIGN_CONTENT              = APPROVED
-M5_DESIGN_SPECIFICATION        = READY_TO_FREEZE_AFTER_M5_00
+M5_DESIGN_SPECIFICATION        = FROZEN
 M5_00_AUTHORIZED               = YES
 M5_00_STATUS                   = PASS
+M5_01_AUTHORIZED               = YES
+M5_01_STATUS                   = PASS
 
 M5_IMPLEMENTATION_AUTHORIZED   = NO
+M5_02_AUTHORIZED               = NO
 M5_REAL_INPUT_CAMPAIGN_STARTED = NO
 M5_REAL_M4_BUILD_STARTED       = NO
 M5_CENSUS_BUNDLE_CREATED       = NO
@@ -2210,12 +2219,12 @@ MERGE_AUTHORIZED               = NO
 ~~~
 
 M5_DESIGN_CONTENT_REVIEW = PASS records that the design content and the final
-text consistency repairs are complete. M5_DESIGN_SPECIFICATION remains
-READY_TO_FREEZE_AFTER_M5_00; the separate M5-01 step formalizes the freeze.
+text consistency repairs are complete. M5_DESIGN_SPECIFICATION is FROZEN after
+the documentation-only M5-01 step.
 
 M5_AUTHORITY_RECONCILIATION = PASS records that Issues #2, #9, and #12 now
-agree with the Census 0.1 authority. M5-01 is the next documentation-only
-step; M5-02 follows it, but no M5 implementation is authorized yet.
+agree with the Census 0.1 authority. M5-02 is the next staged task, but no M5
+implementation is authorized yet.
 
 This document is the repaired design artifact. No M5 implementation has been
 executed, and no M5 implementation is authorized by this specification alone.
