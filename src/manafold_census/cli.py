@@ -28,7 +28,9 @@ from .corpus.build import (
 )
 from .corpus.check import validate_corpus_output
 from .digest import REPRODUCTION_DOMAIN, domain_digest, measure_file, sha256_bytes
+from .explorer.cli import add_explorer_parser, dispatch_explorer_command
 from .models import ArtifactManifest, DatasetManifest, SourceLock, StudySpec
+from .release.cli import add_m5_parsers, dispatch_m5_command
 from .resources import project_data_root
 from .source.scryfall import discover_oracle_cards, refresh_current_source
 from .source.transfer import fetch_pinned_source
@@ -386,6 +388,8 @@ def _parser() -> argparse.ArgumentParser:
     m4_parent.add_argument("--synthetic", action="store_true")
     for command in ("m4-build", "m4-check", "m4-report"):
         subparsers.add_parser(command, parents=[m4_parent])
+    add_m5_parsers(subparsers)
+    add_explorer_parser(subparsers)
     return parser
 
 
@@ -447,6 +451,12 @@ def main(argv: Sequence[str] | None = None) -> int:
                 args.output,
                 args.synthetic,
             )
+        m5_result = dispatch_m5_command(args)
+        if m5_result is not None:
+            return m5_result
+        explorer_result = dispatch_explorer_command(args)
+        if explorer_result is not None:
+            return explorer_result
     except (OSError, RuntimeError, TypeError, ValueError) as error:
         print(f"{args.command}=FAIL: {error}", file=sys.stderr)
         return 1

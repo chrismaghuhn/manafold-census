@@ -1,0 +1,647 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://manafold-census.invalid/schemas/deck-analysis.v1.schema.json",
+  "title": "Manafold Census Deck Analysis V1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "deck_input_sha256",
+    "census_release_id",
+    "census_manifest_sha256",
+    "source_lock_digest",
+    "m3_analysis_manifest_sha256",
+    "m4_manifest_sha256",
+    "main",
+    "sideboard",
+    "invalid_lines"
+  ],
+  "properties": {
+    "schema": {
+      "const": "census.deck-analysis.v1"
+    },
+    "deck_input_sha256": {
+      "$ref": "#/$defs/digest"
+    },
+    "census_release_id": {
+      "$ref": "#/$defs/release_id"
+    },
+    "census_manifest_sha256": {
+      "$ref": "#/$defs/digest"
+    },
+    "source_lock_digest": {
+      "$ref": "#/$defs/digest"
+    },
+    "m3_analysis_manifest_sha256": {
+      "$ref": "#/$defs/digest"
+    },
+    "m4_manifest_sha256": {
+      "$ref": "#/$defs/digest"
+    },
+    "main": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/section_analysis"
+        },
+        {
+          "properties": {
+            "section": {
+              "const": "main"
+            }
+          }
+        }
+      ]
+    },
+    "sideboard": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/section_analysis"
+        },
+        {
+          "properties": {
+            "section": {
+              "const": "sideboard"
+            }
+          }
+        }
+      ]
+    },
+    "invalid_lines": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/invalid_line"
+      }
+    }
+  },
+  "$defs": {
+    "count": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 9223372036854775807
+    },
+    "bounded_count": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 1000000
+    },
+    "positive_bounded_count": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 1000000
+    },
+    "digest": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "release_id": {
+      "type": "string",
+      "pattern": "^censusrel_[0-9a-f]{64}$"
+    },
+    "section": {
+      "enum": [
+        "main",
+        "sideboard"
+      ]
+    },
+    "card_identity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "oracle_id",
+        "source_card_id",
+        "source_record_sha256",
+        "name"
+      ],
+      "properties": {
+        "oracle_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "source_card_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "source_record_sha256": {
+          "$ref": "#/$defs/digest"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "capability_ref": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "capability_family_id",
+        "capability_version",
+        "claim_digest"
+      ],
+      "properties": {
+        "capability_family_id": {
+          "type": "string",
+          "pattern": "^capfam_[0-9a-f]{64}$"
+        },
+        "capability_version": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "claim_digest": {
+          "$ref": "#/$defs/digest"
+        }
+      }
+    },
+    "analysis_counts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "REQUIREMENTS_PRODUCED",
+        "NO_REQUIREMENTS_APPLICABLE",
+        "UNRESOLVED_ANALYSIS"
+      ],
+      "properties": {
+        "REQUIREMENTS_PRODUCED": {
+          "$ref": "#/$defs/count"
+        },
+        "NO_REQUIREMENTS_APPLICABLE": {
+          "$ref": "#/$defs/count"
+        },
+        "UNRESOLVED_ANALYSIS": {
+          "$ref": "#/$defs/count"
+        }
+      }
+    },
+    "review_counts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "PROPOSED",
+        "IN_REVIEW",
+        "ACCEPTED",
+        "REJECTED"
+      ],
+      "properties": {
+        "PROPOSED": {
+          "$ref": "#/$defs/count"
+        },
+        "IN_REVIEW": {
+          "$ref": "#/$defs/count"
+        },
+        "ACCEPTED": {
+          "$ref": "#/$defs/count"
+        },
+        "REJECTED": {
+          "$ref": "#/$defs/count"
+        }
+      }
+    },
+    "mapping_counts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "MAPPED",
+        "UNMAPPED",
+        "AMBIGUOUS",
+        "OUTLIER",
+        "INSUFFICIENT_EVIDENCE"
+      ],
+      "properties": {
+        "MAPPED": {
+          "$ref": "#/$defs/count"
+        },
+        "UNMAPPED": {
+          "$ref": "#/$defs/count"
+        },
+        "AMBIGUOUS": {
+          "$ref": "#/$defs/count"
+        },
+        "OUTLIER": {
+          "$ref": "#/$defs/count"
+        },
+        "INSUFFICIENT_EVIDENCE": {
+          "$ref": "#/$defs/count"
+        }
+      }
+    },
+    "invalid_line": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "line_number",
+        "section",
+        "raw_line",
+        "reason"
+      ],
+      "properties": {
+        "line_number": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "section": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/section"
+            }
+          ]
+        },
+        "raw_line": {
+          "type": "string",
+          "minLength": 1
+        },
+        "reason": {
+          "enum": [
+            "UNKNOWN_SECTION",
+            "INVALID_SECTION",
+            "ENTRY_BEFORE_SECTION",
+            "INVALID_ENTRY",
+            "INVALID_QUANTITY",
+            "QUANTITY_LIMIT_EXCEEDED",
+            "SECTION_CARD_LIMIT_EXCEEDED",
+            "BOM_NOT_AT_FILE_START"
+          ]
+        }
+      }
+    },
+    "unknown_name": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "line_number",
+        "section",
+        "quantity",
+        "name",
+        "lookup_key"
+      ],
+      "properties": {
+        "line_number": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "section": {
+          "$ref": "#/$defs/section"
+        },
+        "quantity": {
+          "$ref": "#/$defs/positive_bounded_count"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "lookup_key": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "ambiguous_name": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "line_number",
+        "section",
+        "quantity",
+        "name",
+        "lookup_key",
+        "matches"
+      ],
+      "properties": {
+        "line_number": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "section": {
+          "$ref": "#/$defs/section"
+        },
+        "quantity": {
+          "$ref": "#/$defs/positive_bounded_count"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "lookup_key": {
+          "type": "string",
+          "minLength": 1
+        },
+        "matches": {
+          "type": "array",
+          "minItems": 2,
+          "items": {
+            "$ref": "#/$defs/card_identity"
+          }
+        }
+      }
+    },
+    "card_summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "identity",
+        "quantity",
+        "analysis_outcome",
+        "semantic_state"
+      ],
+      "properties": {
+        "identity": {
+          "$ref": "#/$defs/card_identity"
+        },
+        "quantity": {
+          "$ref": "#/$defs/positive_bounded_count"
+        },
+        "analysis_outcome": {
+          "enum": [
+            "REQUIREMENTS_PRODUCED",
+            "NO_REQUIREMENTS_APPLICABLE",
+            "UNRESOLVED_ANALYSIS"
+          ]
+        },
+        "semantic_state": {
+          "enum": [
+            "ESTABLISHED",
+            "PARTIALLY_ESTABLISHED",
+            "UNRESOLVED_ANALYSIS",
+            "NO_REQUIREMENTS_APPLICABLE"
+          ]
+        }
+      }
+    },
+    "capability_count": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "capability",
+        "display_name",
+        "unique_mapped_oracle_identity_count",
+        "quantity_weighted_mapped_card_count"
+      ],
+      "properties": {
+        "capability": {
+          "$ref": "#/$defs/capability_ref"
+        },
+        "display_name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "unique_mapped_oracle_identity_count": {
+          "$ref": "#/$defs/bounded_count"
+        },
+        "quantity_weighted_mapped_card_count": {
+          "$ref": "#/$defs/bounded_count"
+        }
+      }
+    },
+    "requirement_trace": {
+      "type": "object",
+      "required": [
+        "census_release_id",
+        "census_manifest_sha256",
+        "requirement",
+        "analysis_record",
+        "analysis_trace",
+        "admissibility",
+        "links",
+        "mapping_decision",
+        "capability_definitions",
+        "reviews"
+      ],
+      "properties": {
+        "census_release_id": {
+          "$ref": "#/$defs/release_id"
+        },
+        "census_manifest_sha256": {
+          "$ref": "#/$defs/digest"
+        },
+        "requirement": {
+          "type": "object"
+        },
+        "analysis_record": {
+          "type": "object"
+        },
+        "analysis_trace": {
+          "type": "array"
+        },
+        "admissibility": {
+          "type": "object"
+        },
+        "links": {
+          "type": "array"
+        },
+        "mapping_decision": {
+          "type": "object"
+        },
+        "capability_definitions": {
+          "type": "array"
+        },
+        "reviews": {
+          "type": "array"
+        }
+      },
+      "additionalProperties": false
+    },
+    "mapping_trace": {
+      "type": "object",
+      "required": [
+        "census_release_id",
+        "census_manifest_sha256",
+        "link",
+        "requirement",
+        "analysis_record",
+        "analysis_trace",
+        "admissibility",
+        "mapping_decision",
+        "capability_definition",
+        "reviews"
+      ],
+      "properties": {
+        "census_release_id": {
+          "$ref": "#/$defs/release_id"
+        },
+        "census_manifest_sha256": {
+          "$ref": "#/$defs/digest"
+        },
+        "link": {
+          "type": "object"
+        },
+        "requirement": {
+          "type": "object"
+        },
+        "analysis_record": {
+          "type": "object"
+        },
+        "analysis_trace": {
+          "type": "array"
+        },
+        "admissibility": {
+          "type": "object"
+        },
+        "mapping_decision": {
+          "type": "object"
+        },
+        "capability_definition": {
+          "type": "object"
+        },
+        "reviews": {
+          "type": "array"
+        }
+      },
+      "additionalProperties": false
+    },
+    "provenance_trace": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "card",
+        "requirement_traces",
+        "mapping_traces"
+      ],
+      "properties": {
+        "card": {
+          "$ref": "#/$defs/card_identity"
+        },
+        "requirement_traces": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/requirement_trace"
+          }
+        },
+        "mapping_traces": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/mapping_trace"
+          }
+        }
+      }
+    },
+    "section_analysis": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "section",
+        "declared_card_count",
+        "resolved_card_count",
+        "unique_resolved_oracle_identity_count",
+        "unknown_names",
+        "ambiguous_names",
+        "invalid_line_count",
+        "analysis_outcome_counts",
+        "analysis_outcome_denominator",
+        "analysis_outcome_denominator_label",
+        "m2_review_status_counts",
+        "m2_review_status_denominator",
+        "m2_review_status_denominator_label",
+        "m4_mapping_disposition_counts",
+        "m4_mapping_disposition_denominator",
+        "m4_mapping_disposition_denominator_label",
+        "resolved_cards",
+        "established_cards",
+        "partially_established_cards",
+        "unresolved_cards",
+        "explicit_negative_cards",
+        "capability_counts",
+        "provenance_traces"
+      ],
+      "properties": {
+        "section": {
+          "$ref": "#/$defs/section"
+        },
+        "declared_card_count": {
+          "$ref": "#/$defs/count"
+        },
+        "resolved_card_count": {
+          "$ref": "#/$defs/count"
+        },
+        "unique_resolved_oracle_identity_count": {
+          "$ref": "#/$defs/count"
+        },
+        "unknown_names": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/unknown_name"
+          }
+        },
+        "ambiguous_names": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ambiguous_name"
+          }
+        },
+        "invalid_line_count": {
+          "$ref": "#/$defs/count"
+        },
+        "analysis_outcome_counts": {
+          "$ref": "#/$defs/analysis_counts"
+        },
+        "analysis_outcome_denominator": {
+          "$ref": "#/$defs/count"
+        },
+        "analysis_outcome_denominator_label": {
+          "const": "UNIQUE_RESOLVED_ORACLE_IDENTITIES"
+        },
+        "m2_review_status_counts": {
+          "$ref": "#/$defs/review_counts"
+        },
+        "m2_review_status_denominator": {
+          "$ref": "#/$defs/count"
+        },
+        "m2_review_status_denominator_label": {
+          "const": "PERSISTED_REQUIREMENTS_ON_RESOLVED_CARDS"
+        },
+        "m4_mapping_disposition_counts": {
+          "$ref": "#/$defs/mapping_counts"
+        },
+        "m4_mapping_disposition_denominator": {
+          "$ref": "#/$defs/count"
+        },
+        "m4_mapping_disposition_denominator_label": {
+          "const": "PERSISTED_REQUIREMENTS_ON_RESOLVED_CARDS"
+        },
+        "resolved_cards": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/card_summary"
+          }
+        },
+        "established_cards": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/card_summary"
+          }
+        },
+        "partially_established_cards": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/card_summary"
+          }
+        },
+        "unresolved_cards": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/card_summary"
+          }
+        },
+        "explicit_negative_cards": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/card_summary"
+          }
+        },
+        "capability_counts": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/capability_count"
+          }
+        },
+        "provenance_traces": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/provenance_trace"
+          }
+        }
+      }
+    }
+  }
+}

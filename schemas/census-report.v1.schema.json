@@ -1,0 +1,345 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://manafold-census.invalid/schemas/census-report.v1.schema.json",
+  "title": "Manafold Census derived report and report index V1",
+  "oneOf": [
+    {"$ref": "#/$defs/report"},
+    {"$ref": "#/$defs/report_index"}
+  ],
+  "$defs": {
+    "digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "release_id": {"type": "string", "pattern": "^censusrel_[0-9a-f]{64}$"},
+    "count": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 9223372036854775807
+    },
+    "metric": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["numerator", "denominator", "denominator_label"],
+      "properties": {
+        "numerator": {"$ref": "#/$defs/count"},
+        "denominator": {"$ref": "#/$defs/count"},
+        "denominator_label": {"type": "string", "minLength": 1}
+      }
+    },
+    "population": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "oracle_identity_count",
+        "structural_record_count",
+        "analysis_record_count",
+        "requirement_count",
+        "requirements_produced_card_count",
+        "no_requirements_applicable_count",
+        "unresolved_analysis_count"
+      ],
+      "properties": {
+        "oracle_identity_count": {"$ref": "#/$defs/count"},
+        "structural_record_count": {"$ref": "#/$defs/count"},
+        "analysis_record_count": {"$ref": "#/$defs/count"},
+        "requirement_count": {"$ref": "#/$defs/count"},
+        "requirements_produced_card_count": {"$ref": "#/$defs/count"},
+        "no_requirements_applicable_count": {"$ref": "#/$defs/count"},
+        "unresolved_analysis_count": {"$ref": "#/$defs/count"}
+      }
+    },
+    "analysis_outcomes": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "REQUIREMENTS_PRODUCED",
+        "NO_REQUIREMENTS_APPLICABLE",
+        "UNRESOLVED_ANALYSIS"
+      ],
+      "properties": {
+        "REQUIREMENTS_PRODUCED": {"$ref": "#/$defs/count"},
+        "NO_REQUIREMENTS_APPLICABLE": {"$ref": "#/$defs/count"},
+        "UNRESOLVED_ANALYSIS": {"$ref": "#/$defs/count"}
+      }
+    },
+    "review_status_counts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["PROPOSED", "IN_REVIEW", "ACCEPTED", "REJECTED"],
+      "properties": {
+        "PROPOSED": {"$ref": "#/$defs/count"},
+        "IN_REVIEW": {"$ref": "#/$defs/count"},
+        "ACCEPTED": {"$ref": "#/$defs/count"},
+        "REJECTED": {"$ref": "#/$defs/count"}
+      }
+    },
+    "resolution_counts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["COMPLETE", "PARTIAL", "UNRESOLVED"],
+      "properties": {
+        "COMPLETE": {"$ref": "#/$defs/count"},
+        "PARTIAL": {"$ref": "#/$defs/count"},
+        "UNRESOLVED": {"$ref": "#/$defs/count"}
+      }
+    },
+    "admissibility_counts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "ACCEPTED_FOR_CAPABILITY_MAPPING",
+        "REJECTED_FOR_CAPABILITY_MAPPING"
+      ],
+      "properties": {
+        "ACCEPTED_FOR_CAPABILITY_MAPPING": {"$ref": "#/$defs/count"},
+        "REJECTED_FOR_CAPABILITY_MAPPING": {"$ref": "#/$defs/count"}
+      }
+    },
+    "mapping_counts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "MAPPED",
+        "UNMAPPED",
+        "AMBIGUOUS",
+        "OUTLIER",
+        "INSUFFICIENT_EVIDENCE"
+      ],
+      "properties": {
+        "MAPPED": {"$ref": "#/$defs/count"},
+        "UNMAPPED": {"$ref": "#/$defs/count"},
+        "AMBIGUOUS": {"$ref": "#/$defs/count"},
+        "OUTLIER": {"$ref": "#/$defs/count"},
+        "INSUFFICIENT_EVIDENCE": {"$ref": "#/$defs/count"}
+      }
+    },
+    "lifecycle_counts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["PROPOSED", "ACTIVE", "SUPERSEDED", "RETIRED"],
+      "properties": {
+        "PROPOSED": {"$ref": "#/$defs/count"},
+        "ACTIVE": {"$ref": "#/$defs/count"},
+        "SUPERSEDED": {"$ref": "#/$defs/count"},
+        "RETIRED": {"$ref": "#/$defs/count"}
+      }
+    },
+    "requirement_presence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "cards_with_persisted_requirements",
+        "cards_without_persisted_requirements",
+        "persisted_requirement_count",
+        "denominator",
+        "denominator_label"
+      ],
+      "properties": {
+        "cards_with_persisted_requirements": {"$ref": "#/$defs/count"},
+        "cards_without_persisted_requirements": {"$ref": "#/$defs/count"},
+        "persisted_requirement_count": {"$ref": "#/$defs/count"},
+        "denominator": {"$ref": "#/$defs/count"},
+        "denominator_label": {"const": "TOTAL_ORACLE_IDENTITIES"}
+      }
+    },
+    "unresolved_summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "cards_with_persisted_requirements",
+        "cards_without_persisted_requirements",
+        "denominator",
+        "denominator_label"
+      ],
+      "properties": {
+        "cards_with_persisted_requirements": {"$ref": "#/$defs/count"},
+        "cards_without_persisted_requirements": {"$ref": "#/$defs/count"},
+        "denominator": {"$ref": "#/$defs/count"},
+        "denominator_label": {"const": "UNRESOLVED_ANALYSIS_CARDS"}
+      }
+    },
+    "queue_counts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "mapping_review_queue_count",
+        "unreviewed_capability_definition_count",
+        "unreviewed_link_count",
+        "unreviewed_evolution_count",
+        "total_queue_count"
+      ],
+      "properties": {
+        "mapping_review_queue_count": {"$ref": "#/$defs/count"},
+        "unreviewed_capability_definition_count": {"$ref": "#/$defs/count"},
+        "unreviewed_link_count": {"$ref": "#/$defs/count"},
+        "unreviewed_evolution_count": {"$ref": "#/$defs/count"},
+        "total_queue_count": {"$ref": "#/$defs/count"}
+      }
+    },
+    "capability_ref": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "capability_family_id",
+        "capability_version",
+        "claim_digest"
+      ],
+      "properties": {
+        "capability_family_id": {
+          "type": "string",
+          "pattern": "^capfam_[0-9a-f]{64}$"
+        },
+        "capability_version": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9223372036854775807
+        },
+        "claim_digest": {"$ref": "#/$defs/digest"}
+      }
+    },
+    "capability_frequency": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "capability",
+        "mapped_requirement_count",
+        "distinct_source_count",
+        "denominator",
+        "denominator_label"
+      ],
+      "properties": {
+        "capability": {"$ref": "#/$defs/capability_ref"},
+        "mapped_requirement_count": {"$ref": "#/$defs/count"},
+        "distinct_source_count": {"$ref": "#/$defs/count"},
+        "denominator": {"$ref": "#/$defs/count"},
+        "denominator_label": {"const": "MAPPED_REQUIREMENTS"}
+      }
+    },
+    "descriptor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["relative_path", "sha256", "byte_length", "record_count"],
+      "properties": {
+        "relative_path": {
+          "type": "string",
+          "pattern": "^reports/(census-report\\.json|unresolved-analysis\\.jsonl|mapping-review-queue\\.jsonl)$"
+        },
+        "sha256": {"$ref": "#/$defs/digest"},
+        "byte_length": {"$ref": "#/$defs/count"},
+        "record_count": {"$ref": "#/$defs/count"}
+      }
+    },
+    "report": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema",
+        "census_release_id",
+        "census_manifest_sha256",
+        "source_lock_digest",
+        "m3_analysis_manifest_sha256",
+        "m4_manifest_sha256",
+        "requirement_set_digest",
+        "population",
+        "source_coverage",
+        "structural_coverage",
+        "analysis_record_coverage",
+        "analysis_outcome_counts",
+        "requirement_presence",
+        "m2_review_status_counts",
+        "m2_resolution_state_counts",
+        "m4_admissibility_status_counts",
+        "m4_mapping_disposition_counts",
+        "active_capability_mapping_presence",
+        "capability_lifecycle_counts",
+        "unresolved_analysis",
+        "explicit_negative_analysis",
+        "m4_outliers",
+        "ambiguities",
+        "review_queues",
+        "mapped_subset_capability_frequency"
+      ],
+      "properties": {
+        "schema": {"const": "census.census-report.v1"},
+        "census_release_id": {"$ref": "#/$defs/release_id"},
+        "census_manifest_sha256": {"$ref": "#/$defs/digest"},
+        "source_lock_digest": {"$ref": "#/$defs/digest"},
+        "m3_analysis_manifest_sha256": {"$ref": "#/$defs/digest"},
+        "m4_manifest_sha256": {"$ref": "#/$defs/digest"},
+        "requirement_set_digest": {"$ref": "#/$defs/digest"},
+        "population": {"$ref": "#/$defs/population"},
+        "source_coverage": {
+          "allOf": [
+            {"$ref": "#/$defs/metric"},
+            {"properties": {"denominator_label": {"const": "TOTAL_ORACLE_IDENTITIES"}}}
+          ]
+        },
+        "structural_coverage": {
+          "allOf": [
+            {"$ref": "#/$defs/metric"},
+            {"properties": {"denominator_label": {"const": "TOTAL_ORACLE_IDENTITIES"}}}
+          ]
+        },
+        "analysis_record_coverage": {
+          "allOf": [
+            {"$ref": "#/$defs/metric"},
+            {"properties": {"denominator_label": {"const": "TOTAL_ORACLE_IDENTITIES"}}}
+          ]
+        },
+        "analysis_outcome_counts": {"$ref": "#/$defs/analysis_outcomes"},
+        "requirement_presence": {"$ref": "#/$defs/requirement_presence"},
+        "m2_review_status_counts": {"$ref": "#/$defs/review_status_counts"},
+        "m2_resolution_state_counts": {"$ref": "#/$defs/resolution_counts"},
+        "m4_admissibility_status_counts": {"$ref": "#/$defs/admissibility_counts"},
+        "m4_mapping_disposition_counts": {"$ref": "#/$defs/mapping_counts"},
+        "active_capability_mapping_presence": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "cards_with_active_capability_mappings",
+            "cards_without_active_capability_mappings",
+            "mapped_requirement_count",
+            "denominator",
+            "denominator_label"
+          ],
+          "properties": {
+            "cards_with_active_capability_mappings": {"$ref": "#/$defs/count"},
+            "cards_without_active_capability_mappings": {"$ref": "#/$defs/count"},
+            "mapped_requirement_count": {"$ref": "#/$defs/count"},
+            "denominator": {"$ref": "#/$defs/count"},
+            "denominator_label": {"const": "TOTAL_ORACLE_IDENTITIES"}
+          }
+        },
+        "capability_lifecycle_counts": {"$ref": "#/$defs/lifecycle_counts"},
+        "unresolved_analysis": {"$ref": "#/$defs/unresolved_summary"},
+        "explicit_negative_analysis": {"$ref": "#/$defs/metric"},
+        "m4_outliers": {"$ref": "#/$defs/metric"},
+        "ambiguities": {"$ref": "#/$defs/metric"},
+        "review_queues": {"$ref": "#/$defs/queue_counts"},
+        "mapped_subset_capability_frequency": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/capability_frequency"}
+        }
+      }
+    },
+    "report_index": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "report_index_schema",
+        "census_manifest_sha256",
+        "census_release_id",
+        "report_descriptors"
+      ],
+      "properties": {
+        "report_index_schema": {"const": "census.census-report-index.v1"},
+        "census_manifest_sha256": {"$ref": "#/$defs/digest"},
+        "census_release_id": {"$ref": "#/$defs/release_id"},
+        "report_descriptors": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 3,
+          "items": {"$ref": "#/$defs/descriptor"}
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,105 @@
+name: Windows Explorer Package
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  windows-explorer:
+    runs-on: windows-2022
+    env:
+      PYTHONHASHSEED: "0"
+      SOURCE_DATE_EPOCH: "946684800"
+      TZ: UTC
+      LC_ALL: C.UTF-8
+      LANG: C.UTF-8
+      PIP_DISABLE_PIP_VERSION_CHECK: "1"
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12.10
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12.10"
+
+      - name: Install project and locked packaging toolchain
+        shell: pwsh
+        run: |
+          python -m pip install --require-hashes -r packaging/windows-requirements.txt
+          if ($LASTEXITCODE -ne 0) { throw "hash-locked packaging installation failed" }
+          python -m pip install --no-build-isolation --no-deps -e .
+          if ($LASTEXITCODE -ne 0) { throw "editable project installation failed" }
+          python -m pip install "pytest>=8,<9"
+          if ($LASTEXITCODE -ne 0) { throw "pytest installation failed" }
+
+      - name: Configure reproducible build root
+        shell: pwsh
+        run: |
+          $buildRoot = Join-Path $env:RUNNER_TEMP "m5-11-build-root"
+          $pyinstallerConfig = Join-Path $buildRoot "pyinstaller-config"
+          New-Item -ItemType Directory -Path $buildRoot -Force | Out-Null
+          New-Item -ItemType Directory -Path $pyinstallerConfig -Force | Out-Null
+          "M5_11_BUILD_ROOT=$buildRoot" >> $env:GITHUB_ENV
+          "PYINSTALLER_CONFIG_DIR=$pyinstallerConfig" >> $env:GITHUB_ENV
+
+      - name: Build standalone Explorer A
+        shell: pwsh
+        run: |
+          python -m PyInstaller --noconfirm --clean `
+            --distpath "$env:M5_11_BUILD_ROOT\dist-a" `
+            --workpath "$env:M5_11_BUILD_ROOT\work-a" `
+            packaging\explorer.spec
+
+      - name: Build standalone Explorer B
+        shell: pwsh
+        run: |
+          python -m PyInstaller --noconfirm --clean `
+            --distpath "$env:M5_11_BUILD_ROOT\dist-b" `
+            --workpath "$env:M5_11_BUILD_ROOT\work-b" `
+            packaging\explorer.spec
+
+      - name: Provision external synthetic Derived Tree
+        shell: pwsh
+        run: |
+          $env:PYTHONPATH = "src;tests"
+          $fixtureRoot = Join-Path $env:RUNNER_TEMP "m5-11-fixture"
+          $bundlePath = (& python -c "import sys; from pathlib import Path; from test_explorer_smoke import _derived_bundle; print(_derived_bundle(Path(sys.argv[1])))" $fixtureRoot | Select-Object -Last 1).Trim()
+          if (-not (Test-Path -LiteralPath $bundlePath -PathType Container)) {
+            throw "synthetic Derived Tree was not created: $bundlePath"
+          }
+          "M5_11_BUNDLE_PATH=$bundlePath" >> $env:GITHUB_ENV
+
+      - name: Export standalone artifact paths
+        shell: pwsh
+        run: |
+          $exeA = Join-Path $env:M5_11_BUILD_ROOT "dist-a\manafold-census-explorer\manafold-census-explorer.exe"
+          $exeB = Join-Path $env:M5_11_BUILD_ROOT "dist-b\manafold-census-explorer\manafold-census-explorer.exe"
+          if (-not (Test-Path -LiteralPath $exeA -PathType Leaf)) {
+            throw "Explorer A executable is missing: $exeA"
+          }
+          if (-not (Test-Path -LiteralPath $exeB -PathType Leaf)) {
+            throw "Explorer B executable is missing: $exeB"
+          }
+          "M5_11_EXE_A=$exeA" >> $env:GITHUB_ENV
+          "M5_11_EXE_B=$exeB" >> $env:GITHUB_ENV
+
+      - name: Run standalone Windows smoke tests
+        shell: pwsh
+        run: |
+          $env:PYTHONPATH = "src;tests"
+          python -m pytest tests/test_windows_package_smoke.py -q
+
+      - name: Report experimental executable byte parity
+        shell: pwsh
+        run: |
+          $hashA = (Get-FileHash -Algorithm SHA256 -LiteralPath $env:M5_11_EXE_A).Hash
+          $hashB = (Get-FileHash -Algorithm SHA256 -LiteralPath $env:M5_11_EXE_B).Hash
+          if ($hashA -eq $hashB) {
+            Write-Output "WINDOWS_EXE_BYTE_PARITY=PASS"
+          } else {
+            Write-Output "WINDOWS_EXE_BYTE_PARITY=EXPERIMENTAL"
+          }
