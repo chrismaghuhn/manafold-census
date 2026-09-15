@@ -1,0 +1,43 @@
+"""Non-authoritative M6-02 unresolved-surface inventory."""
+
+from .model import (
+    AUTHORITY_SCOPE,
+    GROUPING_POLICY_ID,
+    GROUPING_POLICY_VERSION,
+    SHAPE_POLICY_ID,
+    SHAPE_POLICY_VERSION,
+    CandidateGroupV1,
+    CapabilityOpportunityV1,
+    FileDescriptorV1,
+    GroupingLensV1,
+    InventoryManifestV1,
+    InventoryReportV1,
+    PlanningStatusV1,
+    RecurrenceStatusV1,
+    SourceSurfaceV1,
+    StructuralSummaryV1,
+    SurfaceMemberV1,
+    SurfaceScopeV1,
+    WorklistEntryV1,
+)
+
+__all__ = [
+    "AUTHORITY_SCOPE",
+    "GROUPING_POLICY_ID",
+    "GROUPING_POLICY_VERSION",
+    "SHAPE_POLICY_ID",
+    "SHAPE_POLICY_VERSION",
+    "CandidateGroupV1",
+    "CapabilityOpportunityV1",
+    "FileDescriptorV1",
+    "GroupingLensV1",
+    "InventoryManifestV1",
+    "InventoryReportV1",
+    "PlanningStatusV1",
+    "RecurrenceStatusV1",
+    "SourceSurfaceV1",
+    "StructuralSummaryV1",
+    "SurfaceMemberV1",
+    "SurfaceScopeV1",
+    "WorklistEntryV1",
+]

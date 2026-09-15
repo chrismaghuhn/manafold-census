@@ -29,6 +29,7 @@ from .corpus.build import (
 from .corpus.check import validate_corpus_output
 from .digest import REPRODUCTION_DOMAIN, domain_digest, measure_file, sha256_bytes
 from .explorer.cli import add_explorer_parser, dispatch_explorer_command
+from .inventory.cli import add_m6_02_parsers, dispatch_m6_02_command
 from .models import ArtifactManifest, DatasetManifest, SourceLock, StudySpec
 from .release.cli import add_m5_parsers, dispatch_m5_command
 from .resources import project_data_root
@@ -389,6 +390,7 @@ def _parser() -> argparse.ArgumentParser:
     for command in ("m4-build", "m4-check", "m4-report"):
         subparsers.add_parser(command, parents=[m4_parent])
     add_m5_parsers(subparsers)
+    add_m6_02_parsers(subparsers)
     add_explorer_parser(subparsers)
     return parser
 
@@ -454,6 +456,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         m5_result = dispatch_m5_command(args)
         if m5_result is not None:
             return m5_result
+        m6_02_result = dispatch_m6_02_command(args)
+        if m6_02_result is not None:
+            return m6_02_result
         explorer_result = dispatch_explorer_command(args)
         if explorer_result is not None:
             return explorer_result
