@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Collection
 from pathlib import Path
 from typing import cast
 
@@ -15,8 +16,10 @@ from ..capability.input import M3RequirementCorpusV1
 from ..capability.manifest import M4OntologyManifestV1
 from ..models import SourceLock
 from ..release.bundle import (
+    CensusBundleContentsV1,
     _validate_published_manifest,
     load_census_bundle,
+    validate_census_authoritative_subtree,
     validate_census_bundle,
 )
 from ..release.input_lock import (
@@ -29,6 +32,7 @@ from ..release.manifest import (
     BundleComponentDescriptorV1,
     CensusBundleManifestV1,
 )
+from ..release.publish import read_bundle_manifest
 from ..structural.manifest import StructuralCardIndexManifestV1
 from ..structural.model import StructuralCardRecordV1
 
@@ -124,12 +128,19 @@ def _reconstruct_input_lock(
 
 def validated_bundle_inputs(
     bundle_directory: str | Path,
+    *,
+    allowed_extra_files: Collection[str] = (),
 ) -> tuple[
     CensusBundleManifestV1, CensusInputLockV1, M3RequirementCorpusV1, _RereadResult
 ]:
     """Validate the frozen bundle and return typed records needed by M5-06."""
 
-    contents = load_census_bundle(bundle_directory)
+    root = Path(bundle_directory)
+    contents = (
+        load_census_bundle(root)
+        if not allowed_extra_files
+        else CensusBundleContentsV1(root, read_bundle_manifest(root))
+    )
     lock = _reconstruct_input_lock(contents.root, contents.manifest)
     provisioning = CensusInputProvisioningV1(
         source_lock_path=contents.root / "inputs/source-lock.json",
@@ -141,7 +152,15 @@ def validated_bundle_inputs(
         raise ValueError(f"M5-02 bundle validation is {input_result.status.value}")
     if input_result.m3_corpus is None:
         raise ValueError("M5-02 bundle validation returned no corpus")
-    validate_census_bundle(contents.root, lock, input_result.m3_corpus)
+    if allowed_extra_files:
+        validate_census_authoritative_subtree(
+            contents.root,
+            lock,
+            input_result.m3_corpus,
+            allowed_extra_files=allowed_extra_files,
+        )
+    else:
+        validate_census_bundle(contents.root, lock, input_result.m3_corpus)
     published = _reread_output(contents.root / "inputs/m4")
     _validate_published_manifest(published.manifest, lock, input_result.m3_corpus)
     return contents.manifest, lock, input_result.m3_corpus, published

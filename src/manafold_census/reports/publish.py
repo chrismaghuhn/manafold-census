@@ -9,24 +9,19 @@ from typing import Any, cast
 
 from ..analysis.model import AnalysisOutcomeV1
 from ..canonical import JSONValue, canonical_json_bytes
-from ..capability.manifest import M4OntologyManifestV1
 from ..capability.mapping import MappingDispositionV1, RequirementMappingDecisionV1
 from ..digest import measure_file, sha256_bytes
 from ..query.indexes import DerivedIndexRowsV1, validate_index_row
-from ..release.bundle import _expected_bundle_files
 from ..release.manifest import (
     BUNDLE_MANIFEST_FILENAME,
     BundleComponentDescriptorV1,
     CensusBundleManifestV1,
 )
-from ..release.publish import (
-    file_descriptor_matches,
-    preflight_bundle_filesystem,
-    read_bundle_manifest,
-)
+from ..release.publish import file_descriptor_matches
 from ..semantic.evidence import SourceRecordRefV1
 from ..validation import validate_document
 from .derive import MAPPING_QUEUE_ROW_SCHEMA, UNRESOLVED_ROW_SCHEMA
+from .input import validated_bundle_inputs
 from .model import (
     DERIVED_FILES,
     INDEX_DATA_FILES,
@@ -225,37 +220,16 @@ def _read_model(path: Path, parser: Any, schema: str) -> Any:
     return result
 
 
-def _validate_authoritative_copy(root: Path, manifest: CensusBundleManifestV1) -> None:
-    expected = _expected_bundle_files(root) | set(DERIVED_FILES)
-    actual = {
-        path.relative_to(root).as_posix() for path in root.rglob("*") if path.is_file()
-    }
-    if actual != expected:
-        raise ValueError(
-            "derived bundle file set mismatch: "
-            f"missing={len(expected - actual)} extra={len(actual - expected)}"
-        )
-    for component in manifest.authoritative_components:
-        if not file_descriptor_matches(
-            root / component.manifest_path,
-            component.sha256,
-            component.byte_length,
-        ):
-            raise ValueError(
-                f"authoritative component descriptor mismatch: {component.role}"
-            )
-
-
 def validate_census_derived_output(
     output_directory: str | Path,
 ) -> DerivedCensusBuildResultV1:
     """Reread all derived files and verify their frozen bindings."""
 
     root = Path(output_directory)
-    preflight_bundle_filesystem(root)
-    manifest = read_bundle_manifest(root)
+    manifest, _lock, _corpus, reread = validated_bundle_inputs(
+        root, allowed_extra_files=DERIVED_FILES
+    )
     manifest_raw = (root / BUNDLE_MANIFEST_FILENAME).read_bytes()
-    _validate_authoritative_copy(root, manifest)
     manifest_sha256 = sha256_bytes(manifest_raw)
 
     report_index = _read_model(
@@ -290,12 +264,13 @@ def validate_census_derived_output(
         raise ValueError("report SourceLock identity is stale")
     m3_component = _component(manifest, "m3")
     m4_raw = (root / "inputs/m4/m4-ontology-manifest.json").read_bytes()
-    m4_document = json.loads(m4_raw)
-    m4_manifest = M4OntologyManifestV1.from_wire(m4_document)
+    m4_manifest = reread.manifest
     if report.m3_analysis_manifest_sha256 != m3_component.sha256:
         raise ValueError("report M3 identity is stale")
     if report.m4_manifest_sha256 != sha256_bytes(m4_raw):
         raise ValueError("report M4 identity is stale")
+    if sha256_bytes(m4_raw) != m4_manifest.digest():
+        raise ValueError("M4 manifest identity is stale")
     if report.requirement_set_digest != m4_manifest.requirement_set_digest:
         raise ValueError("report Requirement-set identity is stale")
 

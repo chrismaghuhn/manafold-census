@@ -5,8 +5,9 @@ from __future__ import annotations
 import json
 import os
 import tempfile
+from collections.abc import Collection
 from dataclasses import dataclass
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 from ..capability.build import _reread_output
 from ..capability.input import M3RequirementCorpusV1
@@ -103,17 +104,29 @@ def load_census_bundle(bundle_dir: str | Path) -> CensusBundleContentsV1:
 
     root = Path(bundle_dir)
     manifest = read_bundle_manifest(root)
+    _validate_bundle_file_set(root, ())
+    return CensusBundleContentsV1(root, manifest)
+
+
+def _validate_bundle_file_set(root: Path, allowed_extra_files: Collection[str]) -> None:
+    for relative_path in allowed_extra_files:
+        parsed = PurePosixPath(relative_path)
+        if (
+            parsed.is_absolute()
+            or ".." in parsed.parts
+            or parsed.as_posix() != relative_path
+        ):
+            raise ValueError("allowed derived path is not a safe relative path")
     actual = {
         path.relative_to(root).as_posix() for path in root.rglob("*") if path.is_file()
     }
-    expected = _expected_bundle_files(root)
+    expected = _expected_bundle_files(root) | set(allowed_extra_files)
     missing = sorted(expected - actual)
     extra = sorted(actual - expected)
     if missing:
         raise FileNotFoundError("missing Census bundle artifact: " + missing[0])
     if extra:
         raise ValueError("Census bundle file set mismatch: " + extra[0])
-    return CensusBundleContentsV1(root, manifest)
 
 
 def _component_map(
@@ -159,18 +172,13 @@ def _expected_population(lock: CensusInputLockV1) -> BundlePopulationV1:
     )
 
 
-def validate_census_bundle(
-    bundle_dir: str | Path,
+def _validate_authoritative_contents(
+    contents: CensusBundleContentsV1,
     lock: CensusInputLockV1,
     corpus: M3RequirementCorpusV1,
 ) -> CensusBundleContentsV1:
-    """Reread and validate every authoritative component in one bundle."""
+    """Validate all authoritative bytes beneath an already selected root."""
 
-    if not isinstance(lock, CensusInputLockV1):
-        raise TypeError("lock must be CensusInputLockV1")
-    if not isinstance(corpus, M3RequirementCorpusV1):
-        raise TypeError("corpus must be M3RequirementCorpusV1")
-    contents = load_census_bundle(bundle_dir)
     manifest = contents.manifest
     if manifest.parent_census_release_id is not None:
         raise ValueError("first Census bundle must have a null parent")
@@ -217,6 +225,42 @@ def validate_census_bundle(
     )
     _assert_record_set_parity(authority, published)
     return contents
+
+
+def validate_census_bundle(
+    bundle_dir: str | Path,
+    lock: CensusInputLockV1,
+    corpus: M3RequirementCorpusV1,
+) -> CensusBundleContentsV1:
+    """Reread and validate every authoritative component in one bundle."""
+
+    if not isinstance(lock, CensusInputLockV1):
+        raise TypeError("lock must be CensusInputLockV1")
+    if not isinstance(corpus, M3RequirementCorpusV1):
+        raise TypeError("corpus must be M3RequirementCorpusV1")
+    return _validate_authoritative_contents(
+        load_census_bundle(bundle_dir), lock, corpus
+    )
+
+
+def validate_census_authoritative_subtree(
+    bundle_dir: str | Path,
+    lock: CensusInputLockV1,
+    corpus: M3RequirementCorpusV1,
+    *,
+    allowed_extra_files: Collection[str] = (),
+) -> CensusBundleContentsV1:
+    """Validate authoritative bytes while allowing an exact derived sibling set."""
+
+    if not isinstance(lock, CensusInputLockV1):
+        raise TypeError("lock must be CensusInputLockV1")
+    if not isinstance(corpus, M3RequirementCorpusV1):
+        raise TypeError("corpus must be M3RequirementCorpusV1")
+    root = Path(bundle_dir)
+    manifest = read_bundle_manifest(root)
+    _validate_bundle_file_set(root, allowed_extra_files)
+    contents = CensusBundleContentsV1(root, manifest)
+    return _validate_authoritative_contents(contents, lock, corpus)
 
 
 def _bundle_manifest(
@@ -369,5 +413,6 @@ __all__ = [
     "CensusBundleContentsV1",
     "build_census_bundle",
     "load_census_bundle",
+    "validate_census_authoritative_subtree",
     "validate_census_bundle",
 ]

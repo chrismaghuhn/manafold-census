@@ -287,7 +287,7 @@ def test_derived_output_reread_rejects_missing_derived_file(tmp_path: Path) -> N
     result = build_census_derived(bundle_result.output_dir, tmp_path / "derived")
     (result.output_dir / "indexes/cards-by-name.jsonl").unlink()
 
-    with pytest.raises(ValueError, match="file set|missing"):
+    with pytest.raises((FileNotFoundError, ValueError), match="file set|missing"):
         validate_census_derived_output(result.output_dir)
 
 
@@ -299,8 +299,36 @@ def test_derived_output_reread_rejects_tampered_authoritative_bytes(
     path = result.output_dir / "inputs/source-lock.json"
     path.write_bytes(path.read_bytes() + b" ")
 
-    with pytest.raises(ValueError, match="authoritative|descriptor"):
+    with pytest.raises(
+        ValueError, match="authoritative|descriptor|SourceLock|canonical"
+    ):
         validate_census_derived_output(result.output_dir)
+
+
+def test_derived_output_reread_rejects_tampered_nested_authoritative_bytes(
+    tmp_path: Path,
+) -> None:
+    _package, bundle_result = _build_bundle(tmp_path / "fixture")
+    result = build_census_derived(bundle_result.output_dir, tmp_path / "derived")
+    relative_paths = (
+        "inputs/m1/records/0.jsonl",
+        "inputs/m3/records/0.jsonl",
+        "inputs/m3/trace/0.jsonl",
+        "inputs/m4-authority/links.jsonl",
+        "inputs/m4/links/0.jsonl",
+    )
+
+    for relative_path in relative_paths:
+        path = result.output_dir / relative_path
+        original = path.read_bytes()
+        path.write_bytes(original + b" ")
+        try:
+            with pytest.raises(
+                ValueError, match="authoritative|descriptor|M[134]|M5-02"
+            ):
+                validate_census_derived_output(result.output_dir)
+        finally:
+            path.write_bytes(original)
 
 
 def test_derived_output_reread_rejects_corrupt_report_descriptor(
