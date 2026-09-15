@@ -1,0 +1,208 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://manafold-census.invalid/schemas/census-bundle-manifest.v1.schema.json",
+  "title": "Manafold Census Bundle Manifest V1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "census_release_version",
+    "census_release_id",
+    "source_lock_digest",
+    "authoritative_components",
+    "population",
+    "schemas",
+    "compatibility",
+    "parent_census_release_id"
+  ],
+  "properties": {
+    "schema": {
+      "const": "census.census-bundle-manifest.v1"
+    },
+    "census_release_version": {
+      "const": "0.1.0"
+    },
+    "census_release_id": {
+      "type": "string",
+      "pattern": "^censusrel_[0-9a-f]{64}$"
+    },
+    "source_lock_digest": {
+      "$ref": "#/$defs/digest"
+    },
+    "authoritative_components": {
+      "type": "array",
+      "minItems": 5,
+      "maxItems": 5,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/component"
+      }
+    },
+    "population": {
+      "$ref": "#/$defs/population"
+    },
+    "schemas": {
+      "$ref": "#/$defs/schemas"
+    },
+    "compatibility": {
+      "$ref": "#/$defs/compatibility"
+    },
+    "parent_census_release_id": {
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "string",
+          "pattern": "^censusrel_[0-9a-f]{64}$"
+        }
+      ]
+    }
+  },
+  "$defs": {
+    "digest": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "component": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "role",
+        "manifest_path",
+        "sha256",
+        "byte_length",
+        "schema"
+      ],
+      "properties": {
+        "role": {
+          "enum": [
+            "source_lock",
+            "m1",
+            "m3",
+            "m4_authority",
+            "m4"
+          ]
+        },
+        "manifest_path": {
+          "enum": [
+            "inputs/source-lock.json",
+            "inputs/m1/structural-index-manifest.json",
+            "inputs/m3/analysis-manifest.json",
+            "inputs/m4-authority/authority-manifest.json",
+            "inputs/m4/m4-ontology-manifest.json"
+          ]
+        },
+        "sha256": {
+          "$ref": "#/$defs/digest"
+        },
+        "byte_length": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9223372036854775807
+        },
+        "schema": {
+          "enum": [
+            "census.source-lock.v1",
+            "census.structural-card-index-manifest.v1",
+            "census.analysis-manifest.v1",
+            "census.m5-m4-authority-package.v1",
+            "census.m4-ontology-manifest.v1"
+          ]
+        },
+        "aggregate_digest": {
+          "$ref": "#/$defs/digest"
+        }
+      }
+    },
+    "population": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "oracle_identity_count",
+        "structural_record_count",
+        "analysis_record_count",
+        "requirement_count",
+        "requirements_produced_card_count",
+        "no_requirements_applicable_count",
+        "unresolved_analysis_count"
+      ],
+      "properties": {
+        "oracle_identity_count": {
+          "$ref": "#/$defs/count"
+        },
+        "structural_record_count": {
+          "$ref": "#/$defs/count"
+        },
+        "analysis_record_count": {
+          "$ref": "#/$defs/count"
+        },
+        "requirement_count": {
+          "$ref": "#/$defs/count"
+        },
+        "requirements_produced_card_count": {
+          "$ref": "#/$defs/count"
+        },
+        "no_requirements_applicable_count": {
+          "$ref": "#/$defs/count"
+        },
+        "unresolved_analysis_count": {
+          "$ref": "#/$defs/count"
+        }
+      }
+    },
+    "schemas": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "structural_record",
+        "analysis_record",
+        "requirement",
+        "requirement_bundle",
+        "m4_manifest"
+      ],
+      "properties": {
+        "structural_record": {
+          "const": "census.structural-card.v1"
+        },
+        "analysis_record": {
+          "const": "census.card-analysis.v1"
+        },
+        "requirement": {
+          "const": "census.semantic-requirement.v1"
+        },
+        "requirement_bundle": {
+          "const": "census.semantic-requirement-bundle.v1"
+        },
+        "m4_manifest": {
+          "const": "census.m4-ontology-manifest.v1"
+        }
+      }
+    },
+    "compatibility": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "bundle_format_major",
+        "query_contract",
+        "minimum_explorer_version"
+      ],
+      "properties": {
+        "bundle_format_major": {
+          "const": 1
+        },
+        "query_contract": {
+          "const": "census.query.v1"
+        },
+        "minimum_explorer_version": {
+          "const": "0.1.0"
+        }
+      }
+    },
+    "count": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 9223372036854775807
+    }
+  }
+}

@@ -6,6 +6,7 @@ from pathlib import Path
 
 from ..capability.input import FrozenM3InputV1
 from .authority_package import validate_authority_package
+from .bundle import build_census_bundle
 from .input_lock import (
     CensusInputLockStatusV1,
     CensusInputProvisioningV1,
@@ -165,7 +166,73 @@ def build_real_m4_snapshot_command(
     return 0
 
 
+def build_census_bundle_command(
+    input_lock_path: str | Path,
+    authority_package_path: str | Path,
+    source_lock_path: str | Path,
+    structural_output_directory: str | Path,
+    analysis_output_directory: str | Path,
+    m4_output_directory: str | Path,
+    output_directory: str | Path,
+) -> int:
+    """Build the first self-contained Census bundle from explicit inputs."""
+
+    try:
+        lock = load_census_input_lock(input_lock_path)
+    except FileNotFoundError as error:
+        print(f"m5-bundle-build=BLOCKED: {error}")
+        return 1
+    except (OSError, TypeError, ValueError) as error:
+        print(f"m5-bundle-build=FAIL: {error}")
+        return 1
+
+    provisioning = CensusInputProvisioningV1(
+        source_lock_path=Path(source_lock_path),
+        structural_output_directory=Path(structural_output_directory),
+        analysis_output_directory=Path(analysis_output_directory),
+    )
+    input_result = validate_census_input_lock(lock, provisioning)
+    for check in input_result.checks:
+        print(f"{check.name}={check.status.value}: {check.detail}")
+    if input_result.status is not CensusInputLockStatusV1.PASS:
+        print(f"m5-bundle-build={input_result.status.value}")
+        return 1
+    if input_result.m3_corpus is None:
+        print("m5-bundle-build=FAIL: M5-02 did not return an M3 corpus")
+        return 1
+    try:
+        result = build_census_bundle(
+            input_lock_path=input_lock_path,
+            source_lock_path=source_lock_path,
+            structural_output_directory=structural_output_directory,
+            analysis_output_directory=analysis_output_directory,
+            authority_package_directory=authority_package_path,
+            m4_output_directory=m4_output_directory,
+            output_directory=output_directory,
+        )
+    except FileNotFoundError as error:
+        print(f"m5-bundle-build=BLOCKED: {error}")
+        return 1
+    except OSError as error:
+        print(f"m5-bundle-build=BLOCKED: {error}")
+        return 1
+    except (TypeError, ValueError) as error:
+        print(f"m5-bundle-build=FAIL: {error}")
+        return 1
+    m4_component = next(
+        item for item in result.manifest.authoritative_components if item.role == "m4"
+    )
+    print(f"m4-manifest-sha256={m4_component.sha256}")
+    print(f"census-release-id={result.manifest.census_release_id}")
+    print(f"census-manifest-sha256={result.census_manifest_sha256}")
+    print("bundle-authoritative-components=5")
+    print("bundle-reread=PASS")
+    print("m5-bundle-build=PASS")
+    return 0
+
+
 __all__ = [
+    "build_census_bundle_command",
     "build_real_m4_snapshot_command",
     "check_census_authority_package_command",
     "check_census_input_lock_command",

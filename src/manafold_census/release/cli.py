@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 
 from .commands import (
+    build_census_bundle_command,
     build_real_m4_snapshot_command,
     check_census_authority_package_command,
     check_census_input_lock_command,
@@ -41,6 +42,17 @@ def add_m5_parsers(
     m4_real_parser.add_argument("--structural-output", required=True)
     m4_real_parser.add_argument("--analysis-output", required=True)
     m4_real_parser.add_argument("--output", required=True)
+    bundle_parser = subparsers.add_parser(
+        "m5-bundle-build",
+        help="publish the self-contained Census 0.1 bundle",
+    )
+    bundle_parser.add_argument("--input-lock", required=True)
+    bundle_parser.add_argument("--authority-package", required=True)
+    bundle_parser.add_argument("--source-lock", required=True)
+    bundle_parser.add_argument("--structural-output", required=True)
+    bundle_parser.add_argument("--analysis-output", required=True)
+    bundle_parser.add_argument("--m4-output", required=True)
+    bundle_parser.add_argument("--output", required=True)
 
 
 def dispatch_m5_command(args: argparse.Namespace) -> int | None:
@@ -66,6 +78,16 @@ def dispatch_m5_command(args: argparse.Namespace) -> int | None:
             args.source_lock,
             args.structural_output,
             args.analysis_output,
+            args.output,
+        )
+    if args.command == "m5-bundle-build":
+        return build_census_bundle_command(
+            args.input_lock,
+            args.authority_package,
+            args.source_lock,
+            args.structural_output,
+            args.analysis_output,
+            args.m4_output,
             args.output,
         )
     return None
