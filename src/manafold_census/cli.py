@@ -29,7 +29,10 @@ from .corpus.build import (
 from .corpus.check import validate_corpus_output
 from .digest import REPRODUCTION_DOMAIN, domain_digest, measure_file, sha256_bytes
 from .models import ArtifactManifest, DatasetManifest, SourceLock, StudySpec
-from .release.commands import check_census_input_lock_command
+from .release.commands import (
+    check_census_authority_package_command,
+    check_census_input_lock_command,
+)
 from .resources import project_data_root
 from .source.scryfall import discover_oracle_cards, refresh_current_source
 from .source.transfer import fetch_pinned_source
@@ -395,6 +398,15 @@ def _parser() -> argparse.ArgumentParser:
     input_lock_parser.add_argument("--source-lock", required=True)
     input_lock_parser.add_argument("--structural-output", required=True)
     input_lock_parser.add_argument("--analysis-output", required=True)
+    authority_parser = subparsers.add_parser(
+        "m5-authority-check",
+        help="validate the explicit Census 0.1 M4 authority package",
+    )
+    authority_parser.add_argument("--package", required=True)
+    authority_parser.add_argument("--lock", required=True)
+    authority_parser.add_argument("--source-lock", required=True)
+    authority_parser.add_argument("--structural-output", required=True)
+    authority_parser.add_argument("--analysis-output", required=True)
     return parser
 
 
@@ -458,6 +470,14 @@ def main(argv: Sequence[str] | None = None) -> int:
             )
         if args.command == "m5-input-lock-check":
             return check_census_input_lock_command(
+                args.lock,
+                args.source_lock,
+                args.structural_output,
+                args.analysis_output,
+            )
+        if args.command == "m5-authority-check":
+            return check_census_authority_package_command(
+                args.package,
                 args.lock,
                 args.source_lock,
                 args.structural_output,
