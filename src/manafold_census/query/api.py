@@ -12,6 +12,7 @@ from .bundle import ValidatedQueryBundleV1, load_validated_query_bundle
 from .cards import (
     CardSemanticViewV1,
     QueryNotFoundV1,
+    RequirementSummaryV1,
     build_card_semantic_view,
 )
 from .details import (
@@ -116,6 +117,22 @@ class CensusReader:
     def resolve_card_name(self, name: str) -> CardNameResolutionV1:
         return resolve_card_name_from_index(name, self._bundle.name_index)
 
+    def search_cards(self, query: str) -> CardNameResolutionV1:
+        """Resolve a card name using the exact M5-08 lookup contract."""
+
+        return self.resolve_card_name(query)
+
+    def list_card_semantic_views(self) -> tuple[CardSemanticViewV1, ...]:
+        """Return all CardSemanticView values in canonical Oracle order."""
+
+        views: list[CardSemanticViewV1] = []
+        for record in self._bundle.structural_records:
+            view = self.get_card_semantic_view(record.oracle_id)
+            if isinstance(view, QueryNotFoundV1):
+                raise ValueError("validated card is missing a semantic view")
+            views.append(view)
+        return tuple(views)
+
     def get_card(self, oracle_id: str) -> CardDetailViewV1 | QueryNotFoundV1:
         if oracle_id not in self._bundle.structural_by_oracle:
             return QueryNotFoundV1("card_detail", oracle_id)
@@ -133,6 +150,29 @@ class CensusReader:
         if capability_ref not in self._bundle.definitions_by_ref:
             return QueryNotFoundV1("capability_detail", str(capability_ref))
         return build_capability_detail(self._bundle, capability_ref)
+
+    def list_capabilities(self) -> tuple[CapabilityDetailViewV1, ...]:
+        """Return all Capability details in canonical Capability order."""
+
+        refs = sorted(
+            self._bundle.definitions_by_ref,
+            key=lambda ref: (
+                ref.capability_family_id,
+                ref.capability_version,
+                ref.claim_digest,
+            ),
+        )
+        return tuple(build_capability_detail(self._bundle, ref) for ref in refs)
+
+    def get_requirements_for_capability(
+        self, capability_ref: CapabilityRefV1
+    ) -> tuple[RequirementSummaryV1, ...] | QueryNotFoundV1:
+        """Return the exact Requirements linked to one Capability."""
+
+        detail = self.get_capability(capability_ref)
+        if isinstance(detail, QueryNotFoundV1):
+            return detail
+        return detail.linked_requirements
 
     def get_capabilities_for_card(
         self, oracle_id: str

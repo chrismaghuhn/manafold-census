@@ -8,7 +8,11 @@ version = "0.1.0"
 description = "Independent deterministic data-census foundations"
 readme = "README.md"
 requires-python = ">=3.12"
-dependencies = ["jsonschema>=4.23,<5", "referencing>=0.35,<1"]
+dependencies = [
+  "jsonschema>=4.23,<5",
+  "referencing>=0.35,<1",
+  "rich>=13.7,<14",
+]
 
 [project.optional-dependencies]
 dev = [
