@@ -82,10 +82,10 @@ It must not read bundles, add semantic/parser logic, or import network functiona
 
 - [ ] **Step 2: Implement the PyInstaller spec.**
 
-Resolve `PROJECT_ROOT = Path(__file__).resolve().parents[1]`, require `packaging/explorer_entry.py` and `schemas/`, put `src` on `pathex`, and map only `schemas/` to `share/manafold-census/schemas`:
+Resolve `PROJECT_ROOT = Path(SPECPATH).resolve().parent` from the PyInstaller-provided spec directory, require `packaging/explorer_entry.py` and `schemas/`, put `src` on `pathex`, and map only `schemas/` to `share/manafold-census/schemas`:
 
 ~~~python
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
+PROJECT_ROOT = Path(SPECPATH).resolve().parent
 ENTRYPOINT = PROJECT_ROOT / "packaging" / "explorer_entry.py"
 SCHEMA_ROOT = PROJECT_ROOT / "schemas"
 datas = [(str(SCHEMA_ROOT), "share/manafold-census/schemas")]
@@ -142,11 +142,11 @@ $env:PYTHONPATH='src'; & C:\Python313\python.exe -m pytest tests/test_windows_pa
 
 - [ ] **Step 1: Pin the workflow.**
 
-Use `runs-on: windows-2022`, `actions/setup-python@v5`, and `python-version: "3.12.10"`. Set `PYTHONHASHSEED: "0"`, `SOURCE_DATE_EPOCH: "0"`, `TZ: UTC`, `LC_ALL: C.UTF-8`, `LANG: C.UTF-8`, and `PIP_DISABLE_PIP_VERSION_CHECK: "1"`. Use `$env:RUNNER_TEMP\m5-11-build-root`, a `PYI_CONFIG_DIR` below it, and separate `dist-a/work-a` and `dist-b/work-b` directories.
+Use `runs-on: windows-2022`, `actions/setup-python@v5`, and `python-version: "3.12.10"`. Set `PYTHONHASHSEED: "0"`, `SOURCE_DATE_EPOCH: "0"`, `TZ: UTC`, `LC_ALL: C.UTF-8`, `LANG: C.UTF-8`, and `PIP_DISABLE_PIP_VERSION_CHECK: "1"`. Use `$env:RUNNER_TEMP\m5-11-build-root`, a `PYINSTALLER_CONFIG_DIR` below it, and separate `dist-a/work-a` and `dist-b/work-b` directories.
 
 - [ ] **Step 2: Build two external-bundle executables.**
 
-Install the project development extras and then the hash-locked requirements. Invoke PyInstaller twice with:
+Install the hash-locked runtime/PyInstaller requirements first, install the project with `--no-build-isolation --no-deps`, and install only the unbundled pytest test runner separately. Invoke PyInstaller twice with:
 
 ~~~powershell
 python -m PyInstaller --noconfirm --clean --distpath "$buildRoot\dist-a" --workpath "$buildRoot\work-a" packaging\explorer.spec
