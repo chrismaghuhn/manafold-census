@@ -2,11 +2,16 @@
 
 Date: 2026-09-15
 Repository: https://github.com/chrismaghuhn/manafold-census
-Status: DESIGN SPECIFICATION / REPAIRED / READY FOR INDEPENDENT REVIEW
+Status: DESIGN CONTENT APPROVED / READY TO FREEZE AFTER M5-00
 
 ~~~text
 M5_DESIGN_AMENDMENT_01              = APPLIED
-M5_DESIGN_AMENDMENT_02              = FROZEN-CONTRACT REPAIR
+M5_DESIGN_AMENDMENT_02              = APPLIED
+M5_DESIGN_TEXT_CONSISTENCY_REPAIR   = APPLIED
+M5_DESIGN_CONTENT_REVIEW            = PASS
+M5_DESIGN_CONTENT                   = APPROVED
+M5_00_AUTHORIZED                    = YES
+M5_DESIGN_SPECIFICATION             = READY_TO_FREEZE_AFTER_M5_00
 M5_IMPLEMENTATION_AUTHORIZED        = NO
 M5_REAL_INPUT_CAMPAIGN_STARTED     = NO
 M5_REAL_M4_BUILD_STARTED           = NO
@@ -67,6 +72,11 @@ frozen M4 contracts:
 12. The published M4 snapshot must have exact canonical record-set parity with
     the reviewed authority package after flat/sharded representation is
     normalized.
+13. Negative conformance cases contain only an attempted mapping for an
+    unresolved record without a persisted Requirement; valid unresolved
+    records with persisted Requirements are positive conformance cases.
+14. Explorer text distinguishes unresolved records without a bundle from
+    unresolved records with a persisted Requirement bundle.
 
 ## 1. Executive decision
 
@@ -1114,15 +1124,33 @@ typed bindings
 source and release provenance
 ~~~
 
-For UNRESOLVED_ANALYSIS, display:
+For UNRESOLVED_ANALYSIS, the Explorer must branch on whether the persisted M3
+record contains a Requirement bundle.
+
+Without a persisted bundle, display:
 
 ~~~text
 UNRESOLVED_ANALYSIS
 
-No established Requirement is present in this Census snapshot.
+No persisted Requirement was established for this card in this Census snapshot.
 
 This does NOT mean the card has no semantic requirements or capabilities.
 ~~~
+
+With a nonempty persisted bundle, display:
+
+~~~text
+UNRESOLVED_ANALYSIS
+
+This card has persisted Requirements for the semantic subset shown below,
+but the overall card analysis remains unresolved.
+
+Mapped Requirements do NOT imply complete semantic understanding of this card.
+~~~
+
+The second form may show active Capability mappings for the persisted subset.
+The card-level semantic_state remains UNRESOLVED_ANALYSIS by the precedence
+rules in Section 13.
 
 The Capability browser shows:
 
@@ -1400,8 +1428,7 @@ stale M4 link
 unaccepted review
 active link to non-active definition
 mapping for unresolved analysis without a persisted bundle
-mapping persisted Requirements from an unresolved bundle
-unresolved card state retained when all persisted Requirements are mapped
+attempted mapping for UNRESOLVED_ANALYSIS without any persisted Requirement
 unknown card name
 ambiguous card name
 negative deck quantity
@@ -1410,6 +1437,14 @@ corrupt derived index
 corrupt report descriptor
 symlinked file
 path traversal
+~~~
+
+Required positive conformance cases include:
+
+~~~text
+unresolved record with persisted bundle contributes its Requirements
+persisted Requirements from unresolved bundle may map through normal M4 path
+card semantic state remains UNRESOLVED_ANALYSIS after such mapping
 ~~~
 
 The synthetic fixture must prove the query-layer state model. It must include
@@ -2132,7 +2167,10 @@ M5_REPOSITORY_BASE             = 6a9cfe916c43e37499fdcfd7335fc473d73fff9f
 
 M5_AUTHORITY_RECONCILIATION    = BLOCKED
 M5_DESIGN_REVIEW_READINESS     = PASS
-M5_DESIGN_SPECIFICATION        = READY_FOR_INDEPENDENT_REVIEW
+M5_DESIGN_CONTENT_REVIEW       = PASS
+M5_DESIGN_CONTENT              = APPROVED
+M5_DESIGN_SPECIFICATION        = READY_TO_FREEZE_AFTER_M5_00
+M5_00_AUTHORIZED               = YES
 
 M5_IMPLEMENTATION_AUTHORIZED   = NO
 M5_REAL_INPUT_CAMPAIGN_STARTED = NO
@@ -2146,8 +2184,13 @@ PR_AUTHORIZED                  = NO
 MERGE_AUTHORIZED               = NO
 ~~~
 
-M5_AUTHORITY_RECONCILIATION = BLOCKED records the still-unreconciled issue
-bodies. It does not indicate an unresolved design choice.
+M5_DESIGN_CONTENT_REVIEW = PASS records that the design content and the final
+text consistency repairs are complete. M5_DESIGN_SPECIFICATION is not yet
+FROZEN because M5-00 must reconcile the roadmap issues first.
 
-This document is the repaired design artifact. No implementation plan has been
+M5_AUTHORITY_RECONCILIATION = BLOCKED records the still-unreconciled issue
+bodies. M5-00 is authorized as the next documentation-only step; no M5
+implementation is authorized.
+
+This document is the repaired design artifact. No M5 implementation has been
 executed, and no M5 implementation is authorized by this specification alone.
