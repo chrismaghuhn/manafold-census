@@ -241,10 +241,10 @@ def test_tampered_ranking_packet_and_report_are_rejected(tmp_path) -> None:
         ).output_directory
 
     ranking_path = fresh("ranking") / "ranked-worklist.jsonl"
-    ranking_lines = ranking_path.read_text(encoding="utf-8").splitlines()
-    if len(ranking_lines) >= 2:
-        ranking_lines[0], ranking_lines[1] = ranking_lines[1], ranking_lines[0]
-        ranking_path.write_text("\n".join(ranking_lines) + "\n", encoding="utf-8")
+    ranking_body = [line for line in ranking_path.read_bytes().split(b"\n") if line]
+    if len(ranking_body) >= 2:
+        ranking_body[0], ranking_body[1] = ranking_body[1], ranking_body[0]
+        ranking_path.write_bytes(b"\n".join(ranking_body) + b"\n")
         try:
             validate_prioritization(ranking_path.parent)
         except PrioritizationValidationError:
@@ -309,3 +309,115 @@ def test_reproduction_writes_path_free_offline_evidence(tmp_path, monkeypatch) -
     evidence = (tmp_path / "evidence.json").read_text(encoding="utf-8")
     assert str(tmp_path) not in evidence
     assert '"offline_regeneration":true' in evidence
+
+
+def _refresh_descriptor(output, relative_path: str) -> None:
+    import json
+
+    from manafold_census.canonical import canonical_json_bytes
+    from manafold_census.digest import measure_file
+
+    manifest_path = output / "manifest.json"
+    manifest = json.loads(manifest_path.read_bytes())
+    measurement = measure_file(output / relative_path)
+    refreshed = []
+    for descriptor in manifest["file_descriptors"]:
+        if descriptor["relative_path"] == relative_path:
+            descriptor = {
+                **descriptor,
+                "sha256": measurement.sha256,
+                "byte_length": measurement.byte_length,
+            }
+        refreshed.append(descriptor)
+    manifest["file_descriptors"] = refreshed
+    manifest_path.write_bytes(canonical_json_bytes(manifest))
+
+
+def test_self_consistent_packet_tamper_is_rejected_with_inputs(tmp_path) -> None:
+    import json
+
+    from prioritization_fixtures import default_loaded_inputs
+
+    from manafold_census.canonical import canonical_json_bytes
+    from manafold_census.prioritization.build import (
+        build_prioritization_from_loaded_inputs,
+    )
+    from manafold_census.prioritization.validate import (
+        PrioritizationValidationError,
+        validate_prioritization_against_inputs,
+    )
+
+    loaded = default_loaded_inputs()
+    output = build_prioritization_from_loaded_inputs(
+        loaded, tmp_path / "output"
+    ).output_directory
+    packet_path = output / "review-packet.json"
+    packet = json.loads(packet_path.read_bytes())
+    assert packet["entries"]
+    assert packet["entries"][0]["example_surfaces"]
+    packet["entries"][0]["example_surfaces"][0]["raw_text"] = "tampered evidence"
+    packet_path.write_bytes(canonical_json_bytes(packet))
+    _refresh_descriptor(output, "review-packet.json")
+    try:
+        validate_prioritization_against_inputs(output, loaded)
+    except PrioritizationValidationError:
+        return
+    raise AssertionError("self-consistent packet tamper was accepted")
+
+
+def test_self_consistent_report_tamper_is_rejected_with_inputs(tmp_path) -> None:
+    import json
+
+    from prioritization_fixtures import default_loaded_inputs
+
+    from manafold_census.canonical import canonical_json_bytes
+    from manafold_census.prioritization.build import (
+        build_prioritization_from_loaded_inputs,
+    )
+    from manafold_census.prioritization.validate import (
+        PrioritizationValidationError,
+        validate_prioritization_against_inputs,
+    )
+
+    loaded = default_loaded_inputs()
+    output = build_prioritization_from_loaded_inputs(
+        loaded, tmp_path / "output"
+    ).output_directory
+    report_path = output / "report.json"
+    report = json.loads(report_path.read_bytes())
+    report["notes"] = ["tampered note"]
+    report_path.write_bytes(canonical_json_bytes(report))
+    _refresh_descriptor(output, "report.json")
+    try:
+        validate_prioritization_against_inputs(output, loaded)
+    except PrioritizationValidationError:
+        return
+    raise AssertionError("self-consistent report tamper was accepted")
+
+
+def test_frozen_policy_constants_are_enforced(tmp_path) -> None:
+    import json
+
+    from prioritization_fixtures import default_loaded_inputs
+
+    from manafold_census.canonical import canonical_json_bytes
+    from manafold_census.prioritization.build import (
+        build_prioritization_from_loaded_inputs,
+    )
+    from manafold_census.prioritization.validate import (
+        PrioritizationValidationError,
+        validate_prioritization,
+    )
+
+    output = build_prioritization_from_loaded_inputs(
+        default_loaded_inputs(), tmp_path / "output"
+    ).output_directory
+    manifest_path = output / "manifest.json"
+    manifest = json.loads(manifest_path.read_bytes())
+    manifest["ranking_policy_version"] = "999"
+    manifest_path.write_bytes(canonical_json_bytes(manifest))
+    try:
+        validate_prioritization(output)
+    except PrioritizationValidationError:
+        return
+    raise AssertionError("drifted policy constant was accepted")

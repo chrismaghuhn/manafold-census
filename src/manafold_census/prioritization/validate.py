@@ -37,6 +37,8 @@ from .identity import (
 )
 from .input import LoadedPrioritizationInputsV1
 from .manifest import PrioritizationManifestV1
+from .packet import build_review_packet
+from .report import build_report
 from .report_model import PrioritizationReportV1
 from .worklist import (
     RankedWorklistEntryV1,
@@ -287,6 +289,10 @@ def validate_prioritization(
     _check_worklist_order(worklist, assessments, clusters)
     _check_packet_coverage(packet, assessments, worklist)
 
+    from .binding import check_frozen_constants
+
+    check_frozen_constants(manifest, assessments, packet, report)
+
     if manifest.input_opportunity_count != len(assessments):
         raise PrioritizationValidationError("manifest input count is stale")
     if manifest.full_ranked_worklist_count != len(worklist):
@@ -355,8 +361,6 @@ def validate_prioritization_against_inputs(
         member_ids = assessment.member_surface_ids
         if assessment.member_surface_set_digest != surface_set_digest(member_ids):
             raise PrioritizationValidationError("surface-set digest is stale")
-        if assessment.member_surface_set_digest != surface_set_digest(member_ids):
-            raise PrioritizationValidationError("surface-set digest mismatch")
         raw_texts = tuple(
             surfaces_by_id[surface_id].raw_text for surface_id in member_ids
         )
@@ -432,6 +436,34 @@ def validate_prioritization_against_inputs(
         )
         if assessment.planning_noise is not PlanningNoiseV1.NONE:
             raise PrioritizationValidationError("noise entered the review packet")
+
+    expected_worklist = rank_worklist(expected_assessments, expected_clusters)
+    if tuple(item.to_wire() for item in result.worklist) != tuple(
+        item.to_wire() for item in expected_worklist
+    ):
+        raise PrioritizationValidationError("ranked worklist does not match inputs")
+    expected_packet = build_review_packet(
+        loaded, expected_assessments, expected_clusters, expected_worklist
+    )
+    if result.packet.to_wire() != expected_packet.to_wire():
+        raise PrioritizationValidationError(
+            "review packet does not match validated inputs"
+        )
+    groups_by_id = {item.group_id: item for item in loaded.groups}
+    expected_report = build_report(
+        loaded,
+        expected_assessments,
+        expected_clusters,
+        expected_worklist,
+        expected_packet,
+        groups_by_id,
+    )
+    if result.report.to_wire() != expected_report.to_wire():
+        raise PrioritizationValidationError("report does not match validated inputs")
+
+    from .binding import check_parent_bindings
+
+    check_parent_bindings(result.packet, result.report, loaded)
     return result
 
 

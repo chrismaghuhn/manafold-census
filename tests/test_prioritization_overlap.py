@@ -100,14 +100,20 @@ def test_tampered_overlap_cluster_is_rejected(tmp_path) -> None:
         default_loaded_inputs(), tmp_path / "output"
     ).output_directory
     path = output / "mechanical-overlap-clusters.jsonl"
-    lines = path.read_text(encoding="utf-8").splitlines()
-    first = json.loads(lines[0])
-    members = list(first["member_opportunity_ids"])
-    members.append(members[0])
-    first["member_opportunity_ids"] = sorted(set(members))
-    first["member_count"] = len(first["member_opportunity_ids"])
-    lines[0] = canonical_json_bytes(first).decode("utf-8")
-    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    body = [line for line in path.read_bytes().split(b"\n") if line]
+    first = json.loads(body[0])
+    members = sorted(first["member_opportunity_ids"])
+    if len(members) >= 2:
+        current = first["representative_opportunity_id"]
+        first["representative_opportunity_id"] = next(
+            item for item in members if item != current
+        )
+    else:
+        digest = first["member_surface_set_digest"]
+        flipped = "0" if digest[-1] != "0" else "1"
+        first["member_surface_set_digest"] = digest[:-1] + flipped
+    body[0] = canonical_json_bytes(first)
+    path.write_bytes(b"\n".join(body) + b"\n")
     try:
         validate_prioritization(output)
     except PrioritizationValidationError:
