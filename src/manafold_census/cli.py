@@ -31,6 +31,7 @@ from .digest import REPRODUCTION_DOMAIN, domain_digest, measure_file, sha256_byt
 from .explorer.cli import add_explorer_parser, dispatch_explorer_command
 from .inventory.cli import add_m6_02_parsers, dispatch_m6_02_command
 from .models import ArtifactManifest, DatasetManifest, SourceLock, StudySpec
+from .prioritization.cli import add_m6_03_parsers, dispatch_m6_03_command
 from .release.cli import add_m5_parsers, dispatch_m5_command
 from .resources import project_data_root
 from .source.scryfall import discover_oracle_cards, refresh_current_source
@@ -391,6 +392,7 @@ def _parser() -> argparse.ArgumentParser:
         subparsers.add_parser(command, parents=[m4_parent])
     add_m5_parsers(subparsers)
     add_m6_02_parsers(subparsers)
+    add_m6_03_parsers(subparsers)
     add_explorer_parser(subparsers)
     return parser
 
@@ -459,6 +461,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         m6_02_result = dispatch_m6_02_command(args)
         if m6_02_result is not None:
             return m6_02_result
+        m6_03_result = dispatch_m6_03_command(args)
+        if m6_03_result is not None:
+            return m6_03_result
         explorer_result = dispatch_explorer_command(args)
         if explorer_result is not None:
             return explorer_result
